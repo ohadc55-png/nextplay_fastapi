@@ -9,12 +9,12 @@ python-multipart==0.0.20
 
 # === Validation ===
 pydantic==2.11.10
-pydantic-settings==2.7.0
+pydantic-settings>=2.10,<3  # crewai 1.10.1 requires ~=2.10.1
 
 # === Database (async) ===
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
-aiosqlite==0.20.0
+aiosqlite>=0.21,<0.22  # crewai 1.10.1 requires ~=0.21.0
 alembic==1.14.0
 
 # === Auth ===
@@ -24,8 +24,7 @@ authlib==1.6.9
 httpx==0.28.1
 
 # === AWS S3 (async) ===
-aioboto3==13.4.0
-boto3==1.42.86  # kept for sync S3 callers that may not yet be ported
+aioboto3==13.4.0  # pulls in compatible botocore via aiobotocore; no direct boto3 in new code
 
 # === AI ===
 openai==2.17.0
