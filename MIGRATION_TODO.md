@@ -9,7 +9,13 @@ Tracked deferrals from the Flask → FastAPI migration. Each entry has phase, ow
 
 ## Phase 1 — Models
 
-(empty)
+### Decisions logged (parity-first)
+
+- **`memories.embedding_json` stays as `JSONText`** (1536-dim float vector serialized as JSON string), matching v1.0-flask. **Future:** when we want vector-similarity search at scale, migrate the column type to `pgvector` and add an `ivfflat`/`hnsw` index. Cosine similarity today is computed in Python after a SQL fetch — fine for the user volumes the app currently serves.
+- **`storage_quota` singleton (`id = 1`)** preserved as-is. Anti-pattern but matches v1.0-flask semantics. Reconsider post-migration if/when multi-tenant quota is needed.
+- **`team_profile.id` uses Postgres `SERIAL`** uniformly (no `DEFAULT 1` SQLite shim from v1.0-flask). The legacy default was an artifact of single-team mode and is no longer reachable.
+- **Inline `CREATE TABLE` in v1.0-flask routes** (`ip_geo_cache` in `backend/admin/routes.py`, `sales_inquiries` in `backend/api/admin.py`) become first-class models in `src/models/`. The inline definitions in v1.0-flask stay until those routes are ported in Phase 4.
+- **`mailing_lists` + `mailing_list_members`** included in models (added by `add_email_infrastructure.py` migration; not in earlier inventory drafts).
 
 ## Phase 5 — AI
 

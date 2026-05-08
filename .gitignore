@@ -54,6 +54,8 @@ knowledge_base/documents/*.pdf
 
 # --- Generated reports / artifacts ---
 reports/
+schema_baseline.md
+schema_baseline.txt
 
 # --- Misc ---
 notebooks/
