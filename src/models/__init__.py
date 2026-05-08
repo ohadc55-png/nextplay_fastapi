@@ -9,8 +9,23 @@ Add new models to the imports below as they land in subsequent batches.
 from src.models.auth import AuditLog, AuthToken, RefreshToken, SocialAccount
 from src.models.clubs import Club, InviteCode
 from src.models.coach import CoachPreference, Feedback
+from src.models.conversations import Conversation
+from src.models.notebook import NotebookAttendance, NotebookEntry, NotebookEntryPlayer
 from src.models.players import Player, PlayerGameStat, PlayerMetric
+from src.models.plays import Play, PlayShare
+from src.models.scouting import (
+    ClipPlaylist,
+    ClipShare,
+    CompileCard,
+    PlaylistItem,
+    ScoutingPlayer,
+    ScoutingVideo,
+    StorageQuota,
+    VideoAnnotation,
+    VideoClip,
+)
 from src.models.teams import TeamProfile
+from src.models.uploads import Upload
 from src.models.users import User
 
 __all__ = [
@@ -31,4 +46,24 @@ __all__ = [
     # Coach personalization
     "CoachPreference",
     "Feedback",
+    # Content
+    "Upload",
+    "Conversation",
+    # Notebook
+    "NotebookEntry",
+    "NotebookAttendance",
+    "NotebookEntryPlayer",
+    # Plays
+    "Play",
+    "PlayShare",
+    # Scouting / video room
+    "ScoutingVideo",
+    "VideoClip",
+    "VideoAnnotation",
+    "ClipPlaylist",
+    "PlaylistItem",
+    "ClipShare",
+    "StorageQuota",
+    "ScoutingPlayer",
+    "CompileCard",
 ]
