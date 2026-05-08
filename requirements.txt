@@ -1,0 +1,63 @@
+# NEXTPLAY (FastAPI) — pinned dependencies
+# Mirrors the legacy Flask stack 1:1 where possible; switches sync drivers to async.
+
+# === Web framework ===
+fastapi[all]==0.115.6
+uvicorn[standard]==0.32.1
+jinja2==3.1.4
+python-multipart==0.0.20
+
+# === Validation ===
+pydantic==2.11.10
+pydantic-settings==2.7.0
+
+# === Database (async) ===
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+aiosqlite==0.20.0
+alembic==1.14.0
+
+# === Auth ===
+python-jose[cryptography]==3.3.0
+bcrypt==5.0.0
+authlib==1.6.9
+httpx==0.28.1
+
+# === AWS S3 (async) ===
+aioboto3==13.4.0
+boto3==1.42.86  # kept for sync S3 callers that may not yet be ported
+
+# === AI ===
+openai==2.17.0
+crewai==1.10.1
+crewai-tools==1.10.1
+chromadb==1.1.1
+sentence-transformers==5.3.0
+tiktoken>=0.7.0
+
+# === Research pipeline ===
+playwright==1.59.0  # local-only fallback; ENABLE_PLAYWRIGHT_FALLBACK=0 in Railway
+beautifulsoup4>=4.12
+
+# === Document processing ===
+pymupdf==1.26.7
+openpyxl==3.1.5
+pandas==2.3.3
+pillow>=10.0  # avatar resize / WebP encode
+
+# === Email + Push ===
+resend==2.29.0
+pywebpush==2.3.0
+
+# === Rate limiting ===
+slowapi==0.1.9
+
+# === Monitoring ===
+sentry-sdk[fastapi]==2.45.0
+
+# === Dev tooling ===
+pytest==8.3.5
+pytest-asyncio==0.24.0
+pytest-cov==6.1.1
+ruff==0.11.12
+bandit==1.9.4

@@ -1,0 +1,60 @@
+# --- Secrets / config ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/
+.env-venv/
+
+# --- IDEs / editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Test / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# --- Build artifacts ---
+build/
+dist/
+*.egg
+
+# --- Logs ---
+*.log
+
+# --- Local data ---
+data/
+!data/.gitkeep
+
+# --- ChromaDB persistent store ---
+knowledge_base/chroma_store/
+knowledge_base/.ingested_manifest.json
+knowledge_base/documents/*.pdf
+
+# --- Frontend (copied verbatim from v1.0-flask in Phase 8 — gitkeep handled then) ---
+
+# --- Generated reports / artifacts ---
+reports/
+
+# --- Misc ---
+notebooks/
+.ipynb_checkpoints/
