@@ -42,7 +42,7 @@ dist/
 *.log
 
 # --- Local data ---
-data/
+data/*
 !data/.gitkeep
 
 # --- ChromaDB persistent store ---
