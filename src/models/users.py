@@ -53,12 +53,18 @@ class User(Base):
     active_team_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Email infrastructure (from add_email_infrastructure)
-    email_marketing: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    email_marketing: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     unsubscribe_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    email_infra_signup: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    email_infra_signup: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Push notifications (from add_push_infrastructure)
-    push_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    push_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     push_quiet_start: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, server_default="22")
     push_quiet_end: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, server_default="7")
     last_push_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -49,7 +49,9 @@ class AdminTaskSubtask(Base):
         Integer, ForeignKey("admin_tasks.id", ondelete="CASCADE"), nullable=False
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    done: Mapped[bool | None] = mapped_column(Boolean, nullable=True, server_default="false")
+    done: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=False, server_default="false"
+    )
     position: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())
 

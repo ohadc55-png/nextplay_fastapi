@@ -22,6 +22,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from src.api import auth as auth_router
 from src.api import email_auth as email_auth_router
 from src.api import oauth as oauth_router
+from src.api import push as push_router
+from src.api import tracking as tracking_router
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import AppError
@@ -164,4 +166,12 @@ app.include_router(auth_router.router)
 app.include_router(email_auth_router.router)
 app.include_router(oauth_router.router)
 
-# Domain routers (chat, coach, teams, ...) land in Phase 4.
+# ---------------------------------------------------------------------------
+# Routers (Phase 4 — domain endpoints, batch by batch)
+# ---------------------------------------------------------------------------
+
+app.include_router(tracking_router.router)
+app.include_router(push_router.router)
+
+# Remaining Phase 4 batches (admin, notebook, plays, scouting, coach/teams/
+# players, sessions, uploads) land in subsequent commits.

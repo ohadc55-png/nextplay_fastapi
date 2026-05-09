@@ -50,7 +50,9 @@ class Player(Base):
     weaknesses: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     dominant_hand: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="")
-    active: Mapped[bool | None] = mapped_column(Boolean, nullable=True, server_default="true")  # NULLABLE in prod
+    active: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=True, server_default="true"
+    )  # NULLABLE in prod
 
     # Photo + scouting (added by migrations)
     photo_url: Mapped[str | None] = mapped_column(Text, nullable=True)

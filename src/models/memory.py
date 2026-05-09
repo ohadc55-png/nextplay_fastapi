@@ -54,7 +54,9 @@ class Memory(Base):
     last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())
     superseded_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("memories.id"), nullable=True)
-    active: Mapped[bool | None] = mapped_column(Boolean, nullable=True, server_default="true")
+    active: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=True, server_default="true"
+    )
     # 1536-dim float vector serialized as JSON array text (text-embedding-3-small)
     embedding_json: Mapped[list | None] = mapped_column(JSONText, nullable=True)
 
