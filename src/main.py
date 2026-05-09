@@ -24,6 +24,7 @@ from src.api import admin_emails as admin_emails_router
 from src.api import admin_tasks as admin_tasks_router
 from src.api import auth as auth_router
 from src.api import email_auth as email_auth_router
+from src.api import notebook as notebook_router
 from src.api import oauth as oauth_router
 from src.api import push as push_router
 from src.api import tracking as tracking_router
@@ -178,6 +179,7 @@ app.include_router(push_router.router)
 app.include_router(admin_router.router)
 app.include_router(admin_tasks_router.router)
 app.include_router(admin_emails_router.router)
+app.include_router(notebook_router.router)
 
-# Remaining Phase 4 batches (notebook, plays, scouting, coach/teams/
-# players, sessions, uploads) land in subsequent commits.
+# Remaining Phase 4 batches (plays, scouting, coach/teams/players,
+# sessions, uploads) land in subsequent commits.

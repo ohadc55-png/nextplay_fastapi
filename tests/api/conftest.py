@@ -67,8 +67,13 @@ async def api_client(api_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
     app.dependency_overrides[get_db] = _override_get_db
     try:
         with patch.object(settings, "JWT_SECRET_KEY", JWT_SECRET):
+            # X-Requested-With satisfies the CSRF middleware on every
+            # state-changing /api/* request — matches what the SPA's
+            # fetch wrapper sets in real life.
             async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                headers={"X-Requested-With": "XMLHttpRequest"},
             ) as c:
                 yield c
     finally:
