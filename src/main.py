@@ -23,12 +23,16 @@ from src.api import admin as admin_router
 from src.api import admin_emails as admin_emails_router
 from src.api import admin_tasks as admin_tasks_router
 from src.api import auth as auth_router
+from src.api import coach as coach_router
+from src.api import composite as composite_router
 from src.api import email_auth as email_auth_router
 from src.api import notebook as notebook_router
 from src.api import oauth as oauth_router
+from src.api import players as players_router
 from src.api import plays as plays_router
 from src.api import push as push_router
 from src.api import scouting as scouting_router
+from src.api import teams as teams_router
 from src.api import tracking as tracking_router
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
@@ -184,6 +188,9 @@ app.include_router(admin_emails_router.router)
 app.include_router(notebook_router.router)
 app.include_router(plays_router.router)
 app.include_router(scouting_router.router)
+app.include_router(coach_router.router)
+app.include_router(teams_router.router)
+app.include_router(players_router.router)
+app.include_router(composite_router.router)
 
-# Remaining Phase 4 batches (coach/teams/players, sessions, uploads)
-# land in subsequent commits.
+# Remaining Phase 4 batches (sessions, uploads) land in subsequent commits.
