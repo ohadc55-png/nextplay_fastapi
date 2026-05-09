@@ -34,7 +34,7 @@ def _build_csp(nonce: str) -> str:
         "https://vjs.zencdn.net https://www.youtube.com https://s.ytimg.com "
         "https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com "
-        "https://vjs.zencdn.net; "
+        "https://vjs.zencdn.net https://cdn.jsdelivr.net; "
         "font-src 'self' data: https://fonts.gstatic.com; "
         "img-src 'self' data: blob: https:; "
         "frame-src https://accounts.google.com https://appleid.apple.com "

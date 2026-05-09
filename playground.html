@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>NEXTPLAY API Playground</title>
+  <style>
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      max-width: 720px;
+      margin: 24px auto;
+      padding: 0 16px;
+      color: #222;
+    }
+    h1 { margin-bottom: 4px; }
+    .sub { color: #666; margin-bottom: 24px; }
+    section {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #fafafa;
+    }
+    label { display: block; font-size: 13px; color: #555; margin-top: 8px; }
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    button {
+      margin-top: 12px;
+      padding: 8px 16px;
+      background: #ff6b35;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    button:hover { background: #e65a25; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .out {
+      margin-top: 12px;
+      padding: 12px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 4px;
+      font-family: Menlo, Consolas, monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .agent-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: #ff6b35;
+      color: white;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+  </style>
+</head>
+<body>
+  <h1>NEXTPLAY playground</h1>
+  <div class="sub">Local API at <code>http://localhost:5050</code></div>
+
+  <section id="auth">
+    <strong>1. Register / Login</strong>
+    <div class="row">
+      <div>
+        <label>Email</label>
+        <input id="email" value="play1@example.com" />
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="password" type="text" value="TestPass1" />
+      </div>
+    </div>
+    <label>Display name (only on register)</label>
+    <input id="displayName" value="Coach" />
+    <div class="row">
+      <button onclick="doRegister()">Register</button>
+      <button onclick="doLogin()">Login</button>
+      <button onclick="doMe()">Who am I?</button>
+    </div>
+    <div class="out" id="authOut">(no response yet)</div>
+  </section>
+
+  <section id="chat">
+    <strong>2. Chat</strong>
+    <label>Agent</label>
+    <select id="agent">
+      <option value="">- auto-route (router picks) -</option>
+      <option value="gm">Brad Binn (GM)</option>
+      <option value="scout">Jack Hunter (Scout)</option>
+      <option value="analytics">Nexus (Analytics)</option>
+      <option value="tactics">Vance (Tactics)</option>
+      <option value="training">Williams (Training)</option>
+    </select>
+    <label>Message</label>
+    <textarea id="message">Build me a 90-minute practice plan focused on transition defense.</textarea>
+    <button onclick="doChat()">Send (non-streaming)</button>
+    <button onclick="doStream()">Send (streaming)</button>
+    <div id="chatTag"></div>
+    <div class="out" id="chatOut">(no response yet)</div>
+  </section>
+
+  <section>
+    <strong>3. Other quick checks</strong>
+    <div class="row">
+      <button onclick="doHealth()">/healthz</button>
+      <button onclick="doAgents()">/api/agents</button>
+      <button onclick="doHistory()">/api/history/playground-1</button>
+      <button onclick="doKbStats()">/api/kb-stats</button>
+    </div>
+    <div class="out" id="miscOut">(no response yet)</div>
+  </section>
+
+  <script>
+    const BASE = "http://localhost:5050";
+    const SESSION = "playground-1";
+
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.credentials = "include";
+      opts.headers = Object.assign({"X-Requested-With": "XMLHttpRequest"}, opts.headers || {});
+      if (opts.body && typeof opts.body !== "string") {
+        opts.body = JSON.stringify(opts.body);
+        opts.headers["Content-Type"] = "application/json";
+      }
+      const r = await fetch(BASE + path, opts);
+      const text = await r.text();
+      try { return {status: r.status, body: JSON.parse(text)}; }
+      catch { return {status: r.status, body: text}; }
+    }
+
+    function show(id, obj) {
+      document.getElementById(id).textContent =
+        typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    }
+
+    function setChatTag(agentName) {
+      const wrap = document.getElementById("chatTag");
+      wrap.textContent = "";
+      if (!agentName) return;
+      const span = document.createElement("span");
+      span.className = "agent-tag";
+      span.textContent = agentName;
+      wrap.appendChild(span);
+    }
+
+    async function doRegister() {
+      const r = await api("/api/auth/register", {
+        method: "POST",
+        body: {
+          email: document.getElementById("email").value,
+          password: document.getElementById("password").value,
+          display_name: document.getElementById("displayName").value,
+        },
+      });
+      show("authOut", r);
+    }
+    async function doLogin() {
+      const r = await api("/api/auth/login", {
+        method: "POST",
+        body: {
+          email: document.getElementById("email").value,
+          password: document.getElementById("password").value,
+        },
+      });
+      show("authOut", r);
+    }
+    async function doMe() {
+      const r = await api("/api/auth/me");
+      show("authOut", r);
+    }
+    async function doChat() {
+      const agent = document.getElementById("agent").value || null;
+      const out = document.getElementById("chatOut");
+      out.textContent = "thinking...";
+      setChatTag("");
+      const r = await api("/api/chat", {
+        method: "POST",
+        body: {
+          message: document.getElementById("message").value,
+          session_id: SESSION,
+          agent,
+        },
+      });
+      if (r.status === 200 && r.body && r.body.response) {
+        setChatTag(r.body.agent_used);
+        out.textContent = r.body.response;
+      } else {
+        show("chatOut", r);
+      }
+    }
+    async function doStream() {
+      const agent = document.getElementById("agent").value || null;
+      const out = document.getElementById("chatOut");
+      out.textContent = "streaming...";
+      setChatTag("");
+      const r = await fetch(BASE + "/api/chat-stream", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({
+          message: document.getElementById("message").value,
+          session_id: SESSION,
+          agent,
+        }),
+      });
+      if (!r.ok) {
+        out.textContent = "error: " + r.status + " " + (await r.text());
+        return;
+      }
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      out.textContent = "";
+      let buf = "";
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, {stream: true});
+        const events = buf.split("\n\n");
+        buf = events.pop();
+        for (const e of events) {
+          if (!e.startsWith("data:")) continue;
+          try {
+            const m = JSON.parse(e.slice(5).trim());
+            if (m.t === "chunk") out.textContent += m.c;
+            if (m.t === "error") out.textContent += "\n[error] " + m.message;
+          } catch {}
+        }
+      }
+    }
+    async function doHealth()  { show("miscOut", await api("/healthz")); }
+    async function doAgents()  { show("miscOut", await api("/api/agents")); }
+    async function doHistory() { show("miscOut", await api("/api/history/" + SESSION)); }
+    async function doKbStats() { show("miscOut", await api("/api/kb-stats")); }
+  </script>
+</body>
+</html>
