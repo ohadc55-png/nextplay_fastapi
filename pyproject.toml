@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+# Run async test functions automatically without per-test @pytest.mark.asyncio.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Show short tracebacks + skip warnings noise from third-party deps.
+addopts = "-ra --strict-markers --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:pkg_resources.*",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "RUF"]
+ignore = ["E501"]  # line length handled by formatter
