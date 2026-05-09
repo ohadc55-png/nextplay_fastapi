@@ -19,6 +19,9 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
+from src.api import admin as admin_router
+from src.api import admin_emails as admin_emails_router
+from src.api import admin_tasks as admin_tasks_router
 from src.api import auth as auth_router
 from src.api import email_auth as email_auth_router
 from src.api import oauth as oauth_router
@@ -172,6 +175,9 @@ app.include_router(oauth_router.router)
 
 app.include_router(tracking_router.router)
 app.include_router(push_router.router)
+app.include_router(admin_router.router)
+app.include_router(admin_tasks_router.router)
+app.include_router(admin_emails_router.router)
 
-# Remaining Phase 4 batches (admin, notebook, plays, scouting, coach/teams/
+# Remaining Phase 4 batches (notebook, plays, scouting, coach/teams/
 # players, sessions, uploads) land in subsequent commits.

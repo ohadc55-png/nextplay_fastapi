@@ -159,46 +159,36 @@ def require_pro(
 
 
 # ---------------------------------------------------------------------------
-# Admin auth — separate session cookie scheme (Phase 4 wires the routes)
+# Admin auth — uses Starlette's SessionMiddleware (already wired in main.py)
 # ---------------------------------------------------------------------------
 
-ADMIN_COOKIE_NAME = "admin_session"
+# Session key that the admin login route writes to and we read here.
+ADMIN_SESSION_KEY = "admin_email"
 
 
-def is_admin_email(email: str) -> bool:
-    """Mirrors `backend/admin/routes.py:32` allowlist check."""
-    return email.lower() in {e.lower() for e in settings.admin_emails_list}
+async def get_current_admin(request: Request) -> str:
+    """Returns the logged-in admin's email. Raises 401 if no admin session.
 
+    The admin panel uses Starlette's SessionMiddleware (signed-cookie
+    session, configured in `src/main.py`) instead of JWTs because it's
+    a small surface, browser-only, and benefits from being fully decoupled
+    from the coach token system. The admin login route at
+    `/admin/login` writes `request.session["admin_email"] = <email>`;
+    logout pops it; this dependency reads + validates it on every call."""
+    from src.auth.admin_auth import is_admin_email
 
-async def get_current_admin(
-    request: Request,
-    admin_session: str | None = Cookie(default=None, alias=ADMIN_COOKIE_NAME),
-) -> str:
-    """Returns the admin email. Raises 401 if no valid admin session.
-
-    Phase 3 stub: the admin login route (which sets the cookie) lands in
-    Phase 4 along with the admin panel itself. For now this dependency
-    decodes a signed `<email>:<sig>` cookie format that the admin login
-    will set. Implementation is intentionally minimal — the admin surface
-    is small.
-    """
-    if not admin_session:
+    email = (request.session.get(ADMIN_SESSION_KEY) or "").strip().lower()
+    if not email or not is_admin_email(email):
         raise UnauthorizedError("Admin authentication required")
-    # Format defined when the admin login lands. For now: trust the cookie
-    # value as-is if it matches an admin email (this is a placeholder; the
-    # real implementation will use itsdangerous-style signing).
-    if not is_admin_email(admin_session):
-        raise UnauthorizedError("Admin authentication required")
-    return admin_session.lower()
+    return email
 
 
 __all__ = [
     "ACCESS_COOKIE_NAME",
-    "ADMIN_COOKIE_NAME",
+    "ADMIN_SESSION_KEY",
     "get_current_user",
     "get_current_user_optional",
     "require_active_subscription",
     "require_pro",
     "get_current_admin",
-    "is_admin_email",
 ]
