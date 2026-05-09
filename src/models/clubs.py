@@ -27,9 +27,9 @@ class Club(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    subscription_plan: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="academy10")
-    max_seats: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="10")
-    pooled_storage_gb: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="100")
+    subscription_plan: Mapped[str] = mapped_column(Text, nullable=False, server_default="academy10")
+    max_seats: Mapped[int] = mapped_column(Integer, nullable=False, server_default="10")
+    pooled_storage_gb: Mapped[int] = mapped_column(Integer, nullable=False, server_default="100")
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
     updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
 
@@ -45,7 +45,7 @@ class InviteCode(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     email: Mapped[str | None] = mapped_column(Text, nullable=True)
-    plan: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="pro")
+    plan: Mapped[str] = mapped_column(Text, nullable=False, server_default="pro")
     redeemed_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     redeemed_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     club_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("clubs.id"), nullable=True)

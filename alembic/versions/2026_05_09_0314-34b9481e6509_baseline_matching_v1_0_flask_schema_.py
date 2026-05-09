@@ -1,20 +1,18 @@
-"""baseline matching v1.0-flask schema
+"""baseline matching v1.0-flask schema (parity-fixed)
 
-Revision ID: ad5514bfb223
+Revision ID: 34b9481e6509
 Revises: 
-Create Date: 2026-05-09 02:56:09.320290
+Create Date: 2026-05-09 03:14:56.256432
 
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 from src.core.database import JSONText
 
-
 # revision identifiers, used by Alembic.
-revision: str = 'ad5514bfb223'
+revision: str = '34b9481e6509'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,8 +24,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('description', sa.Text(), server_default='', nullable=True),
-    sa.Column('status', sa.Text(), server_default='backlog', nullable=True),
-    sa.Column('priority', sa.Text(), server_default='medium', nullable=True),
+    sa.Column('status', sa.Text(), server_default='backlog', nullable=False),
+    sa.Column('priority', sa.Text(), server_default='medium', nullable=False),
     sa.Column('type', sa.Text(), server_default='feature', nullable=True),
     sa.Column('tags_json', JSONText(), server_default='[]', nullable=True),
     sa.Column('link', sa.Text(), server_default='', nullable=True),
@@ -43,9 +41,9 @@ def upgrade() -> None:
     op.create_table('clubs',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('name', sa.Text(), nullable=False),
-    sa.Column('subscription_plan', sa.Text(), server_default='academy10', nullable=True),
-    sa.Column('max_seats', sa.Integer(), server_default='10', nullable=True),
-    sa.Column('pooled_storage_gb', sa.Integer(), server_default='100', nullable=True),
+    sa.Column('subscription_plan', sa.Text(), server_default='academy10', nullable=False),
+    sa.Column('max_seats', sa.Integer(), server_default='10', nullable=False),
+    sa.Column('pooled_storage_gb', sa.Integer(), server_default='100', nullable=False),
     sa.Column('created_at', sa.Text(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.Text(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.PrimaryKeyConstraint('id')
@@ -56,8 +54,8 @@ def upgrade() -> None:
     sa.Column('country_name', sa.Text(), nullable=True),
     sa.Column('city', sa.Text(), nullable=True),
     sa.Column('region', sa.Text(), nullable=True),
-    sa.Column('lat', sa.Float(), nullable=True),
-    sa.Column('lon', sa.Float(), nullable=True),
+    sa.Column('lat', sa.Float(precision=24), nullable=True),
+    sa.Column('lon', sa.Float(precision=24), nullable=True),
     sa.Column('resolved_at', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('ip')
     )
@@ -81,14 +79,6 @@ def upgrade() -> None:
     op.create_index('idx_research_url_log_domain', 'research_url_log', ['domain'], unique=False)
     op.create_index('idx_research_url_log_tier', 'research_url_log', ['tier'], unique=False)
     op.create_index('idx_research_url_log_used_at', 'research_url_log', ['used_at'], unique=False)
-    op.create_table('storage_quota',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('storage_used_bytes', sa.BigInteger(), server_default='0', nullable=True),
-    sa.Column('storage_limit_bytes', sa.BigInteger(), server_default='10737418240', nullable=True),
-    sa.Column('video_ttl_days', sa.Integer(), server_default='14', nullable=True),
-    sa.Column('updated_at', sa.Text(), nullable=True),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('admin_task_comments',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('task_id', sa.Integer(), nullable=False),
@@ -203,7 +193,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('card_type', sa.Text(), nullable=False),
-    sa.Column('config_json', JSONText(), server_default='{}', nullable=True),
+    sa.Column('config_json', JSONText(), server_default='{}', nullable=False),
     sa.Column('video_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
@@ -231,7 +221,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('code', sa.Text(), nullable=False),
     sa.Column('email', sa.Text(), nullable=True),
-    sa.Column('plan', sa.Text(), server_default='pro', nullable=True),
+    sa.Column('plan', sa.Text(), server_default='pro', nullable=False),
     sa.Column('redeemed_by', sa.Integer(), nullable=True),
     sa.Column('redeemed_at', sa.Text(), nullable=True),
     sa.Column('club_id', sa.Integer(), nullable=True),
@@ -392,7 +382,7 @@ def upgrade() -> None:
     sa.Column('prompt_tokens', sa.Integer(), server_default='0', nullable=True),
     sa.Column('completion_tokens', sa.Integer(), server_default='0', nullable=True),
     sa.Column('total_tokens', sa.Integer(), server_default='0', nullable=True),
-    sa.Column('cost_usd', sa.Float(), server_default='0', nullable=True),
+    sa.Column('cost_usd', sa.Float(precision=24), server_default='0', nullable=True),
     sa.Column('endpoint', sa.Text(), server_default='chat', nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.ForeignKeyConstraint(['team_id'], ['team_profile.id'], ),
@@ -491,10 +481,10 @@ def upgrade() -> None:
     sa.Column('entry_type', sa.Text(), nullable=False),
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('entry_date', sa.Text(), nullable=False),
-    sa.Column('content_json', JSONText(), server_default='{}', nullable=True),
+    sa.Column('content_json', JSONText(), server_default='{}', nullable=False),
     sa.Column('player_id', sa.Integer(), nullable=True),
-    sa.Column('source', sa.Text(), server_default='manual', nullable=True),
-    sa.Column('tags_json', JSONText(), server_default='[]', nullable=True),
+    sa.Column('source', sa.Text(), server_default='manual', nullable=False),
+    sa.Column('tags_json', JSONText(), server_default='[]', nullable=False),
     sa.Column('created_at', sa.Text(), nullable=True),
     sa.Column('updated_at', sa.Text(), nullable=True),
     sa.ForeignKeyConstraint(['team_id'], ['team_profile.id'], ),
@@ -565,7 +555,7 @@ def upgrade() -> None:
     sa.Column('weaknesses', sa.Text(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
     sa.Column('dominant_hand', sa.Text(), server_default='', nullable=True),
-    sa.Column('active', sa.Boolean(), server_default='true', nullable=False),
+    sa.Column('active', sa.Boolean(), server_default='true', nullable=True),
     sa.Column('photo_url', sa.Text(), nullable=True),
     sa.Column('scout_summary', sa.Text(), nullable=True),
     sa.Column('metrics_filled_at', sa.DateTime(), nullable=True),
@@ -604,8 +594,8 @@ def upgrade() -> None:
     sa.Column('s3_url', sa.Text(), nullable=True),
     sa.Column('thumbnail_url', sa.Text(), nullable=True),
     sa.Column('original_name', sa.Text(), nullable=True),
-    sa.Column('file_size', sa.BigInteger(), server_default='0', nullable=True),
-    sa.Column('duration_seconds', sa.Float(), server_default='0', nullable=True),
+    sa.Column('file_size', sa.Integer(), server_default='0', nullable=True),
+    sa.Column('duration_seconds', sa.Float(precision=24), server_default='0', nullable=True),
     sa.Column('opponent', sa.Text(), server_default='', nullable=True),
     sa.Column('game_date', sa.Text(), server_default='', nullable=True),
     sa.Column('expires_at', sa.DateTime(), nullable=True),
@@ -635,6 +625,18 @@ def upgrade() -> None:
     sa.UniqueConstraint('session_id')
     )
     op.create_index('idx_session_summaries_user', 'session_summaries', ['user_id', 'team_id'], unique=False)
+    op.create_table('storage_quota',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=True),
+    sa.Column('team_id', sa.Integer(), nullable=True),
+    sa.Column('storage_used_bytes', sa.Integer(), server_default='0', nullable=True),
+    sa.Column('storage_limit_bytes', sa.BigInteger(), server_default='10737418240', nullable=True),
+    sa.Column('video_ttl_days', sa.Integer(), server_default='14', nullable=True),
+    sa.Column('updated_at', sa.Text(), nullable=True),
+    sa.ForeignKeyConstraint(['team_id'], ['team_profile.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('uploads',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
@@ -671,7 +673,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('entry_id', sa.Integer(), nullable=False),
     sa.Column('player_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Text(), server_default='present', nullable=True),
+    sa.Column('status', sa.Text(), server_default='present', nullable=False),
     sa.Column('note', sa.Text(), server_default='', nullable=True),
     sa.ForeignKeyConstraint(['entry_id'], ['notebook_entries.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -708,8 +710,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('video_id', sa.Integer(), nullable=False),
     sa.Column('title', sa.Text(), nullable=False),
-    sa.Column('start_time', sa.Float(), nullable=False),
-    sa.Column('end_time', sa.Float(), nullable=False),
+    sa.Column('start_time', sa.Float(precision=24), nullable=False),
+    sa.Column('end_time', sa.Float(precision=24), nullable=False),
     sa.Column('action_type', sa.Text(), server_default='other', nullable=True),
     sa.Column('rating', sa.Text(), nullable=True),
     sa.Column('notes', sa.Text(), server_default='', nullable=True),
@@ -733,8 +735,8 @@ def upgrade() -> None:
     sa.Column('video_id', sa.Integer(), nullable=False),
     sa.Column('clip_id', sa.Integer(), nullable=True),
     sa.Column('annotation_type', sa.Text(), nullable=False),
-    sa.Column('timestamp', sa.Float(), nullable=False),
-    sa.Column('duration', sa.Float(), server_default='3.0', nullable=True),
+    sa.Column('timestamp', sa.Float(precision=24), nullable=False),
+    sa.Column('duration', sa.Float(precision=24), server_default='3.0', nullable=True),
     sa.Column('stroke_data', sa.Text(), nullable=True),
     sa.Column('color', sa.Text(), server_default='#FF0000', nullable=True),
     sa.Column('stroke_width', sa.Integer(), server_default='3', nullable=True),
@@ -765,6 +767,7 @@ def downgrade() -> None:
     op.drop_index('idx_uploads_user_id', table_name='uploads')
     op.drop_index('idx_uploads_team_id', table_name='uploads')
     op.drop_table('uploads')
+    op.drop_table('storage_quota')
     op.drop_index('idx_session_summaries_user', table_name='session_summaries')
     op.drop_table('session_summaries')
     op.drop_index('idx_scouting_videos_user_id', table_name='scouting_videos')
@@ -843,7 +846,6 @@ def downgrade() -> None:
     op.drop_table('admin_task_subtasks')
     op.drop_index('idx_admin_task_comments_task', table_name='admin_task_comments')
     op.drop_table('admin_task_comments')
-    op.drop_table('storage_quota')
     op.drop_index('idx_research_url_log_used_at', table_name='research_url_log')
     op.drop_index('idx_research_url_log_tier', table_name='research_url_log')
     op.drop_index('idx_research_url_log_domain', table_name='research_url_log')

@@ -21,8 +21,8 @@ class IpGeoCache(Base):
     country_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(Text, nullable=True)
     region: Mapped[str | None] = mapped_column(Text, nullable=True)
-    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
-    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lat: Mapped[float | None] = mapped_column(Float(precision=24), nullable=True)  # REAL in prod
+    lon: Mapped[float | None] = mapped_column(Float(precision=24), nullable=True)  # REAL in prod
     resolved_at: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

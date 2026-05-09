@@ -55,8 +55,8 @@ class ScoutingVideo(Base):
     s3_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_name: Mapped[str | None] = mapped_column(Text, nullable=True)
-    file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True, server_default="0")
-    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True, server_default="0")
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")  # REAL state in prod is INTEGER
+    duration_seconds: Mapped[float | None] = mapped_column(Float(precision=24), nullable=True, server_default="0")  # REAL in prod
 
     # Game metadata
     opponent: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="")
@@ -84,8 +84,8 @@ class VideoClip(Base):
         Integer, ForeignKey("scouting_videos.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    start_time: Mapped[float] = mapped_column(Float, nullable=False)
-    end_time: Mapped[float] = mapped_column(Float, nullable=False)
+    start_time: Mapped[float] = mapped_column(Float(precision=24), nullable=False)  # REAL in prod
+    end_time: Mapped[float] = mapped_column(Float(precision=24), nullable=False)  # REAL in prod
     action_type: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="other")
     rating: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="")
@@ -103,8 +103,8 @@ class VideoAnnotation(Base):
         Integer, ForeignKey("video_clips.id", ondelete="SET NULL"), nullable=True
     )
     annotation_type: Mapped[str] = mapped_column(Text, nullable=False)  # drawing | text | arrow | highlight
-    timestamp: Mapped[float] = mapped_column(Float, nullable=False)
-    duration: Mapped[float | None] = mapped_column(Float, nullable=True, server_default="3.0")
+    timestamp: Mapped[float] = mapped_column(Float(precision=24), nullable=False)  # REAL in prod
+    duration: Mapped[float | None] = mapped_column(Float(precision=24), nullable=True, server_default="3.0")  # REAL in prod
     stroke_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # raw SVG / canvas commands
     color: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="#FF0000")
     stroke_width: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="3")
@@ -155,18 +155,20 @@ class ClipShare(Base):
 
 
 class StorageQuota(Base):
-    """Global singleton (id=1). Tracks total scouting-video storage used.
+    """Per-user / per-team storage quota row.
 
-    Anti-pattern preserved 1:1 from v1.0-flask. The single row holds the cluster's
-    aggregate quota. Multi-tenant per-coach quotas are tracked via
-    `team_profile.extra_storage_gb` add-ons. Reconsider post-migration.
+    Original v1.0-flask design was a singleton (id=1) tracking cluster-wide
+    storage. Production schema actually has user_id + team_id columns —
+    storage is tracked per (user, team) pair. Adopting prod's reality.
     """
 
     __tablename__ = "storage_quota"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # always 1; not autoincrement
-    storage_used_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True, server_default="0")
-    storage_limit_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True, server_default="10737418240")  # 10 GiB
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    team_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("team_profile.id"), nullable=True)
+    storage_used_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
+    storage_limit_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True, server_default="10737418240")  # 10 GiB — won't fit in INT
     video_ttl_days: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="14")
     updated_at: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -201,7 +203,7 @@ class CompileCard(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     card_type: Mapped[str] = mapped_column(Text, nullable=False)
-    config_json: Mapped[dict | None] = mapped_column(JSONText, nullable=True, server_default="'{}'")
+    config_json: Mapped[dict] = mapped_column(JSONText, nullable=False, server_default="'{}'")
     video_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # soft FK
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())

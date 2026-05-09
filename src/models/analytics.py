@@ -83,7 +83,7 @@ class ApiUsageLog(Base):
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
     total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
-    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True, server_default="0")
+    cost_usd: Mapped[float | None] = mapped_column(Float(precision=24), nullable=True, server_default="0")  # REAL in prod
     endpoint: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="chat")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 

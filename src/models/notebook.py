@@ -30,10 +30,10 @@ class NotebookEntry(Base):
     entry_type: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     entry_date: Mapped[str] = mapped_column(Text, nullable=False)  # ISO date YYYY-MM-DD
-    content_json: Mapped[dict | None] = mapped_column(JSONText, nullable=True, server_default="'{}'")
+    content_json: Mapped[dict] = mapped_column(JSONText, nullable=False, server_default="'{}'")
     player_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # legacy single-player link
-    source: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="manual")
-    tags_json: Mapped[list | None] = mapped_column(JSONText, nullable=True, server_default="'[]'")
+    source: Mapped[str] = mapped_column(Text, nullable=False, server_default="manual")
+    tags_json: Mapped[list] = mapped_column(JSONText, nullable=False, server_default="'[]'")
     created_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -52,7 +52,7 @@ class NotebookAttendance(Base):
         Integer, ForeignKey("notebook_entries.id", ondelete="CASCADE"), nullable=False
     )
     player_id: Mapped[int] = mapped_column(Integer, nullable=False)  # soft-FK
-    status: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="present")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="present")
     note: Mapped[str | None] = mapped_column(Text, nullable=True, server_default="")
 
     __table_args__ = (
