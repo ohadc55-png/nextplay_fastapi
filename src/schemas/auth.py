@@ -59,7 +59,11 @@ class TokenPair(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    """Body for `/api/auth/refresh`. The refresh token is OPTIONAL because
+    browser clients send it as a cookie; only mobile/API clients put it in
+    the request body. The route handler reads cookie-first, body-fallback."""
+
+    refresh_token: str | None = None
 
 
 # ---------------------------------------------------------------------------

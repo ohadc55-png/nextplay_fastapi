@@ -17,10 +17,16 @@ from fastapi.responses import JSONResponse
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from sqlalchemy import text
+from starlette.middleware.sessions import SessionMiddleware
 
+from src.api import auth as auth_router
+from src.api import email_auth as email_auth_router
+from src.api import oauth as oauth_router
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import AppError
+from src.middleware.csrf import CSRFMiddleware
+from src.middleware.security_headers import SecurityHeadersMiddleware
 
 logger = logging.getLogger("nextplay")
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
@@ -87,6 +93,28 @@ app = FastAPI(
 )
 
 
+# Middleware order matters — Starlette runs them in REVERSE-add order, so the
+# LAST add wraps the OTHERS innermost. We want:
+#   request → CORS → SecurityHeaders → CSRF → SessionMiddleware → router
+# CORS first (needs to run on OPTIONS preflights regardless of CSRF).
+# SecurityHeaders must wrap responses to add the headers.
+# CSRF must run before the route handler.
+# SessionMiddleware is required by Authlib OAuth (state storage).
+
+# Authlib's OAuth client needs Starlette's SessionMiddleware to round-trip
+# the OAuth `state` between `/auth/<provider>` and `/<provider>/callback`.
+# A long random secret is used so a forged session cookie can't impersonate
+# a redirect.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SESSION_SECRET_KEY or settings.JWT_SECRET_KEY or "dev-only-do-not-use",
+    same_site="lax",
+    https_only=settings.is_production,
+)
+
+app.add_middleware(CSRFMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -128,8 +156,12 @@ async def healthz() -> dict:
     }
 
 
-# Routers will be included in Phases 3-9.
-# Example shape (deferred):
-# from src.api import auth, chat, coach, teams, players, ...
-# app.include_router(auth.router)
-# app.include_router(chat.router)
+# ---------------------------------------------------------------------------
+# Routers (Phase 3 — auth)
+# ---------------------------------------------------------------------------
+
+app.include_router(auth_router.router)
+app.include_router(email_auth_router.router)
+app.include_router(oauth_router.router)
+
+# Domain routers (chat, coach, teams, ...) land in Phase 4.
