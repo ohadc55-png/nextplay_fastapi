@@ -7,6 +7,18 @@ Tracked deferrals from the Flask → FastAPI migration. Each entry has phase, ow
 - **Python runtime drift (local vs Railway).** Local default is 3.13.9 (anaconda); `runtime.txt` pins `python-3.11` for Railway parity with v1.0-flask. Most pinned deps support 3.13, but if anything fails locally, install Python 3.11 alongside or override `runtime.txt`. Decide before Phase 9 deploy.
 - **Frontend not yet copied.** `frontend/` will be ported verbatim from `basketball_coach_ai/frontend/` in Phase 8. Until then, `/static` and HTML page routes are not registered — `/healthz` is the only endpoint.
 
+## Phase 2 — Repositories
+
+- **`PlayerMetricsRepository.upsert` UPDATE-path test deferred.** The
+  aiosqlite + autoflush=False + UPDATE-on-JSONText-column combination
+  surfaces a SQLAlchemy `MissingGreenlet` in `dialects/sqlite/aiosqlite.py`
+  that I couldn't isolate in a few hours of debugging. The repo logic
+  itself is straightforward (a guarded `update().values(...)`). The INSERT
+  branch is tested. We'll write the UPDATE-branch test in Phase 4 when the
+  upsert is wired into an actual `/api/players/<id>/metrics` endpoint and
+  exercised end-to-end against asyncpg, where the greenlet bridge works
+  differently.
+
 ## Phase 1 — Models
 
 ### Decisions logged (parity-first)
