@@ -11,6 +11,10 @@ addopts = "-ra --strict-markers --tb=short"
 filterwarnings = [
     "ignore::DeprecationWarning:pydantic.*",
     "ignore::DeprecationWarning:pkg_resources.*",
+    # datetime.utcnow() is deprecated on 3.13 but we use it intentionally for
+    # naive-UTC timestamps that match the v1.0-flask schema. Replacing with
+    # tz-aware datetimes is a separate workstream — see MIGRATION_TODO.
+    "ignore:datetime.datetime.utcnow.. is deprecated:DeprecationWarning",
 ]
 
 [tool.ruff]
