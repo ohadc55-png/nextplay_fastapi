@@ -101,15 +101,18 @@ class TestChat:
     async def test_happy_path_persists_messages_and_logs_cost(
         self, authed_client: AsyncClient, api_session_factory, fake_openai
     ):
+        # "our team" hits the own-team semantic layer → routes to gm
+        # without an LLM classifier call.
+        msg = "What does our team need to work on?"
         r = await authed_client.post(
             "/api/chat",
-            json={"message": "How do we beat zone defense?", "session_id": "s1"},
+            json={"message": msg, "session_id": "s1"},
         )
         assert r.status_code == 200
         body = r.json()
         assert body["response"] == "Hello coach!"
         assert body["session_id"] == "s1"
-        # No agent specified → resolves to GM per AGENTS registry default
+        # No explicit agent → router lands on gm via own-team marker
         assert body["agent_used"] == "gm"
 
         async with api_session_factory() as s:
@@ -117,7 +120,7 @@ class TestChat:
                 select(Conversation).order_by(Conversation.id)
             )).scalars().all())
             assert [m.role for m in msgs] == ["user", "assistant"]
-            assert msgs[0].content == "How do we beat zone defense?"
+            assert msgs[0].content == msg
             assert msgs[1].content == "Hello coach!"
             assert msgs[1].agent_used == "gm"
 

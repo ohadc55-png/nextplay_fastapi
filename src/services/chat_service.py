@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.crew.agents import AGENTS, DEFAULT_AGENT, build_agent_prompt
 from src.crew.llm import get_client, log_api_usage, log_response
+from src.crew.routing import route_query
 from src.models.conversations import Conversation
 from src.models.players import Player
 from src.models.teams import TeamProfile
@@ -179,6 +180,9 @@ async def send_message(
     team_context = await _build_team_context(
         db, user_id=user.id, team_id=user.active_team_id,
     )
+    # Auto-route via the 3-layer router when the SPA didn't pin an agent.
+    if not agent:
+        agent = await route_query(message, team_ctx=team_context)
     agent_key, system_prompt = build_agent_prompt(agent, team_context)
     response_text = ""
     try:
@@ -260,6 +264,8 @@ async def stream_message(
     team_context = await _build_team_context(
         db, user_id=user.id, team_id=user.active_team_id,
     )
+    if not agent:
+        agent = await route_query(message, team_ctx=team_context)
     agent_key, system_prompt = build_agent_prompt(agent, team_context)
     full_response = ""
     usage_payload: dict | None = None
