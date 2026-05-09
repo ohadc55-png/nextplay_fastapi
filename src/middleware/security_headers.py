@@ -50,6 +50,19 @@ def _build_csp(nonce: str) -> str:
     )
 
 
+# FastAPI's auto-generated documentation pages emit inline `<script>` blocks
+# without our nonce attribute (the HTML template is fixed inside FastAPI),
+# so a nonce-based CSP would block them. These paths are dev-only debug
+# surfaces — skip CSP enforcement on them entirely. The other security
+# headers (X-Frame-Options, X-Content-Type-Options, etc.) still apply.
+_CSP_EXEMPT_PATHS: tuple[str, ...] = (
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/docs/oauth2-redirect",
+)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds standard security headers + a per-request CSP nonce."""
 
@@ -76,7 +89,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if self.hsts_in_production and settings.is_production:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-        response.headers["Content-Security-Policy"] = _build_csp(nonce)
+        # Skip CSP on FastAPI's docs surfaces — see _CSP_EXEMPT_PATHS comment.
+        path = request.url.path
+        if not any(path == p or path.startswith(p + "/") for p in _CSP_EXEMPT_PATHS):
+            response.headers["Content-Security-Policy"] = _build_csp(nonce)
         return response
 
 
