@@ -63,11 +63,14 @@ AsyncSessionLocal = async_sessionmaker(
 # ---------------------------------------------------------------------------
 
 async def get_db() -> AsyncIterator[AsyncSession]:
-    """Yield a request-scoped AsyncSession. Auto-rollback on unhandled errors;
-    the caller (service / router) is responsible for `await session.commit()`."""
+    """Yield a request-scoped AsyncSession. Commit on clean return,
+    rollback on any unhandled exception. Routers / services use
+    `flush()` to push changes within the request; this dependency
+    finalises with `commit()` so writes persist after the response."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
+            await session.commit()
         except Exception:
             await session.rollback()
             raise

@@ -23,6 +23,7 @@ from src.api import admin as admin_router
 from src.api import admin_emails as admin_emails_router
 from src.api import admin_tasks as admin_tasks_router
 from src.api import auth as auth_router
+from src.api import chat as chat_router
 from src.api import coach as coach_router
 from src.api import composite as composite_router
 from src.api import email_auth as email_auth_router
@@ -197,5 +198,8 @@ app.include_router(composite_router.router)
 app.include_router(sessions_router.router)
 app.include_router(uploads_router.router)
 
-# Phase 4 router porting complete. Phase 5 brings the AI stack
-# (CrewAI + ChromaDB + research + chat streaming).
+# ---------------------------------------------------------------------------
+# Phase 5 — AI stack (in progress; chat now uses direct OpenAI, agents +
+# RAG + research land in subsequent batches)
+# ---------------------------------------------------------------------------
+app.include_router(chat_router.router)
