@@ -21,6 +21,41 @@ Tracked deferrals from the Flask → FastAPI migration. Each entry has phase, ow
 
 - **Research cache cross-coach bug.** Re-key cache at `backend/research/web_researcher.py:684-700` (in v1.0-flask) by `(user_id, team_id, query, level_hint, url_hint, hour_bucket)`. **Fix is part of Phase 5; do not skip.**
 
+## Pre-cutover gate — DEPLOY FLASK WIP TO PROD FIRST
+
+The FastAPI baseline (rev `34b9481e6509`) targets the **post-WIP-deploy
+Flask schema** (47 tables). Production Postgres is currently at the
+**pre-WIP state** (38 tables). Before flipping Railway to FastAPI, the WIP
+commit (`45f9ebd` in v1.0-flask repo) must be deployed to prod so the
+idempotent v1.0-flask migrations create the missing schema.
+
+**Specifically, deploying Flask WIP adds:**
+- 9 tables: `auth_tokens`, `email_log`, `mailing_lists`,
+  `mailing_list_members`, `push_subscriptions`, `push_log`,
+  `notebook_entry_players`, `research_url_log`, `sales_inquiries`
+- 10 columns on `users`: `email_marketing`, `unsubscribe_token`,
+  `email_infra_signup`, `push_enabled`, `push_quiet_start`,
+  `push_quiet_end`, `last_push_sent_at`, `last_seen_at`, `timezone`,
+  `data_purge_at`
+- 1 column on `memories`: `embedding_json` (1536-dim vector)
+
+Migrations responsible (all idempotent, all in v1.0-flask `backend/migrations/`):
+- `add_email_infrastructure.py`
+- `add_push_infrastructure.py`
+- `add_notebook_entry_players.py`
+- `add_research_url_log.py`
+- `add_data_purge_at.py`
+- `add_memory_embeddings.py`
+- (`sales_inquiries` is created inline by `backend/api/admin.py` on first
+  endpoint hit — verified prod doesn't have it yet)
+
+**Verification before cutover:** re-run `tools/diff_prod_schema.py`. Expect
+zero drift on shared tables AND zero "tables in models, missing from
+prod". If either is non-zero, the WIP deploy did not complete; investigate
+before flipping the Procfile.
+
+---
+
 ## Post-launch (out of migration scope)
 
 - **Move file-processing pipelines to a queue.** PyMuPDF / openpyxl / pandas extraction is currently inline in chat-upload (UX expects sync). At scale, defer to a Celery/RQ worker.
