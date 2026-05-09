@@ -109,7 +109,8 @@ class TestChat:
         body = r.json()
         assert body["response"] == "Hello coach!"
         assert body["session_id"] == "s1"
-        assert body["agent_used"] == "default"
+        # No agent specified → resolves to GM per AGENTS registry default
+        assert body["agent_used"] == "gm"
 
         async with api_session_factory() as s:
             msgs = list((await s.execute(
@@ -118,7 +119,7 @@ class TestChat:
             assert [m.role for m in msgs] == ["user", "assistant"]
             assert msgs[0].content == "How do we beat zone defense?"
             assert msgs[1].content == "Hello coach!"
-            assert msgs[1].agent_used == "default"
+            assert msgs[1].agent_used == "gm"
 
             usage = list((await s.execute(select(ApiUsageLog))).scalars().all())
             assert len(usage) == 1
@@ -210,6 +211,42 @@ class TestChatStream:
 # ---------------------------------------------------------------------------
 # /api/opening-message (stub until agent personalities)
 # ---------------------------------------------------------------------------
+
+class TestListAgents:
+    async def test_anon_rejected(self, api_client: AsyncClient):
+        r = await api_client.get("/api/agents")
+        assert r.status_code == 401
+
+    async def test_returns_5_agents_in_v1_order(self, authed_client: AsyncClient):
+        r = await authed_client.get("/api/agents")
+        assert r.status_code == 200
+        agents = r.json()["agents"]
+        keys = [a["key"] for a in agents]
+        assert keys == ["gm", "scout", "analytics", "tactics", "training"]
+        # Each entry has the display fields the SPA renders
+        for a in agents:
+            assert a["name"] and a["role"] and a["specialty"]
+
+
+class TestSpecialistRouting:
+    async def test_explicit_agent_persisted(
+        self, authed_client: AsyncClient, api_session_factory, fake_openai
+    ):
+        r = await authed_client.post(
+            "/api/chat",
+            json={"message": "Scout the opponent", "session_id": "s-scout",
+                  "agent": "scout"},
+        )
+        assert r.status_code == 200
+        assert r.json()["agent_used"] == "scout"
+        async with api_session_factory() as s:
+            from src.models.conversations import Conversation
+            from sqlalchemy import select
+            msgs = list((await s.execute(
+                select(Conversation).where(Conversation.role == "assistant")
+            )).scalars().all())
+            assert msgs[0].agent_used == "scout"
+
 
 class TestOpening:
     async def test_returns_greeting_with_user_name(

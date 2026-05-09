@@ -22,8 +22,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps.auth import require_active_subscription
+from src.api.deps.auth import get_current_user, require_active_subscription
 from src.core.database import get_db
+from src.crew.agents import AGENTS
 from src.models.users import User
 from src.services import chat_service
 
@@ -107,6 +108,18 @@ async def chat_stream(
 # ---------------------------------------------------------------------------
 # Opening message (stub until agent personalities land)
 # ---------------------------------------------------------------------------
+
+@router.get("/agents")
+async def list_agents(_user: User = Depends(get_current_user)) -> dict:
+    """Return the staff card for the SPA's agent picker. Order is the v1
+    display order (gm first, then specialists)."""
+    order = ["gm", "scout", "analytics", "tactics", "training"]
+    return {
+        "agents": [
+            {"key": key, **AGENTS[key]} for key in order if key in AGENTS
+        ],
+    }
+
 
 @router.post("/opening-message")
 async def opening_message(

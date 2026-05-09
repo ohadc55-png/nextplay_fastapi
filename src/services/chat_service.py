@@ -33,27 +33,68 @@ from openai import APIError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.crew.agents import AGENTS, DEFAULT_AGENT, build_agent_prompt
 from src.crew.llm import get_client, log_api_usage, log_response
 from src.models.conversations import Conversation
+from src.models.players import Player
+from src.models.teams import TeamProfile
 from src.models.users import User
 
 logger = logging.getLogger(__name__)
 
 
-# Default system prompt until the agent-routing batch lands. Mirrors v1's
-# generic GM tone — "you are a helpful basketball coaching assistant" —
-# rather than putting words in any specific agent's mouth.
-_DEFAULT_SYSTEM_PROMPT = (
-    "You are NEXTPLAY, an AI basketball coaching assistant. Reply in plain "
-    "text (no markdown). Keep answers focused and actionable. If the user "
-    "asks for a play, drill, or scouting report, give specific, concrete "
-    "advice. Never invent player names or stats — if you don't know, say so."
-)
-
 # Cap on history we send to the LLM. v1 uses 12; matching it.
 _HISTORY_LIMIT = 12
 
 _MODEL = "gpt-4o-mini"
+
+
+async def _build_team_context(
+    db: AsyncSession, *, user_id: int, team_id: int | None
+) -> str:
+    """Compose the per-request team context string that gets injected into
+    every agent's system prompt. Mirrors v1 build_team_context — we list
+    the team profile + active roster so the LLM can reference players by
+    name/number without inventing.
+
+    Returns an empty string when the user has no active team."""
+    if team_id is None:
+        return ""
+
+    from sqlalchemy import select
+
+    profile = (await db.execute(
+        select(TeamProfile).where(TeamProfile.id == team_id)
+    )).scalar_one_or_none()
+    players = list((await db.execute(
+        select(Player)
+        .where(Player.team_id == team_id, Player.active.is_(True))
+        .order_by(Player.number.is_(None), Player.number, Player.name)
+    )).scalars().all())
+
+    parts: list[str] = []
+    if profile:
+        parts.append(
+            f"Team: {profile.team_name}"
+            + (f" — League: {profile.league}" if profile.league else "")
+            + (f" — Division: {profile.division}" if profile.division else "")
+        )
+        if profile.play_style:
+            parts.append(f"Play style: {profile.play_style}")
+        if profile.strengths:
+            parts.append(f"Strengths: {profile.strengths}")
+        if profile.weaknesses:
+            parts.append(f"Weaknesses: {profile.weaknesses}")
+
+    if players:
+        parts.append("Active roster:")
+        for p in players:
+            label = f"  #{p.number} {p.name}" if p.number is not None else f"  {p.name}"
+            if p.position:
+                label += f" ({p.position})"
+            parts.append(label)
+
+    return "\n".join(parts) if parts else ""
 
 
 async def _load_history(
@@ -89,11 +130,11 @@ async def _load_history(
 
 
 def _build_messages(
-    history: list[dict], user_message: str
+    *, system_prompt: str, history: list[dict], user_message: str
 ) -> list[dict]:
     """Compose the [system, ...history, user] payload."""
     return [
-        {"role": "system", "content": _DEFAULT_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         *history,
         {"role": "user", "content": user_message},
     ]
@@ -135,7 +176,10 @@ async def send_message(
         db, session_id=session_id, user_id=user.id, team_id=user.active_team_id,
     )
 
-    agent_key = (agent or "default").strip()
+    team_context = await _build_team_context(
+        db, user_id=user.id, team_id=user.active_team_id,
+    )
+    agent_key, system_prompt = build_agent_prompt(agent, team_context)
     response_text = ""
     try:
         client = get_client()
@@ -143,7 +187,11 @@ async def send_message(
         # already in `messages` below.
         resp = await client.chat.completions.create(
             model=_MODEL,
-            messages=_build_messages(history[:-1], message),
+            messages=_build_messages(
+                system_prompt=system_prompt,
+                history=history[:-1],
+                user_message=message,
+            ),
             temperature=0.7,
         )
         response_text = (resp.choices[0].message.content or "").strip()
@@ -209,7 +257,10 @@ async def stream_message(
         db, session_id=session_id, user_id=user.id, team_id=user.active_team_id,
     )
 
-    agent_key = (agent or "default").strip()
+    team_context = await _build_team_context(
+        db, user_id=user.id, team_id=user.active_team_id,
+    )
+    agent_key, system_prompt = build_agent_prompt(agent, team_context)
     full_response = ""
     usage_payload: dict | None = None
 
@@ -219,7 +270,11 @@ async def stream_message(
         # still log cost on streaming calls (matches v1 §2.9 invariant).
         stream = await client.chat.completions.create(
             model=_MODEL,
-            messages=_build_messages(history[:-1], message),
+            messages=_build_messages(
+                system_prompt=system_prompt,
+                history=history[:-1],
+                user_message=message,
+            ),
             temperature=0.7,
             stream=True,
             stream_options={"include_usage": True},
