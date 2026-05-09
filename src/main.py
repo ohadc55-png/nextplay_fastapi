@@ -32,8 +32,10 @@ from src.api import players as players_router
 from src.api import plays as plays_router
 from src.api import push as push_router
 from src.api import scouting as scouting_router
+from src.api import sessions as sessions_router
 from src.api import teams as teams_router
 from src.api import tracking as tracking_router
+from src.api import uploads as uploads_router
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import AppError
@@ -192,5 +194,8 @@ app.include_router(coach_router.router)
 app.include_router(teams_router.router)
 app.include_router(players_router.router)
 app.include_router(composite_router.router)
+app.include_router(sessions_router.router)
+app.include_router(uploads_router.router)
 
-# Remaining Phase 4 batches (sessions, uploads) land in subsequent commits.
+# Phase 4 router porting complete. Phase 5 brings the AI stack
+# (CrewAI + ChromaDB + research + chat streaming).
