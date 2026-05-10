@@ -236,18 +236,49 @@ async def chat_upload(
 async def opening_message(
     body: _OpeningBody,
     user: User = Depends(require_active_subscription),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """First message shown when the user opens chat. v1 generates a
-    personalized greeting via the GM agent's prompt; for now we emit a
-    static greeting so the chat UI bootstraps cleanly. The agent-driven
-    version lands with the agent personalities batch."""
+    """First message shown when the user opens chat.
+
+    Two flows:
+    - `onboarding=scouting` + `agent=gm` + an active team → Brad's
+      player-walkthrough opener (delegates to
+      `generate_scouting_onboarding_opener`).
+    - Otherwise → a short generic greeting. (The full agent-personality
+      opener from v1 lands later; this keeps the UI bootstrapping
+      cleanly in the meantime.)
+    """
+    agent = (body.agent or "gm").lower()
     name = (user.display_name or user.email.split("@")[0]).strip() or "Coach"
+    message_key = "message"
+
+    if body.onboarding == "scouting" and agent == "gm" and user.active_team_id:
+        from src.services.onboarding_service import generate_scouting_onboarding_opener
+        try:
+            text = await generate_scouting_onboarding_opener(
+                db, team_id=user.active_team_id, coach_name=name,
+            )
+        except Exception:
+            logger.exception("[opening-message] scouting opener failed")
+            text = (
+                f"{name}, your roster is loaded. Let's walk through it player-by-player "
+                "and fill in the metrics — want to start now?"
+            )
+        return {
+            message_key: text,
+            "response": text,  # legacy v1 key
+            "agent_used": agent,
+            "session_id": body.session_id or "",
+        }
+
+    text = (
+        f"Hey {name} — let's talk basketball. What's on your mind today? "
+        "I can help with practice plans, game strategy, scouting, or "
+        "personalized drills. Just ask."
+    )
     return {
-        "response": (
-            f"Hey {name} — let's talk basketball. What's on your mind today? "
-            "I can help with practice plans, game strategy, scouting, or "
-            "personalized drills. Just ask."
-        ),
-        "agent_used": (body.agent or "gm"),
+        message_key: text,
+        "response": text,
+        "agent_used": agent,
         "session_id": body.session_id or "",
     }

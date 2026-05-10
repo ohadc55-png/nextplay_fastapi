@@ -670,6 +670,131 @@ async def build_onboarding_scouting_context(
     ])
 
 
+async def generate_scouting_onboarding_opener(
+    db: AsyncSession, *, team_id: int, coach_name: str,
+) -> str:
+    """Brad's first message when the coach lands on
+    `/chat?agent=gm&onboarding=scouting`. Goes straight to the first
+    un-profiled player. No generic chitchat. Mirrors v1's
+    `_generate_scouting_onboarding_opener`.
+
+    Falls back to a deterministic 2-3 sentence message if the LLM call
+    fails (network blip, quota exhausted, etc.) so the chat never opens
+    silently.
+    """
+    rows = (await db.execute(
+        select(
+            Player.id, Player.name, Player.number, Player.position,
+            Player.strengths, Player.weaknesses, Player.notes,
+            Player.metrics_filled_at,
+        )
+        .where(Player.team_id == team_id, Player.active.is_(True))
+        .order_by(Player.number.is_(None), Player.number, Player.id)
+    )).all()
+
+    pending = [
+        {"name": r.name, "number": r.number, "position": r.position,
+         "strengths": r.strengths, "weaknesses": r.weaknesses, "notes": r.notes}
+        for r in rows if not r.metrics_filled_at
+    ]
+    profiled_count = sum(1 for r in rows if r.metrics_filled_at)
+    total = len(rows)
+    name = (coach_name or "coach").strip() or "coach"
+
+    if not rows:
+        return (
+            f"Hey {name}, your roster is empty. Head over to Team Setup first — "
+            "add a few players (or upload a CSV), and then come back here so we "
+            "can build their profiles together."
+        )
+    if not pending:
+        return (
+            f"Hey {name}, all {total} players already have profiles. "
+            "Want to refine any of them, or talk strategy?"
+        )
+
+    next_p = pending[0]
+    next_label = next_p["name"] or "your first player"
+    if next_p.get("number"):
+        next_label = f"#{next_p['number']} {next_label}"
+    if next_p.get("position"):
+        next_label += f" ({next_p['position']})"
+
+    existing_bits: list[str] = []
+    if next_p.get("strengths"):
+        existing_bits.append(f"strengths: \"{next_p['strengths']}\"")
+    if next_p.get("weaknesses"):
+        existing_bits.append(f"weaknesses: \"{next_p['weaknesses']}\"")
+    if next_p.get("notes"):
+        existing_bits.append(f"notes: \"{next_p['notes']}\"")
+    existing_str = "; ".join(existing_bits) if existing_bits else (
+        "no prior notes — fresh slate"
+    )
+    progress_str = (
+        f"({profiled_count} of {total} players profiled)"
+        if profiled_count > 0 else f"({total} players to go)"
+    )
+
+    system_prompt = (
+        "You are Brad Binn, GM of a basketball team. The coach just opened the chat to build "
+        "their roster's scouting profiles. Open the walk-through with a SHORT, punchy message "
+        "that earns commitment without overwhelming a brand-new user.\n\n"
+        "HARD LENGTH LIMIT: 2-3 short sentences. Roughly 40-65 words total. NEVER MORE.\n"
+        "If you find yourself writing a 4th sentence, cut something.\n\n"
+        "WHAT THE MESSAGE MUST CONVEY (compress all of these into the 2-3 sentences — "
+        "do NOT enumerate them, weave them naturally; vary phrasing each time):\n"
+        "  - You read the CSV (acknowledge it briefly).\n"
+        "  - The metrics aren't filled yet — that's the gap.\n"
+        "  - Filling them unlocks real analysis / training plans / lineup calls (mention 1-2, not all).\n"
+        "  - Only the coach can supply this — you won't guess.\n"
+        "  - End with an explicit yes/no question about starting NOW.\n\n"
+        "STRICT NEGATIVE RULES:\n"
+        "- NEVER exceed 3 sentences. Length is the #1 thing the coach is judging right now.\n"
+        "- DO NOT make strategic comments about the team or pitch lineups/tactics.\n"
+        "- DO NOT ask the first scouting question about the player yet — that comes AFTER yes.\n"
+        "- DO NOT use generic AI phrasings ('I'm here to help', 'feel free to', 'let me know').\n"
+        "- DO NOT use a fixed template. Phrase it differently each time.\n\n"
+        "STYLE:\n"
+        "- Brad's voice: direct, professional GM. Confident, terse, no fluff.\n"
+        "- Mention the first player by name as the starting point.\n"
+        "- Optional: reference ONE detail from their CSV notes (under 5 words). Skip if it bloats.\n"
+        "- Language: English only.\n\n"
+        f"COACH'S NAME: {name}\n"
+        f"PROGRESS: {progress_str}\n"
+        f"FIRST PLAYER (proposed starting point, NOT the subject of your question): {next_label}\n"
+        f"EXISTING CSV NOTES ON THAT PLAYER: {existing_str}\n"
+    )
+
+    try:
+        client = get_client()
+        resp = await client.chat.completions.create(
+            model=_EXTRACT_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": (
+                    "Generate the opening message now. Vary the phrasing — do not reuse a template. "
+                    "End with an explicit yes/no question about whether to start the walkthrough now."
+                )},
+            ],
+            temperature=0.85,
+            max_completion_tokens=320,
+        )
+        log_response(resp, agent_key="gm", endpoint="opening_onboarding")
+        msg = (resp.choices[0].message.content or "").strip()
+        if msg:
+            return msg
+    except Exception:
+        logger.exception("Scouting onboarding opener generation failed")
+
+    # Deterministic fallback — used when the LLM call fails.
+    return (
+        f"{name.capitalize()}, I've got your roster in front of me — first up is "
+        f"{next_label}. The metrics are still blank and only you can fill them in, "
+        "so I can actually run real analysis and lineup calls. Want to start with "
+        f"{next_p.get('name') or 'them'} now?"
+    )
+
+
 __all__ = [
     "ALLOWED_EVENTS",
     "EXTRACTION_SYSTEM_PROMPT",
@@ -677,6 +802,7 @@ __all__ = [
     "build_onboarding_scouting_context",
     "compute_onboarding_status",
     "extract_player_skills",
+    "generate_scouting_onboarding_opener",
     "mark_event",
     "players_profiling_status",
 ]
