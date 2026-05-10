@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
@@ -155,6 +156,7 @@ async def _handle_oauth_login(
             email_verified=1,
             email_infra_signup=True,
             subscription_plan="trial",
+            trial_ends_at=(datetime.now(UTC) + timedelta(days=14)).isoformat(),
         )
         db.add(user)
         await db.flush()
