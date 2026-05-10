@@ -15,6 +15,7 @@
     <link rel="preload" href="{{ url_for('static', filename='css/guide-widget.css') }}?v={{ config.get('CSS_VERSION', '2') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="{{ url_for('static', filename='css/guide-widget.css') }}?v={{ config.get('CSS_VERSION', '2') }}"></noscript>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    {% if g.user and g.user.id is defined %}<meta name="np-user-id" content="{{ g.user.id }}">{% endif %}
 
     {# ── PWA: makes the app installable on iPhone/Android/desktop.
        Manifest declares icons + display mode + start URL.
