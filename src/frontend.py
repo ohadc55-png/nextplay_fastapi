@@ -119,7 +119,7 @@ def _build_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=_TEMPLATES_DIR)
     env = templates.env
     env.globals["url_for"] = _url_for
-    env.globals["config"] = _ConfigShim(css_version="2")
+    env.globals["config"] = _ConfigShim(css_version="5")
     # `g` is normally per-request; we expose a fallback empty Box so
     # templates rendered outside a request context (eg, error pages)
     # don't NameError. The page-route handlers override it via the
@@ -140,6 +140,7 @@ def page_context(
     request: Request,
     *,
     user: Any = None,
+    org_ctx: dict[str, Any] | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the context dict for a `templates.TemplateResponse(...)`
@@ -188,7 +189,11 @@ def page_context(
         "is_club_member": is_club_member,
         "is_club_admin": is_club_admin,
         "club": club,
-        "config": _ConfigShim(css_version="2"),
+        # Org Admin (Phase 1) context — used by /org/* templates only. Coach App
+        # pages don't pass org_ctx; the value stays None and the templates that
+        # don't reference it stay unaffected.
+        "org_ctx": org_ctx,
+        "config": _ConfigShim(css_version="5"),
     }
     if extra:
         ctx.update(extra)
@@ -196,16 +201,21 @@ def page_context(
 
 
 def _days_left(target) -> int:
-    """Days from now until `target` (a datetime or None). Negative
-    when past — clamped to 0 by the caller."""
+    """Days from now until `target` (a datetime, ISO string, or None).
+    Negative when past — clamped to 0 by the caller.
+
+    `User.trial_ends_at` is stored as TEXT (ISO string) in the legacy
+    schema; `User.data_purge_at` is a real DateTime. Handle both.
+    """
     if target is None:
         return 0
     from datetime import datetime
 
     try:
+        if isinstance(target, str):
+            target = datetime.fromisoformat(target)
         now = datetime.now(UTC)
         if getattr(target, "tzinfo", None) is None:
-            # naive timestamp → assume UTC
             target = target.replace(tzinfo=UTC)
         delta = target - now
         return delta.days
