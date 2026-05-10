@@ -1,17 +1,20 @@
 """Players CRUD + metrics + bulk add.
 
-Async port of `backend/api/players.py`. File-based bulk import (CSV / XLSX
-parsing) is deferred to Phase 7 alongside the file processor; the
-template downloads + photo upload S3 plumbing land in Phase 6/7. The
-JSON `bulk` endpoint stays here since it's pure DB.
+Async port of `backend/api/players.py`. JSON `bulk` endpoint plus file-
+based import (CSV / XLSX). pandas + openpyxl runs in `asyncio.to_thread`
+so we don't block the event loop on a 200-row spreadsheet.
 """
 
 from __future__ import annotations
 
+import asyncio
+import csv
+import io
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -183,25 +186,29 @@ async def save_player_metrics(
 
 
 # ---------------------------------------------------------------------------
-# Bulk add (JSON shape — CSV/XLSX file ingest deferred to Phase 7)
+# Bulk add (JSON + file uploads)
 # ---------------------------------------------------------------------------
+
+_ROSTER_TEMPLATE_COLUMNS = [
+    "name", "number", "position", "height", "weight", "age",
+    "strengths", "weaknesses", "notes",
+]
+_ROSTER_TEMPLATE_EXAMPLES = [
+    ["John Smith", 7, "PG", "6'0\"", 180, 22,
+     "Fast, good vision", "Weak left hand", "Team captain"],
+    ["Mike Johnson", 23, "SF", "6'6\"", 210, 24,
+     "Strong rebounder", "Limited range", ""],
+]
+
 
 class _BulkAddBody(BaseModel):
     players: list[dict] = Field(default_factory=list)
 
 
-@router.post("/players/bulk")
-async def bulk_add_players(
-    body: _BulkAddBody,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Insert many players at once. Skips empty-name rows. Returns the
-    number actually inserted so the UI can show 'imported X / skipped Y'."""
-    team_id = _require_team(user)
+def _insert_player_rows(db: AsyncSession, user_id: int, team_id: int, players: list[dict]) -> tuple[int, int]:
     inserted = 0
     skipped = 0
-    for raw in body.players:
+    for raw in players:
         name = (raw.get("name") or "").strip()
         if not name:
             skipped += 1
@@ -215,7 +222,7 @@ async def bulk_add_players(
         except (TypeError, ValueError):
             age = None
         db.add(Player(
-            user_id=user.id, team_id=team_id, name=name,
+            user_id=user_id, team_id=team_id, name=name,
             number=number, position=(raw.get("position") or "").strip(),
             height=(raw.get("height") or "").strip(),
             weight=(raw.get("weight") or "").strip(),
@@ -226,5 +233,139 @@ async def bulk_add_players(
             active=True,
         ))
         inserted += 1
+    return inserted, skipped
+
+
+@router.post("/players/bulk")
+async def bulk_add_players(
+    body: _BulkAddBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Insert many players at once. Skips empty-name rows. Returns the
+    number actually inserted so the UI can show 'imported X / skipped Y'."""
+    team_id = _require_team(user)
+    inserted, skipped = _insert_player_rows(db, user.id, team_id, body.players)
     await db.flush()
     return {"ok": True, "inserted": inserted, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# Roster template downloads + file upload
+# ---------------------------------------------------------------------------
+
+@router.get("/players/template.csv")
+async def roster_template_csv(_user: User = Depends(get_current_user)) -> Response:
+    """Download a CSV template with the correct column headers + 2 example rows."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_ROSTER_TEMPLATE_COLUMNS)
+    for row in _ROSTER_TEMPLATE_EXAMPLES:
+        writer.writerow(row)
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=nextplay_roster_template.csv"},
+    )
+
+
+def _build_xlsx_template() -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Roster"
+    ws.append(_ROSTER_TEMPLATE_COLUMNS)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="FF6B35", end_color="FF6B35", fill_type="solid")
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+    for row in _ROSTER_TEMPLATE_EXAMPLES:
+        ws.append(row)
+    for col_idx, col_name in enumerate(_ROSTER_TEMPLATE_COLUMNS, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = max(14, len(col_name) + 4)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@router.get("/players/template.xlsx")
+async def roster_template_xlsx(_user: User = Depends(get_current_user)) -> StreamingResponse:
+    """Download an XLSX template with the correct column headers + 2 example rows."""
+    data = await asyncio.to_thread(_build_xlsx_template)
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=nextplay_roster_template.xlsx"},
+    )
+
+
+def _parse_roster_file(filename: str, content: bytes) -> list[dict]:
+    """Parse a CSV/XLSX roster file into a list of player dicts.
+    Runs synchronously — wrap in asyncio.to_thread at the call site.
+    """
+    import pandas as pd
+
+    name_lower = filename.lower()
+    if name_lower.endswith((".xlsx", ".xls")):
+        df = pd.read_excel(io.BytesIO(content), engine="openpyxl" if name_lower.endswith(".xlsx") else None)
+    elif name_lower.endswith(".csv"):
+        df = pd.read_csv(io.BytesIO(content))
+    else:
+        raise ValueError("Unsupported file type")
+    df.columns = [str(c).strip().lower() for c in df.columns]
+
+    def _s(row, key: str) -> str:
+        v = row.get(key, "")
+        return "" if pd.isna(v) else str(v).strip()
+
+    def _i(row, key: str) -> int:
+        v = row.get(key, 0)
+        try:
+            return int(float(v)) if not pd.isna(v) else 0
+        except (ValueError, TypeError):
+            return 0
+
+    out: list[dict] = []
+    for _, row in df.iterrows():
+        name = _s(row, "name")
+        if not name or name.lower() == "nan":
+            continue
+        out.append({
+            "name": name,
+            "number": _i(row, "number"),
+            "position": _s(row, "position"),
+            "height": _s(row, "height"),
+            "weight": _s(row, "weight"),
+            "age": _i(row, "age"),
+            "strengths": _s(row, "strengths"),
+            "weaknesses": _s(row, "weaknesses"),
+            "notes": _s(row, "notes"),
+        })
+    return out
+
+
+@router.post("/players/bulk-file")
+async def bulk_add_players_file(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Accept a CSV or XLSX upload and bulk-import the rows as players."""
+    team_id = _require_team(user)
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    content = await file.read()
+    try:
+        players = await asyncio.to_thread(_parse_roster_file, file.filename, content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except Exception as e:
+        logger.warning("Failed to parse roster file: %s", e)
+        raise HTTPException(status_code=400, detail="Could not read file. Please use the provided template.") from None
+
+    inserted, skipped = _insert_player_rows(db, user.id, team_id, players)
+    await db.flush()
+    return {"ok": True, "count": inserted, "inserted": inserted, "skipped": skipped}
