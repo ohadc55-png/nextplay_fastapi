@@ -1,0 +1,16 @@
+{# Day 23 (7 days before data purge): URGENT — last chance.
+   Subject is intentionally direct, not LLM-rewritten, so the urgency lands
+   regardless of which language the writer agent picks. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ("הנתונים שלך יימחקו בעוד 7 ימים" if rtl else "Your data will be deleted in 7 days") }}{% endblock %}
+
+{% block text_body %}{{ text_override or ("שלום " ~ coach_name ~ ", זוהי התראה אחרונה: הקבוצה, השיחות, ההעלאות יימחקו בעוד 7 ימים. בחר מסלול: " ~ cta_url) if rtl else ("Hi " ~ coach_name ~ ", final warning: your team, conversations and uploads will be permanently deleted in 7 days. Upgrade now: " ~ cta_url) }}{% endblock %}
+
+{% block body %}
+{# Visual urgency strip at the top — branded but high-contrast. #}
+<div style="margin:0 0 22px;padding:14px 18px;background:linear-gradient(135deg,rgba(239,68,68,0.18),rgba(255,87,34,0.10));border:1px solid rgba(239,68,68,0.42);border-radius:10px;color:#ffd0c8;">
+    <strong style="color:#ffffff;">⚠ {% if rtl %}7 ימים אחרונים לשמירת הנתונים{% else %}7 days left to save your data{% endif %}</strong>
+</div>
+{{ llm_body | safe }}
+{% endblock %}

@@ -1,0 +1,20 @@
+{# Organization invite — sent when an org admin invites a user to join an org. Bilingual. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}הזמנה ל-{{ organization_name }} ב-{{ brand_name }}{% else %}You're invited to {{ organization_name }} on {{ brand_name }}{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום, {{ inviter_name }} הזמין/ה אותך להצטרף ל-{{ organization_name }} ב-{{ brand_name }} כ-{{ role }}. לקבלת ההזמנה: {{ cta_url }} (תקף ל-7 ימים).{% else %}Hi, {{ inviter_name }} invited you to join {{ organization_name }} on {{ brand_name }} as {{ role }}. Accept here: {{ cta_url }} (expires in 7 days).{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">הוזמנת ל-{{ organization_name }} 🎉</h2>
+<p style="margin:0 0 16px;">שלום,</p>
+<p style="margin:0 0 16px;"><strong>{{ inviter_name }}</strong> הזמין/ה אותך להצטרף ל-<strong>{{ organization_name }}</strong> ב-{{ brand_name }} בתפקיד <em>{{ role }}</em>.</p>
+<p style="margin:0 0 8px;">לחץ על הכפתור למטה כדי לקבל את ההזמנה ולהיכנס. הקישור <strong>תקף ל-7 ימים</strong>:</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">You're invited to {{ organization_name }} 🎉</h2>
+<p style="margin:0 0 16px;">Hi,</p>
+<p style="margin:0 0 16px;"><strong>{{ inviter_name }}</strong> invited you to join <strong>{{ organization_name }}</strong> on {{ brand_name }} as <em>{{ role }}</em>.</p>
+<p style="margin:0 0 8px;">Click the button below to accept and sign in. This link is <strong>valid for 7 days</strong>:</p>
+{% endif %}
+{% endblock %}

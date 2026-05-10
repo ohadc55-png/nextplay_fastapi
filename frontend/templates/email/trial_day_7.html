@@ -1,0 +1,13 @@
+{# Trial day 7: midpoint, soft engagement nudge.
+   The marketing-style body comes from writer_agent.py and is injected as
+   `llm_body`. The wrapper (header, CTA button, footer, unsubscribe link)
+   stays branded and consistent. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ("את/ה באמצע תקופת הניסיון" if rtl else "You're halfway through your trial") }}{% endblock %}
+
+{% block text_body %}{{ text_override or ("שלום " ~ coach_name ~ ", עברנו את אמצע תקופת הניסיון. נסה את הסוכנים שלך: " ~ cta_url) if rtl else ("Hi " ~ coach_name ~ ", you're halfway through your 14-day trial. See what your AI staff can do: " ~ cta_url) }}{% endblock %}
+
+{% block body %}
+{{ llm_body | safe }}
+{% endblock %}

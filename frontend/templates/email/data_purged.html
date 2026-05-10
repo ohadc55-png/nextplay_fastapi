@@ -1,0 +1,20 @@
+{# Day 30: data was just purged. Account remains so they can register fresh. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ("הנתונים נמחקו — החשבון שלך עדיין קיים" if rtl else "Your data has been deleted — account is still here") }}{% endblock %}
+
+{% block text_body %}{{ text_override or ("שלום " ~ coach_name ~ ", הנתונים שלך נמחקו לאחר 30 ימים בלי בחירת מסלול. החשבון שלך נשאר. תוכל להתחיל מחדש בכל רגע: " ~ cta_url) if rtl else ("Hi " ~ coach_name ~ ", your data was deleted after 30 days without an active plan. Your account remains. You can start fresh anytime: " ~ cta_url) }}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:22px;font-weight:700;">הנתונים נמחקו</h2>
+<p style="margin:0 0 16px;">שלום {{ coach_name or 'מאמן' }},</p>
+<p style="margin:0 0 16px;">לאחר 30 ימים בלי בחירת מסלול, מחקנו את הקבוצה, השיחות וההעלאות שלך כמובטח. <strong>החשבון שלך עדיין קיים</strong> — אם תרצה לחזור, פשוט תתחבר ובנה מאפס.</p>
+<p style="margin:0 0 16px;color:#9ba4b0;font-size:14px;">אם זה קרה בטעות — צור איתנו קשר תוך 7 ימים, יש סיכוי שעדיין יש גיבוי.</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:22px;font-weight:700;">Your data has been deleted</h2>
+<p style="margin:0 0 16px;">Hi {{ coach_name or 'Coach' }},</p>
+<p style="margin:0 0 16px;">After 30 days without an active plan, we deleted your team, conversations, and uploads as promised. <strong>Your account itself remains</strong> — if you want to come back, sign in and start fresh.</p>
+<p style="margin:0 0 16px;color:#9ba4b0;font-size:14px;">If this happened by mistake, contact us within 7 days — we may still have a backup.</p>
+{% endif %}
+{% endblock %}

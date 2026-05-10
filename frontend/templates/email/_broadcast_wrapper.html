@@ -1,0 +1,13 @@
+{# Broadcast wrapper — used by the admin composer + by send_template_async
+   when template='broadcast'. Subject / text come from the admin form via
+   subject_override / text_override. Body is either the admin's HTML or the
+   LLM-rewritten body. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ('עדכון מ-' ~ brand_name if rtl else 'Update from ' ~ brand_name) }}{% endblock %}
+
+{% block text_body %}{{ text_override or '' }}{% endblock %}
+
+{% block body %}
+{{ llm_body | safe }}
+{% endblock %}

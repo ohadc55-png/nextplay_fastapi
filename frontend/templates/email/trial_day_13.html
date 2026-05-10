@@ -1,0 +1,10 @@
+{# Trial day 13: trial ends tomorrow. Last warm push. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ("תקופת הניסיון נגמרת מחר" if rtl else "Your trial ends tomorrow") }}{% endblock %}
+
+{% block text_body %}{{ text_override or ("שלום " ~ coach_name ~ ", תקופת הניסיון נגמרת מחר. הנתונים שלך יישמרו 30 יום נוספים. בחר מסלול: " ~ cta_url) if rtl else ("Hi " ~ coach_name ~ ", your trial ends tomorrow. Your data will be saved for 30 more days. Pick a plan: " ~ cta_url) }}{% endblock %}
+
+{% block body %}
+{{ llm_body | safe }}
+{% endblock %}

@@ -107,12 +107,31 @@ def _link(path: str, token: str) -> str:
 # Outbound emails — auth flows
 # ---------------------------------------------------------------------------
 
+def _coach_name_from_email(email: str | None, display_name: str | None = None) -> str:
+    """Best-effort: pull a friendly first name from display_name; fall back
+    to the email's local-part (capitalized). Used to personalize templates
+    when the caller only has email + user_id on hand."""
+    if display_name:
+        # Use just the first whitespace-delimited word so "John Smith" → "John".
+        first = display_name.strip().split()[0] if display_name.strip() else ""
+        if first:
+            return first
+    if email and "@" in email:
+        local = email.split("@", 1)[0]
+        # Strip dots/underscores for the display version: "ohad.cohen" → "Ohad Cohen"
+        nicer = local.replace(".", " ").replace("_", " ").replace("-", " ").strip()
+        return nicer.title() if nicer else "Coach"
+    return "Coach"
+
+
 async def send_verification_email(
     session: AsyncSession,
     *,
     user_id: int,
     email: str,
     background=None,
+    display_name: str | None = None,
+    language: str = "en",
 ) -> None:
     """Mint a 72-hour `verify_email` token, schedule the email dispatch.
 
@@ -126,23 +145,17 @@ async def send_verification_email(
     )
     link = _link("/verify-email", token)
 
-    subject = "Verify your NextPlay email"
-    text_body = (
-        "Welcome to NextPlay!\n\n"
-        "Please verify your email address by opening this link:\n\n"
-        f"{link}\n\n"
-        "This link expires in 72 hours.\n\n"
-        "If you didn't sign up for NextPlay, you can safely ignore this email."
-    )
-    html_body = (
-        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
-        'max-width:520px;color:#1a1a1a;">'
-        "<h2 style=\"margin:0 0 16px;\">Welcome to NextPlay</h2>"
-        "<p>Please verify your email address to finish setting up your account.</p>"
-        f"{_wrap_button('Verify email', link)}"
-        '<p style="font-size:13px;color:#666;">This link expires in 72 hours. '
-        "If you didn't sign up for NextPlay, you can safely ignore this email.</p>"
-        "</div>"
+    from src.services.email_templates import render
+    subject, html_body, text_body = render(
+        "verify_email",
+        language=language,
+        context={
+            "coach_name": _coach_name_from_email(email, display_name),
+            "verify_url": link,
+            "cta_url": link,
+            "cta_label_en": "Verify email",
+            "cta_label_he": "אמת את המייל",
+        },
     )
 
     from src.services.email import schedule_email
@@ -164,6 +177,8 @@ async def send_password_reset_email(
     user_id: int,
     email: str,
     background=None,
+    display_name: str | None = None,
+    language: str = "en",
 ) -> None:
     """Mint a 2-hour `reset_password` token, schedule the email dispatch."""
     token, _token_id = await _issue_auth_token(
@@ -171,25 +186,17 @@ async def send_password_reset_email(
     )
     link = _link("/reset-password", token)
 
-    subject = "Reset your NextPlay password"
-    text_body = (
-        "We received a request to reset the password for your NextPlay account.\n\n"
-        "Open this link to choose a new password:\n\n"
-        f"{link}\n\n"
-        "This link expires in 2 hours.\n\n"
-        "If you didn't request a password reset, you can ignore this email — "
-        "your current password will remain unchanged."
-    )
-    html_body = (
-        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
-        'max-width:520px;color:#1a1a1a;">'
-        "<h2 style=\"margin:0 0 16px;\">Reset your password</h2>"
-        "<p>We received a request to reset the password for your NextPlay account.</p>"
-        f"{_wrap_button('Reset password', link)}"
-        '<p style="font-size:13px;color:#666;">This link expires in 2 hours. '
-        "If you didn't request a password reset, you can ignore this email — "
-        "your current password will remain unchanged.</p>"
-        "</div>"
+    from src.services.email_templates import render
+    subject, html_body, text_body = render(
+        "password_reset",
+        language=language,
+        context={
+            "coach_name": _coach_name_from_email(email, display_name),
+            "reset_url": link,
+            "cta_url": link,
+            "cta_label_en": "Reset password",
+            "cta_label_he": "אפס סיסמה",
+        },
     )
 
     from src.services.email import schedule_email
@@ -211,24 +218,27 @@ async def send_welcome_email(
     user_id: int,
     email: str,
     background=None,
+    display_name: str | None = None,
+    language: str = "en",
 ) -> None:
     """Lightweight welcome dispatched to new OAuth users (no token)."""
-    base = settings.APP_BASE_URL.rstrip("/") or settings.BASE_URL.rstrip("/") or "https://nextplay.co"
-    subject = "Welcome to NextPlay"
-    text_body = (
-        "Welcome aboard!\n\n"
-        "Your NextPlay account is ready. You can sign in any time at:\n\n"
-        f"{base}/login\n\n"
-        "Need help getting started? Reply to this email — we're here."
+    base = (
+        settings.APP_BASE_URL.rstrip("/")
+        or settings.BASE_URL.rstrip("/")
+        or "https://trynextplay.app"
     )
-    html_body = (
-        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
-        'max-width:520px;color:#1a1a1a;">'
-        "<h2 style=\"margin:0 0 16px;\">Welcome to NextPlay</h2>"
-        "<p>Your account is ready. You can sign in any time at "
-        f'<a href="{_esc(base)}/login">{_esc(base)}/login</a>.</p>'
-        "<p>Need help getting started? Reply to this email — we're here.</p>"
-        "</div>"
+    chat_url = f"{base}/chat?agent=gm"
+
+    from src.services.email_templates import render
+    subject, html_body, text_body = render(
+        "welcome",
+        language=language,
+        context={
+            "coach_name": _coach_name_from_email(email, display_name),
+            "cta_url": chat_url,
+            "cta_label_en": "Meet your AI staff",
+            "cta_label_he": "פגוש את הצוות שלך",
+        },
     )
 
     from src.services.email import schedule_email
@@ -253,14 +263,12 @@ async def send_org_invite_email(
     organization_name: str,
     role: str,
     background=None,
+    language: str = "en",
 ) -> tuple[str, int]:
     """Issue an `org_invite` token (7-day TTL), schedule the actual Resend
     dispatch via `src.services.email`, and return ``(raw_token, auth_token_id)``
     so the caller can persist an OrgInvite row referencing the token id.
-
-    The HTML and text bodies are simple inline strings (Phase 0 — no
-    Jinja template lookup yet to keep dependencies tight). Phase 1 can
-    swap to a templated render if branding requirements grow."""
+    """
     raw, token_id = await _issue_auth_token(
         session,
         user_id=invitee_user_id,
@@ -269,25 +277,20 @@ async def send_org_invite_email(
     )
     accept_url = _link("/org/invite-accept", raw)
 
-    safe_org = (organization_name or "").replace("<", "&lt;").replace(">", "&gt;")
-    safe_role = (role or "").replace("<", "&lt;").replace(">", "&gt;")
-    safe_inviter = (inviter_display_name or "A NextPlay admin").replace("<", "&lt;").replace(">", "&gt;")
-
-    subject = f"You're invited to {organization_name} on NextPlay"
-    text_body = (
-        f"{inviter_display_name} invited you to join {organization_name} on "
-        f"NextPlay as {role}. Accept this invitation:\n\n"
-        f"{accept_url}\n\nThis link expires in 7 days."
-    )
-    html_body = (
-        f"<p><strong>{safe_inviter}</strong> invited you to join "
-        f"<strong>{safe_org}</strong> on NextPlay as <em>{safe_role}</em>.</p>"
-        f'<p><a href="{accept_url}">Accept this invitation</a></p>'
-        f"<p style=\"color:#888;font-size:12px;\">This link expires in 7 days.</p>"
+    from src.services.email_templates import render
+    subject, html_body, text_body = render(
+        "org_invite",
+        language=language,
+        context={
+            "inviter_name": inviter_display_name or "A NextPlay admin",
+            "organization_name": organization_name,
+            "role": role,
+            "cta_url": accept_url,
+            "cta_label_en": "Accept invitation",
+            "cta_label_he": "קבל הזמנה",
+        },
     )
 
-    # Schedule the actual send via Resend / console (Phase 7 dispatcher).
-    # Late-imported to avoid a top-level circular dep with src.services.email.
     from src.services.email import schedule_email
 
     schedule_email(

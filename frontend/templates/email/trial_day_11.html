@@ -1,0 +1,10 @@
+{# Trial day 11: 3 days left. Stronger nudge. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ("עוד 3 ימים לתקופת הניסיון" if rtl else "3 days left in your trial") }}{% endblock %}
+
+{% block text_body %}{{ text_override or ("שלום " ~ coach_name ~ ", נשארו לך 3 ימים בתקופת הניסיון. בחר מסלול: " ~ cta_url) if rtl else ("Hi " ~ coach_name ~ ", you have 3 days left in your trial. Pick a plan to keep going: " ~ cta_url) }}{% endblock %}
+
+{% block body %}
+{{ llm_body | safe }}
+{% endblock %}

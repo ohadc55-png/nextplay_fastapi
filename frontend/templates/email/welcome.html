@@ -1,0 +1,34 @@
+{# Welcome email — sent after the user successfully verifies their email. Bilingual. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}ברוך הבא ל-{{ brand_name }}{% else %}Welcome to {{ brand_name }}{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ coach_name }}, החשבון שלך פעיל. נסה את הסוכנים שלך כאן: {{ cta_url }}{% else %}Hi {{ coach_name }}, your account is active. Meet your AI staff: {{ cta_url }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">המייל אומת — אתה בפנים 🎉</h2>
+<p style="margin:0 0 16px;">שלום {{ coach_name or 'מאמן' }},</p>
+<p style="margin:0 0 16px;">תקופת הניסיון של 14 הימים שלך התחילה. הצוות שלך מחכה:</p>
+<ul style="margin:0 0 18px;padding-{% if rtl %}right{% else %}left{% endif %}:18px;color:#c4c9d1;">
+    <li><strong>Brad (GM)</strong> — מנתב כל שאלה למומחה הנכון</li>
+    <li><strong>Jack (Scout)</strong> — דוחות סקאוט עובדתיים על יריבים</li>
+    <li><strong>Dr. Nexus (Analytics)</strong> — סטטיסטיקות מתקדמות</li>
+    <li><strong>Ed (Tactics)</strong> — תכנון משחקים, design של plays</li>
+    <li><strong>Duncan (Training)</strong> — תכנון אימונים וגיבוש פרקים</li>
+</ul>
+<p style="margin:0 0 16px;">הדרך הכי מהירה להתחיל: צור קבוצה, ושאל את Brad שאלה אחת על המשחק הקרוב שלך.</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">Email verified — you're in 🎉</h2>
+<p style="margin:0 0 16px;">Hi {{ coach_name or 'Coach' }},</p>
+<p style="margin:0 0 16px;">Your 14-day trial just started. Your AI staff is ready:</p>
+<ul style="margin:0 0 18px;padding-left:18px;color:#c4c9d1;">
+    <li><strong>Brad (GM)</strong> — routes any question to the right expert</li>
+    <li><strong>Jack (Scout)</strong> — fact-based opponent scout reports</li>
+    <li><strong>Dr. Nexus (Analytics)</strong> — advanced stats and metrics</li>
+    <li><strong>Ed (Tactics)</strong> — game plans and play design</li>
+    <li><strong>Duncan (Training)</strong> — practice plans and periodization</li>
+</ul>
+<p style="margin:0 0 16px;">Fastest way to start: create your team, then ask Brad one question about your next opponent.</p>
+{% endif %}
+{% endblock %}

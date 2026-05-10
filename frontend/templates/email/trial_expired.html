@@ -1,0 +1,10 @@
+{# Trial day 14 (or first request after expiry): trial ended. 30 days of grace. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{{ subject_override or ("תקופת הניסיון הסתיימה — 30 ימים לפני מחיקת הנתונים" if rtl else "Trial ended — 30 days before data deletion") }}{% endblock %}
+
+{% block text_body %}{{ text_override or ("שלום " ~ coach_name ~ ", תקופת הניסיון שלך הסתיימה. הנתונים שלך יישמרו 30 ימים נוספים. בחר מסלול: " ~ cta_url) if rtl else ("Hi " ~ coach_name ~ ", your trial has ended. Your data is saved for 30 more days. Upgrade to keep going: " ~ cta_url) }}{% endblock %}
+
+{% block body %}
+{{ llm_body | safe }}
+{% endblock %}

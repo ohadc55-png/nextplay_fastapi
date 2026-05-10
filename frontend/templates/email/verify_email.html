@@ -1,0 +1,22 @@
+{# Email verification — sent immediately after signup. Bilingual. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}אמת את כתובת המייל ב-{{ brand_name }}{% else %}Verify your {{ brand_name }} email{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ coach_name }}, ברוך הבא ל-NEXTPLAY. אמת את המייל שלך כאן: {{ verify_url }} (קישור פג בעוד 24 שעות). אם לא נרשמת, התעלם.{% else %}Hi {{ coach_name }}, welcome to NEXTPLAY. Verify your email here: {{ verify_url }} (link expires in 24 hours). If you didn't sign up, just ignore this.{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">ברוך הבא ל-{{ brand_name }} 👋</h2>
+<p style="margin:0 0 16px;">שלום {{ coach_name or 'מאמן' }},</p>
+<p style="margin:0 0 16px;">תודה שנרשמת. עוד לחיצה אחת ואתה מוכן.</p>
+<p style="margin:0 0 8px;">לחץ על הכפתור למטה כדי לאמת את כתובת המייל ולהפעיל את <strong>תקופת הניסיון של 14 הימים</strong>:</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">Welcome to {{ brand_name }} 👋</h2>
+<p style="margin:0 0 16px;">Hi {{ coach_name or 'Coach' }},</p>
+<p style="margin:0 0 16px;">Thanks for signing up. One more click and you're in.</p>
+<p style="margin:0 0 8px;">Click the button below to verify your email address and activate your <strong>14-day free trial</strong>:</p>
+{% endif %}
+{% endblock %}
+
+{# CTA inserted into base via context — see api/email_auth.py #}

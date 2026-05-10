@@ -1,0 +1,33 @@
+{# Payment receipt — sent on every successful checkout. Static, bilingual.
+   Required context: amount, currency, plan_label, billing_period, invoice_id, receipt_url. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}חשבונית NEXTPLAY · {{ amount }} {{ currency }}{% else %}NEXTPLAY receipt · {{ amount }} {{ currency }}{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}תודה {{ coach_name }}! חויבת {{ amount }} {{ currency }} עבור {{ plan_label }} ({{ billing_period }}). מספר חשבונית: {{ invoice_id }}. קישור: {{ receipt_url }}{% else %}Thanks {{ coach_name }}! You were charged {{ amount }} {{ currency }} for {{ plan_label }} ({{ billing_period }}). Invoice: {{ invoice_id }}. Receipt: {{ receipt_url }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:22px;font-weight:700;">תודה על התשלום ✓</h2>
+<p style="margin:0 0 16px;">שלום {{ coach_name or 'מאמן' }},</p>
+<p style="margin:0 0 16px;">קיבלנו את התשלום שלך עבור <strong>{{ plan_label }}</strong>.</p>
+<table cellpadding="0" cellspacing="0" style="width:100%;margin:18px 0;border-collapse:collapse;">
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">תוכנית</td><td style="padding:8px 0;color:#ffffff;text-align:left;">{{ plan_label }}</td></tr>
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">תקופה</td><td style="padding:8px 0;color:#ffffff;text-align:left;">{{ billing_period }}</td></tr>
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">סכום</td><td style="padding:8px 0;color:#ffffff;text-align:left;font-weight:700;">{{ amount }} {{ currency }}</td></tr>
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">מספר חשבונית</td><td style="padding:8px 0;color:#ffffff;text-align:left;font-family:monospace;">{{ invoice_id }}</td></tr>
+</table>
+<p style="margin:0 0 8px;color:#9ba4b0;font-size:13px;">החשבונית הרשמית זמינה להורדה דרך הקישור למטה.</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:22px;font-weight:700;">Payment received ✓</h2>
+<p style="margin:0 0 16px;">Hi {{ coach_name or 'Coach' }},</p>
+<p style="margin:0 0 16px;">We've received your payment for <strong>{{ plan_label }}</strong>.</p>
+<table cellpadding="0" cellspacing="0" style="width:100%;margin:18px 0;border-collapse:collapse;">
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">Plan</td><td style="padding:8px 0;color:#ffffff;text-align:right;">{{ plan_label }}</td></tr>
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">Billing</td><td style="padding:8px 0;color:#ffffff;text-align:right;">{{ billing_period }}</td></tr>
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">Amount</td><td style="padding:8px 0;color:#ffffff;text-align:right;font-weight:700;">{{ amount }} {{ currency }}</td></tr>
+    <tr><td style="padding:8px 0;color:#9ba4b0;font-size:13px;">Invoice ID</td><td style="padding:8px 0;color:#ffffff;text-align:right;font-family:monospace;">{{ invoice_id }}</td></tr>
+</table>
+<p style="margin:0 0 8px;color:#9ba4b0;font-size:13px;">A formal invoice is available via the link below.</p>
+{% endif %}
+{% endblock %}

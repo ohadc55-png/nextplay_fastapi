@@ -1,0 +1,19 @@
+{# Smoke test template — used by Phase 1 verification only.
+   Safe to keep around; nobody calls it from production code paths. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}בדיקת מערכת המייל של {{ brand_name }}{% else %}{{ brand_name }} email infrastructure smoke test{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ coach_name }}, זו בדיקת תשתית. הקישור: {{ cta_url }}{% else %}Hi {{ coach_name }}, this is an infrastructure smoke test. Link: {{ cta_url }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 16px;color:#ffffff;font-size:22px;">שלום {{ coach_name }} 👋</h2>
+<p>זו הודעת בדיקה ש-NEXTPLAY שולחת לעצמה כדי לוודא שתשתית המייל מוגדרת כמו שצריך.</p>
+<p>אם אתה רואה את זה — הכל עובד.</p>
+{% else %}
+<h2 style="margin:0 0 16px;color:#ffffff;font-size:22px;">Hi {{ coach_name }} 👋</h2>
+<p>This is a self-test message NEXTPLAY sends to confirm the email infrastructure is wired correctly.</p>
+<p>If you can read this, everything works.</p>
+{% endif %}
+{% endblock %}

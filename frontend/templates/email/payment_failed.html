@@ -1,0 +1,23 @@
+{# Payment failed — sent on a charge attempt that the gateway rejected.
+   Required context: amount, currency, plan_label, retry_in_days, retry_url. #}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}החיוב נכשל — עדכן פרטי תשלום{% else %}Payment failed — update your card{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ coach_name }}, החיוב על {{ amount }} {{ currency }} ({{ plan_label }}) נדחה. עדכן פרטי תשלום בתוך {{ retry_in_days }} ימים: {{ retry_url }}{% else %}Hi {{ coach_name }}, the {{ amount }} {{ currency }} charge for {{ plan_label }} was declined. Please update your card within {{ retry_in_days }} days: {{ retry_url }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:22px;font-weight:700;">⚠ החיוב לא הצליח</h2>
+<p style="margin:0 0 16px;">שלום {{ coach_name or 'מאמן' }},</p>
+<p style="margin:0 0 16px;">חברת האשראי שלך דחתה חיוב של <strong>{{ amount }} {{ currency }}</strong> עבור <strong>{{ plan_label }}</strong>.</p>
+<p style="margin:0 0 16px;">החשבון שלך עדיין פעיל. כדי שלא נשעה את הגישה, עדכן פרטי תשלום בתוך <strong>{{ retry_in_days }} ימים</strong>.</p>
+<p style="margin:0 0 8px;color:#9ba4b0;font-size:14px;">סיבות נפוצות: כרטיס פג, חוסר אישור, או חסימה זמנית של הבנק.</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:22px;font-weight:700;">⚠ Payment didn't go through</h2>
+<p style="margin:0 0 16px;">Hi {{ coach_name or 'Coach' }},</p>
+<p style="margin:0 0 16px;">Your card declined a charge of <strong>{{ amount }} {{ currency }}</strong> for <strong>{{ plan_label }}</strong>.</p>
+<p style="margin:0 0 16px;">Your account is still active. To avoid suspension, please update your payment method within the next <strong>{{ retry_in_days }} days</strong>.</p>
+<p style="margin:0 0 8px;color:#9ba4b0;font-size:14px;">Common causes: expired card, missing authorization, or a temporary bank hold.</p>
+{% endif %}
+{% endblock %}
