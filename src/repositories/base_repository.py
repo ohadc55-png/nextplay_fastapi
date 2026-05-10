@@ -19,7 +19,8 @@ repositories. Composition happens in the service layer.
 
 from __future__ import annotations
 
-from typing import Any, Generic, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession

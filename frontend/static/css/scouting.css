@@ -1,0 +1,3325 @@
+/* ═══════════════════════════════════════════════════════════
+   Video Hub & Scouting — Coach View
+   ═══════════════════════════════════════════════════════════
+ *
+ * TABLE OF CONTENTS
+ * ─────────────────
+ * 1. GRID VIEW & CARDS ............. Variables, forms, modals, video grid, upload
+ * 2. VIDEO PLAYER & CONTROLS ....... Analysis view, player area, tools sidebar, tags
+ * 3. DRAWING TOOLS ................. Tool buttons, color pickers, text editor, video.js overrides
+ * 4. TIMELINE ...................... Timeline bar, annotation track, clip timeline strip
+ * 5. CLIPS SIDEBAR ................. Clip cards, filters, compile button, tabs, batch bar
+ * 6. MODALS ........................ Clip create modal, card creators, comparison, export, responsive
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §1  GRID VIEW & CARDS
+   CSS variables, form elements, modal system, buttons, toasts, video grid, upload
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Variable Aliases (map hoops_ai vars → style.css vars) ── */
+:root {
+  --primary: var(--accent, #ff6b35);
+  --primary-dim: var(--accent-dim, rgba(255, 107, 53, 0.12));
+  --primary-ghost: rgba(255, 107, 53, 0.08);
+  --primary-dark: #e85d26;
+  --surface-1: var(--bg-card, #161d28);
+  --surface-2: var(--bg-card-hover, #1c2536);
+  --bg-surface: var(--bg-card, #161d28);
+  --bg-raised: var(--bg-elevated, #1e2638);
+  --text-primary: var(--text, #f0f3f6);
+  --text-secondary: var(--text-2, #9ba4b0);
+  --text-muted: var(--text-3, #5c6370);
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 16px;
+  --r-full: 9999px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 28px; --sp-8: 32px;
+  --sp-10: 40px; --sp-12: 48px;
+  --transition-fast: 0.15s ease;
+  --transition: 0.25s ease;
+}
+
+/* ─── .input / .label / .select (scouting-scoped) ──────── */
+.input, .select {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-input, #1a2230);
+  border: 1px solid var(--border, rgba(255,255,255,0.06));
+  border-radius: var(--radius-sm, 10px);
+  color: var(--text, #f0f3f6);
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+.input:hover, .select:hover {
+  border-color: var(--border-2, rgba(255,255,255,0.1));
+}
+.input:focus, .select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-dim);
+}
+.input::placeholder {
+  color: var(--text-muted);
+}
+.label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-2, #9ba4b0);
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+.form-group {
+  margin-bottom: 20px;
+}
+
+/* ─── Modal System ─────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  animation: modalOverlayIn 0.2s ease;
+}
+.modal-overlay.active {
+  display: flex;
+}
+@keyframes modalOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal {
+  background: var(--bg-elevated, #1e2638);
+  border: 1px solid var(--border-2, rgba(255,255,255,0.1));
+  border-radius: var(--radius, 14px);
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-5) var(--sp-6);
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
+}
+.modal-header h2,
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text, #f0f3f6);
+  letter-spacing: -0.01em;
+}
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-2, #9ba4b0);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.modal-close:hover {
+  background: var(--border);
+  color: var(--text, #f0f3f6);
+}
+.modal-body {
+  padding: var(--sp-5) var(--sp-6);
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-6);
+  border-top: 1px solid var(--border, rgba(255,255,255,0.06));
+}
+
+/* ─── btn-icon (icon-only button) ──────────────────────── */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.btn-icon:hover {
+  background: var(--border);
+  color: var(--text);
+  border-color: var(--border-2, rgba(255,255,255,0.1));
+}
+
+/* ─── btn-danger (scouting-scoped) ─────────────────────── */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm, 10px);
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: 1px solid rgba(248,81,73,0.15);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  min-height: 48px;
+  font-family: inherit;
+  background: rgba(248,81,73,0.12);
+  color: #f85149;
+}
+.btn-danger:hover {
+  background: rgba(248,81,73,0.2);
+  border-color: rgba(248,81,73,0.3);
+}
+
+/* ─── Toast Notifications ─────────────────────────────── */
+.toast {
+  position: fixed;
+  top: 20px;
+  inset-inline-end: 20px;
+  padding: 14px 24px;
+  border-radius: var(--radius-sm, 10px);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  backdrop-filter: blur(8px);
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast-success { background: rgba(34, 197, 94, 0.92); }
+.toast-error { background: rgba(248, 81, 73, 0.92); }
+
+/* ─── Video Grid (Landing) ──────────────────────────────── */
+.scouting-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-6);
+}
+.scouting-header .btn { flex-shrink: 0; }
+.scouting-filters {
+  display: flex;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 200px;
+}
+.scouting-filters .filter-btn {
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: var(--transition-fast);
+}
+.scouting-filters .filter-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.scouting-search {
+  max-width: 220px;
+}
+.quota-bar {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-4);
+}
+.quota-bar .quota-fill {
+  display: inline-block;
+  width: 160px;
+  height: 8px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+  margin-left: var(--sp-2);
+  vertical-align: middle;
+  overflow: hidden;
+}
+.quota-bar .quota-fill-inner {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-4);
+}
+.video-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.video-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+.video-card-thumb-wrap {
+  position: relative;
+}
+.video-card-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: var(--bg-surface);
+  display: block;
+}
+.video-card-thumb-placeholder {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 2.5rem;
+}
+.video-card-duration {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--r-md);
+  letter-spacing: 0.5px;
+}
+.video-card-body {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+}
+.video-card-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: var(--sp-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.video-card-info {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+}
+.video-card-info span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.video-card-info .material-symbols-outlined {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+.video-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.video-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: rgba(244,140,37,0.15);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.video-card-shared {
+  background: rgba(34,197,94,0.15);
+  color: var(--success);
+}
+
+/* ─── Upload Modal ──────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--r-xl);
+  padding: var(--sp-8);
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  margin-bottom: var(--sp-4);
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--primary);
+  background: rgba(244,140,37,0.05);
+}
+.upload-zone .material-symbols-outlined {
+  font-size: 3rem;
+  color: var(--primary);
+}
+.upload-zone p {
+  margin-top: var(--sp-2);
+  color: var(--text-secondary);
+}
+.upload-progress {
+  display: none;
+  margin: var(--sp-4) 0;
+}
+.upload-progress.active { display: block; }
+.upload-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.upload-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+  width: 0%;
+}
+.upload-progress-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: var(--sp-1);
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §2  VIDEO PLAYER & CONTROLS
+   Analysis view, player area, video container, tools sidebar, tags bar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Analysis View ─────────────────────────────────────── */
+.analysis-view { display: none; }
+.analysis-view.active { display: block; }
+.analysis-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.analysis-header h2 {
+  flex: 1;
+  font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.analysis-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* ─── Video Player Area ─────────────────────────────────── */
+.player-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.video-container {
+  position: relative;
+  width: 100%;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #000;
+  /* No fixed aspect ratio — Video.js fluid mode adjusts to the source's
+     real aspect (16:9, 9:16 portrait, 4:3, etc.) so phone-shot clips
+     are not cropped or zoomed. */
+}
+.video-container .video-js {
+  width: 100%;
+  height: 100%;
+}
+/* Make sure the underlying <video> element shows the whole frame
+   (letterbox if needed) instead of cropping. */
+.video-container .video-js video,
+.video-container .vjs-tech {
+  object-fit: contain;
+  background: #000;
+}
+/* On phones, cap the video height so a tall/portrait clip can't push
+   the rest of the page off-screen. */
+@media (max-width: 768px) {
+  .video-container {
+    max-height: 56vh;
+  }
+}
+/* Canvas telestrator overlay */
+.telestrator-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+.telestrator-canvas.drawing {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+/* ─── Video + Tools Wrapper ────────────────────────────── */
+.video-with-tools {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+
+/* ─── Tools Sidebar (left of video) ────────────────────── */
+.tools-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--sp-2);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  width: 52px;
+  min-width: 52px;
+  flex-shrink: 0;
+}
+.tools-section-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0 2px;
+}
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.tags-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ─── Tags Bar (horizontal, below video) ─────────────── */
+.tags-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.tags-bar-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.tags-bar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tools-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tools-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+/* ─── Unified Tool Buttons ─────────────────────────────── */
+.tools-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tool-btn span:last-child {
+  display: none;
+}
+.tool-btn:hover {
+  border-color: var(--primary);
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+.tool-btn .material-symbols-outlined {
+  font-size: 1.15rem;
+}
+.tool-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.tool-btn.active:hover {
+  background: var(--primary);
+  filter: brightness(1.1);
+}
+.tool-btn.tool-btn-danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+/* Scissors active pulse */
+.tool-btn.scissors-active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  animation: scissors-pulse 1.5s ease-in-out infinite;
+}
+@keyframes scissors-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 107, 53, 0); }
+}
+
+/* ─── Tool Expand Panel (stroke settings — floats right of slim sidebar) ── */
+.tool-expand {
+  position: absolute;
+  left: 56px;
+  top: 0;
+  width: 200px;
+  padding: 6px 8px;
+  margin: 0;
+  background: var(--bg-raised);
+  z-index: 20;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.tool-expand-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+.tool-expand-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 28px;
+}
+.tool-expand .draw-color-input {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+}
+
+/* ─── Tag Buttons ──────────────────────────────────────── */
+.tag-btn {
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 600;
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.tag-btn:hover {
+  border-color: var(--primary);
+  background: rgba(244,140,37,0.15);
+}
+.tag-btn.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §3  DRAWING TOOLS
+   Drawing tool buttons, color pickers, inline text editor, Video.js overrides,
+   speed badge, stroke/opacity sliders, I/O markers, keyboard shortcuts overlay
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Drawing Tool Buttons ─────────────────────────────── */
+.draw-tool-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-lg);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.draw-tool-btn:hover {
+  background: var(--glass-border);
+}
+.draw-tool-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.draw-tool-btn .material-symbols-outlined {
+  font-size: 1.1rem;
+}
+
+.draw-color-input {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  background: transparent;
+}
+
+/* ─── Inline Text Editor (Canva-style) ─────────────────── */
+.te-wrap {
+  position: absolute;
+  z-index: 20;
+}
+/* Mini toolbar — floats above the text box */
+.te-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px 4px;
+  background: rgba(30, 25, 20, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-3);
+  border-radius: 8px;
+  margin-top: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.te-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.te-btn:hover { background: var(--border-2); color: #fff; }
+.te-move { cursor: grab; }
+.te-move:active { cursor: grabbing; }
+.te-btn .material-symbols-outlined { font-size: 1.05rem; }
+.te-btn-del:hover { color: var(--danger); background: rgba(239,68,68,0.15); }
+.te-btn-ok { background: var(--primary); color: #fff; }
+.te-btn-ok:hover { background: var(--primary-dark); }
+.te-btn.te-toggle-on {
+  background: rgba(244, 140, 37, 0.25);
+  color: var(--primary);
+  border: 1px solid rgba(244, 140, 37, 0.4);
+}
+.te-color {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-3);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+}
+/* Text box — directly on the video, contenteditable */
+.te-box {
+  position: relative;
+  border: 2px solid rgba(120, 120, 255, 0.6);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: move;
+  min-width: 40px;
+  min-height: 1.2em;
+  background: rgba(0,0,0,0.15);
+}
+.te-box:hover { border-color: rgba(120, 120, 255, 0.9); }
+.te-input {
+  outline: none;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: bold;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+  min-width: 20px;
+}
+.te-input:empty::before {
+  content: 'Type...';
+  opacity: 0.4;
+}
+/* Corner resize handle */
+.te-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: rgba(120, 120, 255, 0.8);
+  border: 1px solid #fff;
+  border-radius: 2px;
+}
+.te-handle-br {
+  bottom: -5px;
+  right: -5px;
+  cursor: nwse-resize;
+}
+
+/* ─── Video.js Control Bar Styling ────────────────────── */
+
+/* Control bar — glass-dark with subtle top border */
+.video-js .vjs-control-bar {
+  background: linear-gradient(to top, rgba(8, 11, 18, 0.95), rgba(14, 19, 28, 0.88));
+  height: 44px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding: 0 4px;
+  gap: 0;
+}
+
+/* All control buttons — consistent size, smooth transitions */
+.video-js .vjs-control-bar .vjs-control {
+  height: 44px;
+  transition: opacity 0.15s ease;
+}
+.video-js .vjs-control-bar .vjs-control:hover {
+  opacity: 1;
+}
+.video-js .vjs-control-bar .vjs-icon-placeholder::before {
+  line-height: 44px;
+  font-size: 1.3rem;
+  color: rgba(240, 243, 246, 0.8);
+  transition: color 0.15s ease;
+}
+.video-js .vjs-control-bar .vjs-control:hover .vjs-icon-placeholder::before {
+  color: #fff;
+}
+
+/* Play/pause — accent glow on hover */
+.video-js .vjs-play-control {
+  width: 44px;
+  order: 0;
+}
+.video-js .vjs-play-control .vjs-icon-placeholder::before {
+  font-size: 1.5rem;
+  color: rgba(240, 243, 246, 0.9);
+}
+.video-js .vjs-play-control:hover .vjs-icon-placeholder::before {
+  color: var(--accent, #ff6b35);
+}
+
+/* Volume control */
+.video-js .vjs-volume-panel {
+  order: 1;
+}
+.video-js .vjs-volume-panel .vjs-icon-placeholder::before {
+  font-size: 1.2rem;
+}
+
+/* Big play button in center — orange with glow */
+.video-js .vjs-big-play-button {
+  background: var(--accent, #ff6b35) !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 68px !important;
+  height: 68px !important;
+  line-height: 68px !important;
+  top: 50% !important;
+  left: 50% !important;
+  margin: 0 !important;
+  transform: translate(-50%, -50%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
+}
+.video-js .vjs-big-play-button .vjs-icon-placeholder::before {
+  line-height: 68px !important;
+  font-size: 2.2rem !important;
+  color: #fff !important;
+}
+.video-js .vjs-big-play-button:hover {
+  background: var(--accent, #ff6b35) !important;
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 6px 32px rgba(255, 107, 53, 0.5);
+}
+
+/* Progress bar — accent gradient with glow */
+.video-js .vjs-progress-control {
+  height: 44px;
+}
+.video-js .vjs-progress-holder {
+  height: 4px;
+  border-radius: 2px;
+  margin: 0;
+  transition: height 0.15s ease;
+}
+.video-js .vjs-progress-control:hover .vjs-progress-holder {
+  height: 6px;
+}
+.video-js .vjs-play-progress {
+  background: linear-gradient(90deg, var(--accent, #ff6b35), #ff8f5e) !important;
+  border-radius: 2px;
+}
+.video-js .vjs-play-progress::before {
+  /* Playhead dot */
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(255, 107, 53, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.video-js .vjs-progress-control:hover .vjs-play-progress::before {
+  opacity: 1;
+}
+.video-js .vjs-volume-level {
+  background: var(--accent, #ff6b35) !important;
+}
+.video-js .vjs-load-progress {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+.video-js .vjs-slider-bar {
+  background: var(--border);
+}
+
+/* Time display — refined typography */
+.video-js .vjs-time-control {
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  min-width: auto;
+  line-height: 44px;
+  display: flex;
+  align-items: center;
+  color: rgba(200, 205, 212, 0.85);
+  letter-spacing: 0.02em;
+}
+.video-js .vjs-remaining-time {
+  color: rgba(155, 164, 176, 0.6);
+  font-size: 0.72rem;
+}
+
+/* Custom skip & frame buttons */
+.vjs-skip-btn {
+  cursor: pointer;
+  text-align: center;
+  position: relative;
+}
+
+/* ── Frame buttons (|◀ ▶|) — small, subtle ──────────────── */
+.vjs-frame-back,
+.vjs-frame-fwd {
+  width: 28px !important;
+  min-width: 28px;
+}
+.vjs-frame-back .vjs-icon-placeholder,
+.vjs-frame-fwd .vjs-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+}
+.vjs-frame-back .vjs-icon-placeholder::before,
+.vjs-frame-fwd .vjs-icon-placeholder::before {
+  font-family: inherit !important;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 44px;
+  color: rgba(155, 164, 176, 0.6);
+  transition: color 0.15s ease;
+}
+.vjs-frame-back:hover .vjs-icon-placeholder::before,
+.vjs-frame-fwd:hover .vjs-icon-placeholder::before {
+  color: var(--accent, #ff6b35);
+}
+.vjs-frame-back .vjs-icon-placeholder::before {
+  content: '\25C0\FE0E' !important;
+}
+.vjs-frame-fwd .vjs-icon-placeholder::before {
+  content: '\25B6\FE0E' !important;
+}
+
+/* ── Skip 5s buttons — circular arrow with centered "5" ── */
+.vjs-skip-back,
+.vjs-skip-fwd {
+  width: 38px !important;
+  min-width: 38px;
+}
+.vjs-skip-back .vjs-icon-placeholder,
+.vjs-skip-fwd .vjs-icon-placeholder {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  width: 100%;
+  position: relative;
+  background-size: 24px 24px;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: background-image 0.15s ease;
+}
+/* Circular arrow SVGs (Material Design replay/forward style) */
+.vjs-skip-back .vjs-icon-placeholder {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%239ba4b0' d='M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z'/%3E%3C/svg%3E");
+}
+.vjs-skip-fwd .vjs-icon-placeholder {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%239ba4b0' d='M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z'/%3E%3C/svg%3E");
+}
+/* Hover: orange arrow */
+.vjs-skip-back:hover .vjs-icon-placeholder {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ff6b35' d='M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z'/%3E%3C/svg%3E");
+}
+.vjs-skip-fwd:hover .vjs-icon-placeholder {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ff6b35' d='M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z'/%3E%3C/svg%3E");
+}
+/* The "5" text — centered inside the circle */
+.vjs-skip-back .vjs-icon-placeholder::before,
+.vjs-skip-fwd .vjs-icon-placeholder::before {
+  content: '5' !important;
+  font-family: inherit !important;
+  font-size: 0.5rem !important;
+  font-weight: 800;
+  color: rgba(155, 164, 176, 0.9);
+  position: absolute;
+  top: 53%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  z-index: 1;
+  transition: color 0.15s ease;
+}
+.vjs-skip-back:hover .vjs-icon-placeholder::before,
+.vjs-skip-fwd:hover .vjs-icon-placeholder::before {
+  color: var(--accent, #ff6b35);
+}
+/* Remove ::after — arrow is now in background SVG */
+.vjs-skip-back .vjs-icon-placeholder::after,
+.vjs-skip-fwd .vjs-icon-placeholder::after {
+  display: none !important;
+}
+
+/* Playback rate button — pill badge style */
+.video-js .vjs-playback-rate {
+  line-height: 44px;
+  width: auto;
+  min-width: 36px;
+}
+.video-js .vjs-playback-rate .vjs-playback-rate-value {
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 44px;
+  color: rgba(200, 205, 212, 0.85);
+  transition: color 0.15s ease;
+  letter-spacing: 0.02em;
+}
+.video-js .vjs-playback-rate:hover .vjs-playback-rate-value {
+  color: var(--accent, #ff6b35);
+}
+/* Rate menu — dark theme */
+.video-js .vjs-playback-rate .vjs-menu {
+  width: 60px;
+}
+.video-js .vjs-playback-rate .vjs-menu-content {
+  background: rgba(14, 19, 28, 0.95);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 4px 0;
+  backdrop-filter: blur(12px);
+}
+.video-js .vjs-playback-rate .vjs-menu-item {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  color: rgba(200, 205, 212, 0.8);
+}
+.video-js .vjs-playback-rate .vjs-menu-item:hover {
+  background: rgba(255, 107, 53, 0.12);
+  color: #fff;
+}
+.video-js .vjs-playback-rate .vjs-menu-item.vjs-selected {
+  background: rgba(255, 107, 53, 0.15);
+  color: var(--accent, #ff6b35);
+}
+
+/* Fullscreen / PiP — consistent sizing with hover */
+.video-js .vjs-fullscreen-control,
+.video-js .vjs-picture-in-picture-control {
+  width: 38px;
+}
+.video-js .vjs-fullscreen-control .vjs-icon-placeholder::before,
+.video-js .vjs-picture-in-picture-control .vjs-icon-placeholder::before {
+  font-size: 1.15rem;
+}
+.video-js .vjs-fullscreen-control:hover .vjs-icon-placeholder::before,
+.video-js .vjs-picture-in-picture-control:hover .vjs-icon-placeholder::before {
+  color: var(--accent, #ff6b35);
+}
+
+/* Hide redundant time divider text */
+.video-js .vjs-time-divider {
+  padding: 0 2px;
+  min-width: auto;
+}
+
+/* Tooltip styling for all buttons */
+.video-js .vjs-control-bar .vjs-control .vjs-control-text {
+  background: rgba(14, 19, 28, 0.95);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(240, 243, 246, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+/* ─── Speed Badge (Phase 1.3) ─────────────────────────── */
+.speed-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 15;
+  padding: 4px 12px;
+  background: rgba(20, 16, 12, 0.85);
+  color: var(--primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--r-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.speed-badge.visible {
+  opacity: 1;
+}
+
+/* ─── Stroke Width & Opacity Sliders (Phase 1.4, 1.5) ── */
+.tools-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px;
+  margin-top: 2px;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.slider-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.tools-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--bg-surface);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.tools-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--bg-raised);
+}
+.tools-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--bg-raised);
+}
+.stroke-width-preview {
+  width: 3px;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: width 0.15s, height 0.15s;
+}
+
+/* ─── I/O Point Markers & Bar (Phase 1.6) ─────────────── */
+.timeline-io-marker {
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  z-index: 5;
+  border-radius: 1px;
+}
+.timeline-io-marker.io-in {
+  background: #22d3ee;
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+}
+.timeline-io-marker.io-out {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+.timeline-io-region {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(244, 140, 37, 0.12);
+  border-left: 1px solid rgba(34, 211, 238, 0.4);
+  border-right: 1px solid rgba(245, 158, 11, 0.4);
+  z-index: 1;
+  pointer-events: none;
+}
+.clip-io-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-top: var(--sp-2);
+  font-size: 0.82rem;
+}
+.io-label {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.io-label strong {
+  color: var(--text);
+}
+.io-separator {
+  color: var(--text-muted);
+}
+.io-duration {
+  padding: 2px 8px;
+  background: rgba(244, 140, 37, 0.15);
+  color: var(--primary);
+  border-radius: var(--r-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.io-clear {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+.io-clear:hover {
+  color: var(--danger);
+}
+
+/* ─── Keyboard Shortcuts Overlay (Phase 1.1) ──────────── */
+.shortcuts-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  align-items: center;
+  justify-content: center;
+}
+.shortcuts-overlay.active {
+  display: flex;
+}
+.shortcuts-panel {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: var(--sp-6);
+  max-width: 700px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-5);
+}
+.shortcuts-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-5);
+}
+.shortcut-group h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+  margin-bottom: var(--sp-2);
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--border);
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 3px 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.shortcut-row kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 2px 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.video-card-parent-shared {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+/* ─── Clip Time Controls ───────────────────────────────── */
+.clip-time-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.clip-time-btn {
+  width: 30px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+}
+.clip-time-btn:hover {
+  background: var(--primary-ghost);
+  color: var(--primary);
+}
+.clip-time-btn .material-symbols-outlined {
+  font-size: 1rem;
+}
+.clip-time-input {
+  width: 60px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 4px;
+}
+.clip-duration-badge {
+  text-align: center;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 44px;
+}
+
+/* ─── Video Expiry Badges ──────────────────────────────── */
+.video-card-expiry {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+.video-card-expiry-urgent {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+.video-card-permanent {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.video-expiry-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-variant-numeric: tabular-nums;
+}
+.video-expiry-info.urgent {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+.video-expiry-info.permanent {
+  color: var(--success);
+  background: rgba(34, 197, 94, 0.1);
+}
+/* Keep forever toggle in upload modal */
+.keep-forever-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.keep-forever-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* ─── Fullscreen: tools stay on LEFT (vertical) ──────────
+   Mobile tap-to-fullscreen also triggers screen.orientation.lock('landscape')
+   in scouting.js, so the layout below assumes a wide viewport. */
+.video-with-tools:fullscreen,
+.video-with-tools.is-fullscreen {
+  background: #000;
+  /* Reset any inherited flex behaviour so the row layout is consistent */
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+}
+.video-with-tools:fullscreen .video-container,
+.video-with-tools.is-fullscreen .video-container {
+  flex: 1;
+  border-radius: 0;
+  /* Let the video fill the remaining space; aspect-ratio is removed
+     globally below so portrait/4:3 clips also display correctly. */
+  aspect-ratio: auto;
+}
+.video-with-tools:fullscreen .video-js,
+.video-with-tools.is-fullscreen .video-js {
+  width: 100%;
+  height: 100%;
+}
+.video-with-tools:fullscreen .tools-sidebar,
+.video-with-tools.is-fullscreen .tools-sidebar {
+  /* Stay on the left as a vertical column — same affordance as normal view */
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  height: 100%;
+  border-radius: 0;
+  background: rgba(20, 16, 12, 0.85);
+  backdrop-filter: blur(12px);
+  border: none;
+  border-right: 1px solid var(--border-2);
+  padding: var(--sp-3) var(--sp-2);
+  gap: 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  opacity: 0.92;
+  transition: opacity 0.25s;
+  z-index: 30;
+}
+.video-with-tools:fullscreen .tools-sidebar:hover,
+.video-with-tools.is-fullscreen .tools-sidebar:hover {
+  opacity: 1;
+}
+@media (max-width: 768px) {
+  .video-with-tools:fullscreen .tools-sidebar,
+  .video-with-tools.is-fullscreen .tools-sidebar {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    padding: var(--sp-2) 6px;
+  }
+}
+.video-with-tools:fullscreen .tools-section,
+.video-with-tools.is-fullscreen .tools-section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+}
+.video-with-tools:fullscreen .tools-grid,
+.video-with-tools.is-fullscreen .tools-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+.video-with-tools:fullscreen .tools-actions,
+.video-with-tools.is-fullscreen .tools-actions {
+  flex-wrap: nowrap;
+}
+.video-with-tools:fullscreen .tools-divider,
+.video-with-tools.is-fullscreen .tools-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-3);
+  margin: 0;
+}
+.video-with-tools:fullscreen .tag-btn,
+.video-with-tools.is-fullscreen .tag-btn {
+  padding: 5px 10px;
+  font-size: 0.72rem;
+}
+.video-with-tools:fullscreen .tools-sliders,
+.video-with-tools.is-fullscreen .tools-sliders {
+  flex-direction: row;
+  gap: var(--sp-3);
+}
+.video-with-tools:fullscreen .slider-row,
+.video-with-tools.is-fullscreen .slider-row {
+  min-width: 80px;
+}
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,0.12);
+  margin: 0 var(--sp-1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §4  TIMELINE
+   Timeline bar, progress, markers, annotation track, clip timeline strip
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Timeline ──────────────────────────────────────────── */
+.timeline-section {
+  direction: ltr; /* Timeline always flows left→right regardless of UI language */
+}
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.ann-track-spacer {
+  width: 52px;
+  flex-shrink: 0;
+}
+.timeline-bar {
+  position: relative;
+  height: 32px;
+  background: var(--bg-surface);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  overflow: visible;
+}
+.timeline-progress {
+  height: 100%;
+  background: rgba(244,140,37,0.2);
+  border-radius: var(--r-lg);
+  transition: width 0.1s linear;
+  /* progress bar grows from left */
+}
+.timeline-marker {
+  position: absolute;
+  top: 2px;
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  z-index: 2;
+}
+.timeline-marker:hover {
+  transform: scaleX(2);
+}
+.timeline-marker.positive { background: var(--success); }
+.timeline-marker.negative { background: var(--danger); }
+.timeline-marker.neutral { background: var(--primary); }
+.timeline-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: var(--sp-1);
+}
+
+/* ─── Annotation Track (editor-style resizable bars) ───── */
+.annotation-track {
+  width: 100%;
+  background: var(--border-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  margin-top: 4px;
+  display: none;
+  padding: 2px 0;
+}
+.ann-track-row {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  gap: 0;
+}
+.ann-track-row + .ann-track-row {
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.ann-track-label {
+  display: none;
+}
+.ann-track-bars {
+  position: relative;
+  flex: 1;
+  height: 100%;
+}
+.ann-bar {
+  position: absolute;
+  top: 2px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 10px;
+  opacity: 0.8;
+  transition: opacity 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  user-select: none;
+}
+.ann-bar:active { cursor: grabbing; }
+.ann-bar:hover {
+  opacity: 1;
+  z-index: 5;
+}
+.ann-bar.selected {
+  opacity: 1;
+  z-index: 10;
+  box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.4);
+}
+.ann-bar-label {
+  font-size: 0.72rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+.ann-delete-btn {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.ann-bar:hover .ann-delete-btn,
+.ann-bar.selected .ann-delete-btn {
+  display: flex;
+}
+.ann-delete-btn:hover {
+  background: #dc2626;
+  transform: scale(1.15);
+}
+.ann-handle {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.ann-handle:hover {
+  background: rgba(255,255,255,0.35);
+}
+.ann-handle-left { left: 0; border-radius: 4px 0 0 4px; }
+.ann-handle-right { right: 0; border-radius: 0 4px 4px 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §5  CLIPS SIDEBAR
+   Clip cards, filter chips, compile button, tabs, batch bar, playlist cards
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Clips Sidebar ─────────────────────────────────────── */
+.clips-sidebar {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: var(--sp-3);
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+.clips-sidebar-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.clip-card {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--sp-2);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  font-size: 0.82rem;
+}
+.clip-card:hover, .clip-card.active {
+  border-color: var(--primary);
+  background: rgba(244,140,37,0.05);
+}
+.clip-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-1);
+}
+.clip-card-action {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.clip-card-rating { font-size: 1rem; }
+.clip-card-time {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+.clip-card-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--sp-1);
+}
+.clip-player-chip {
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: rgba(244,140,37,0.12);
+  color: var(--primary);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+.clip-watch-count {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ─── Clip Filter Chips ──────────────────────────────────── */
+.clip-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0;
+  margin-bottom: var(--sp-1);
+}
+.clip-filter-chip {
+  padding: 6px 12px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.clip-filter-chip:hover {
+  border-color: var(--primary);
+  color: var(--text-primary);
+}
+.clip-filter-chip.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+/* ─── Compile Clips Button ───────────────────────────────── */
+.compile-clips-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  width: 100%;
+  margin-top: var(--sp-2);
+  padding: 8px;
+}
+
+/* ─── Compile Timeline (drag-and-drop) ──────────────────── */
+.compile-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.compile-timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background: var(--bg-raised, #1a2332);
+  border: 1px solid var(--border, rgba(255,255,255,0.06));
+  border-radius: 8px;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.compile-timeline-item:active { cursor: grabbing; }
+.compile-timeline-item.dragging { opacity: 0.4; border-color: var(--primary); }
+.compile-timeline-item.drag-over {
+  border-color: var(--primary);
+  border-style: dashed;
+  background: rgba(255,107,53,0.04);
+}
+.compile-timeline-item .drag-handle {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  cursor: grab;
+  line-height: 1;
+}
+.compile-timeline-item .tl-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.compile-timeline-item .tl-icon.clip { background: rgba(77,166,255,0.15); color: var(--blue); }
+.compile-timeline-item .tl-icon.intro { background: rgba(255,107,53,0.15); color: var(--accent); }
+.compile-timeline-item .tl-icon.player { background: rgba(63,185,80,0.15); color: var(--green); }
+.compile-timeline-item .tl-info {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compile-timeline-item .tl-info strong {
+  color: #fff;
+  font-weight: 600;
+}
+.compile-timeline-item .tl-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 1rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.compile-timeline-item .tl-remove:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+
+/* ─── Card Creator Modals ──────────────────────────────── */
+.card-creator-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.card-creator-row .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+.card-creator-preview {
+  background: #000;
+  border-radius: 8px;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid var(--border, rgba(255,255,255,0.06));
+}
+.card-creator-preview canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.logo-upload-zone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-upload-zone .upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-surface, #111820);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  color: var(--text-2, #c8cdd4);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.logo-upload-zone .upload-btn:hover {
+  background: rgba(255,107,53,0.08);
+  border-color: var(--primary, #ff6b35);
+  color: var(--primary, #ff6b35);
+}
+.logo-upload-zone .upload-btn .material-symbols-outlined {
+  font-size: 1.1rem;
+}
+.logo-upload-zone .logo-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--bg-surface, #111820);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo-upload-zone .logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.mode-toggle button {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.mode-toggle button.active {
+  background: rgba(255,107,53,0.12);
+  color: var(--primary, #ff6b35);
+  border-color: var(--primary);
+}
+
+/* ─── Clips Sidebar Tabs & Batch Bar ──────────────────────── */
+.clips-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.clips-tab-btn {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  text-align: center;
+}
+.clips-tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.clips-tab-btn:hover:not(.active) {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: rgba(244, 140, 37, 0.08);
+  border: 1px solid rgba(244, 140, 37, 0.3);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--sp-2);
+  font-size: 0.75rem;
+}
+.batch-count {
+  font-weight: 600;
+  color: var(--primary);
+  flex: 1;
+}
+.clip-card.batch-selected {
+  border-color: var(--primary);
+  background: rgba(244, 140, 37, 0.08);
+}
+.clip-batch-check {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.playlist-card {
+  border-left: 3px solid var(--primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   §6  MODALS
+   Clip create modal, zoom controls, comparison mode, export progress,
+   responsive breakpoints, Clipchamp layout overrides
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Clip Create Modal ─────────────────────────────────── */
+.clip-modal-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  max-height: 160px;
+  overflow-y: auto;
+}
+.player-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.player-check.selected {
+  border-color: var(--primary);
+  background: rgba(244,140,37,0.1);
+}
+.player-check input { display: none; }
+
+/* ─── Phase 4.1: Zoom Controls ─────────────────────────── */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--sp-1);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  margin: 0 var(--sp-1);
+}
+.zoom-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: center;
+}
+.video-container {
+  overflow: hidden; /* clip zoomed content */
+}
+.video-container video,
+.video-container .telestrator-canvas {
+  transform-origin: center center;
+  transition: transform 0.15s ease;
+}
+
+/* ─── Phase 4.2: Comparison Mode ──────────────────────── */
+.analysis-layout.comparison-mode {
+  /* In flex mode, the comparison panel and player-area sit side by side */
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.analysis-layout.comparison-mode > .player-area {
+  flex: 1;
+  min-width: 0;
+}
+.analysis-layout.comparison-mode > .comparison-panel {
+  flex: 1;
+  min-width: 0;
+}
+.comparison-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.comp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.comp-header h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.comp-sync-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.comp-sync-label input {
+  accent-color: var(--primary);
+}
+.comp-video-picker select {
+  width: 100%;
+  font-size: 0.8rem;
+}
+.comp-video-container {
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #000;
+}
+.comp-video-container .video-js {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16/9;
+}
+
+/* ─── Phase 4.3: Export Progress ──────────────────────── */
+.export-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-raised);
+  border: 1px solid rgba(244, 140, 37, 0.3);
+  border-radius: var(--r-lg);
+  margin-top: var(--sp-2);
+}
+.export-progress-label {
+  font-size: 0.78rem;
+  color: var(--primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.export-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.export-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+  width: 0%;
+}
+
+/* ─── Responsive ────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .clips-sidebar {
+    max-height: 300px;
+  }
+  .scouting-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .scouting-filters {
+    overflow-x: auto;
+  }
+  .scouting-search {
+    max-width: 100%;
+  }
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+/* ═══ Clipchamp-Style Layout Overrides ═══════════════════ */
+
+/* Hide clips sidebar (replaced by bottom timeline strip) */
+.analysis-view.active .clips-sidebar { display: none !important; }
+
+/* Hide tags bar (tags available in clip modal only) */
+.analysis-view.active .tags-bar { display: none; }
+
+/* Hide old timeline elements (replaced by clip timeline strip) but keep annotation track */
+.analysis-view.active .timeline-section .timeline-row { display: none; }
+.analysis-view.active .timeline-section .clip-io-bar { display: none; }
+.analysis-view.active .timeline-section .export-progress { display: none; }
+.analysis-view.active .timeline-section {
+  margin: 0;
+  padding: 0 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.analysis-view.active .timeline-section .annotation-track {
+  display: block !important;
+  margin: 8px 0 0 0;
+  background: var(--border-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 4px 0;
+  min-height: 32px;
+}
+/* Connect annotation track visually to clip strip */
+.analysis-view.active .clip-timeline-strip {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: 0;
+}
+/* Empty state hint inside annotation track */
+.analysis-view.active .timeline-section .annotation-track:empty::before {
+  content: 'Annotations will appear here';
+  display: block;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding: 6px;
+  opacity: 0.5;
+}
+
+/* ─── Cards Panel (right of video) ──────────────────────── */
+.cards-panel {
+  width: 100px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.cards-panel-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  line-height: 1.3;
+  font-family: inherit;
+}
+.cards-panel-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(255,107,53,0.05);
+}
+.cards-panel-btn .material-symbols-outlined {
+  font-size: 1.4rem;
+}
+
+/* ─── Clip Timeline Strip (Clipchamp-style) ─────────────── */
+.clip-timeline-strip {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  min-height: 90px;
+  align-items: stretch;
+}
+.clip-timeline-strip::-webkit-scrollbar { height: 4px; }
+.clip-timeline-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.clip-thumb {
+  flex-shrink: 0;
+  width: 120px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  background: var(--bg-surface);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.clip-thumb:hover { border-color: var(--primary); transform: translateY(-2px); }
+.clip-thumb.active { border-color: var(--primary); box-shadow: 0 0 12px rgba(255,107,53,0.3); }
+.clip-thumb.dragging { opacity: 0.4; }
+.clip-thumb.drag-over { border-color: #4da6ff; border-style: dashed; }
+
+.clip-thumb-img {
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  background: #0a0e14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.clip-thumb-canvas {
+  width: 100%;
+  height: 64px;
+  display: block;
+  background: #0a0e14;
+}
+.clip-thumb-info {
+  padding: 4px 6px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.clip-thumb-info .clip-thumb-tag {
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: #fff;
+  text-transform: capitalize;
+}
+.clip-thumb-info .clip-thumb-time {
+  font-size: 0.62rem;
+  opacity: 0.7;
+}
+.clip-thumb-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+}
+
+/* Card items in timeline (Game Intro, Player Card) */
+.clip-thumb.card-item {
+  background: linear-gradient(135deg, var(--bg-raised), var(--bg-surface));
+  border-style: dashed;
+}
+.clip-thumb.card-item .clip-thumb-img {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 1.5rem;
+}
+
+/* Empty timeline state */
+.clip-timeline-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  padding: 24px;
+  width: 100%;
+}
+
+/* ─── Timeline Action Bar ────────────────────────────────── */
+.timeline-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.timeline-action-bar .btn-compile {
+  padding: 10px 24px;
+  border-radius: var(--r-lg);
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.timeline-action-bar .btn-compile:hover { filter: brightness(1.1); box-shadow: 0 4px 16px rgba(255,107,53,0.3); }
+.timeline-action-bar .btn-compile:disabled { opacity: 0.5; cursor: not-allowed; }
+.timeline-action-bar .btn-share {
+  padding: 10px 20px;
+  border-radius: var(--r-lg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.timeline-action-bar .btn-share:hover { border-color: var(--text-muted); background: rgba(255,255,255,0.03); }
+.timeline-action-bar .timeline-filters {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.timeline-filter-chip {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.timeline-filter-chip:hover { border-color: var(--text-muted); }
+.timeline-filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ─── Clip Detail Popup ──────────────────────────────────── */
+.clip-detail-popup {
+  position: fixed;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 12px 16px;
+  min-width: 280px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 50;
+  font-size: 0.82rem;
+}
+.clip-detail-popup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--bg-raised);
+}
+.clip-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.clip-detail-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(255,107,53,0.15);
+  color: var(--primary);
+  text-transform: capitalize;
+}
+.clip-detail-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.clip-detail-actions button {
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+}
+.clip-detail-actions button:hover { border-color: var(--text-muted); color: var(--text); }
+.clip-detail-actions button.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ─── Clipchamp Mobile Responsive ────────────────────────── */
+@media (max-width: 768px) {
+  .cards-panel { display: none; }
+  .clip-thumb { width: 100px; }
+  .clip-thumb-img, .clip-thumb-canvas { height: 52px; }
+  .timeline-action-bar { flex-wrap: wrap; }
+  .timeline-action-bar .btn-compile,
+  .timeline-action-bar .btn-share { flex: 1; justify-content: center; }
+  .timeline-filters { width: 100%; }
+  /* Show card buttons in action bar on mobile */
+  .timeline-action-bar .mobile-card-btns { display: flex; gap: 6px; width: 100%; }
+}
+@media (min-width: 769px) {
+  .timeline-action-bar .mobile-card-btns { display: none; }
+}
+
+/* === RTL OVERRIDES === */
+[dir="rtl"] .scouting-filter-badge { margin-left: 0; margin-right: var(--sp-2); }
+[dir="rtl"] .playlist-accent { border-left: none; border-right: 3px solid var(--primary); }
+[dir="rtl"] .playlist-border-l { border-left: none; border-right: 1px solid var(--border); }
+
+/* --- NEW: Hybrid Video Architecture — YouTube embed container --- */
+#videoContainer.yt-mode {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+#videoContainer.yt-mode iframe {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  border: none;
+  z-index: 1;
+}
+#videoContainer.yt-mode .telestrator-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 2;
+  pointer-events: none;  /* pass clicks to YouTube player by default */
+}
+#videoContainer.yt-mode .telestrator-canvas.drawing {
+  pointer-events: auto;  /* capture clicks only when drawing tool is active */
+  cursor: crosshair;
+}
+
+/* --- NEW: Hybrid Video Architecture --- */
+.upload-source-tabs {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--sp-2);
+}
+.upload-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-4);
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -calc(var(--sp-2) + 1px);
+  transition: color 0.15s, border-color 0.15s;
+}
+.upload-tab:hover { color: var(--text); }
+.upload-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.upload-tab .material-symbols-outlined { font-size: 1.1rem; }
+
+.upload-url-section {
+  padding: var(--sp-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  margin-bottom: var(--sp-4);
+}
+
+/* --- NEW: Clip Share Button --- */
+.clip-share-btn {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+.clip-share-btn:hover { color: var(--primary); }
+/* --- END NEW --- */
+
+.video-card-source-external {
+  background: var(--info, #3b82f6);
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+/* --- END NEW --- */
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Tablet (max-width: 768px)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ─── Analysis Layout: single column, video on top ──── */
+  .analysis-layout {
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+  .analysis-layout.comparison-mode {
+    flex-direction: column;
+  }
+
+  /* ─── Analysis Header: wrap and allow title to shrink ── */
+  .analysis-header {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+  .analysis-header h2 {
+    flex: 1 1 100%;
+    font-size: 1rem;
+    white-space: normal;
+  }
+
+  /* ─── Video + Tools: stack vertically ───────────────── */
+  .video-with-tools {
+    flex-direction: column;
+  }
+
+  /* ─── Video: full width on mobile ────────────────── */
+  .video-container { width: 100%; }
+  .video-container .video-js { width: 100% !important; height: 100% !important; }
+
+  /* ─── Tools Sidebar: horizontal bottom bar ─────────── */
+  .tools-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-2);
+    order: 2;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tools-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .tools-column {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .tools-divider {
+    width: 1px;
+    height: 24px;
+    margin: 0 var(--sp-1);
+  }
+  .tools-section-label {
+    writing-mode: horizontal-tb;
+  }
+  .tools-sliders {
+    flex-direction: row;
+    gap: var(--sp-3);
+  }
+  .slider-row {
+    min-width: 80px;
+  }
+
+  /* ─── Tool Buttons: touch-friendly min size ────────── */
+  .tool-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+  }
+  .draw-tool-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .draw-tool-btn .material-symbols-outlined {
+    font-size: 1.2rem;
+  }
+  .tag-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 0.72rem;
+  }
+
+  /* ─── Clips Sidebar: stack below video ─────────────── */
+  .clips-sidebar {
+    max-height: 50vh;
+    border-radius: var(--r-lg);
+  }
+
+  /* ─── Modals: full-width on mobile ─────────────────── */
+  .modal {
+    width: 95vw;
+    max-width: none;
+    border-radius: var(--r-lg);
+  }
+  .modal-body {
+    max-height: 60vh;
+    padding: var(--sp-4);
+  }
+  .modal-header {
+    padding: var(--sp-4);
+  }
+  .modal-footer {
+    padding: var(--sp-3) var(--sp-4);
+    flex-wrap: wrap;
+  }
+  .modal-footer .btn {
+    flex: 1;
+    min-width: 120px;
+    min-height: 44px;
+  }
+
+  /* ─── Shortcuts Panel: full width ──────────────────── */
+  .shortcuts-panel {
+    width: 95vw;
+    max-width: none;
+    padding: var(--sp-4);
+  }
+  .shortcuts-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+
+  /* ─── Upload Zone: easy tap target ─────────────────── */
+  .upload-zone {
+    padding: var(--sp-6);
+    min-height: 140px;
+  }
+  .upload-zone .material-symbols-outlined {
+    font-size: 2.5rem;
+  }
+  .upload-source-tabs {
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+  .upload-tab {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-3);
+    font-size: 0.8rem;
+  }
+
+  /* ─── Video Grid: 2-column max ─────────────────────── */
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--sp-3);
+  }
+
+  /* ─── Scouting Header: stack vertically ────────────── */
+  .scouting-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-3);
+  }
+  .scouting-filters {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--sp-1);
+  }
+  .scouting-search {
+    max-width: 100%;
+  }
+
+  /* ─── Clip I/O Bar: wrap on tablet ─────────────────── */
+  .clip-io-bar {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    font-size: 0.78rem;
+  }
+
+  /* ─── Tags Bar: scrollable on tablet ───────────────── */
+  .tags-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tags-bar-buttons {
+    flex-wrap: nowrap;
+  }
+
+  /* ─── Annotation Tools: larger touch handles ───────── */
+  .ann-handle {
+    width: 14px;
+  }
+  .ann-delete-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 0.8rem;
+    display: flex;
+  }
+
+  /* ─── Btn-icon: touch-friendly ─────────────────────── */
+  .btn-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* ─── Modal Close: touch-friendly ──────────────────── */
+  .modal-close {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* ─── Clip Filter Chips: touch-friendly ────────────── */
+  .clip-filter-chip {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* ─── Toast: responsive positioning ────────────────── */
+  .toast {
+    inset-inline-start: var(--sp-3);
+    inset-inline-end: var(--sp-3);
+    top: var(--sp-3);
+    max-width: none;
+  }
+
+  /* ─── Comparison Panel: stack below primary ────────── */
+  .comparison-panel .comp-video-container {
+    max-height: 40vh;
+  }
+
+  /* ─── Export Progress: responsive ──────────────────── */
+  .export-progress {
+    flex-wrap: wrap;
+  }
+
+  /* ─── Zoom Controls: touch targets ─────────────────── */
+  .zoom-controls .btn-icon,
+  .zoom-controls .draw-tool-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* ─── Clip Time Controls: touch targets ────────────── */
+  .clip-time-btn {
+    width: 40px;
+    height: 44px;
+  }
+  .clip-time-input {
+    min-height: 44px;
+    width: 70px;
+  }
+
+  /* ─── Prevent horizontal scroll ────────────────────── */
+  .analysis-view {
+    overflow-x: hidden;
+  }
+
+  /* ─── Player Check: touch-friendly ─────────────────── */
+  .player-check {
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  /* ─── Batch Bar: wrap ──────────────────────────────── */
+  .batch-bar {
+    flex-wrap: wrap;
+  }
+
+  /* ─── Keep-forever toggle: touch-friendly ──────────── */
+  .keep-forever-toggle {
+    min-height: 44px;
+    padding: var(--sp-1) 0;
+  }
+  .keep-forever-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* ─── Clips Tab Bar: equal width tabs ──────────────── */
+  .clips-tab-btn {
+    min-height: 44px;
+    font-size: 0.78rem;
+  }
+
+  /* ─── Video.js Control Bar: compact for tablet ─────── */
+  .video-js .vjs-control-bar {
+    height: 40px;
+    padding: 0 2px;
+  }
+  .video-js .vjs-control-bar .vjs-control {
+    height: 40px;
+  }
+  .video-js .vjs-control-bar .vjs-icon-placeholder::before {
+    line-height: 40px;
+  }
+  .video-js .vjs-play-control {
+    width: 40px;
+  }
+  .vjs-skip-back .vjs-icon-placeholder,
+  .vjs-skip-fwd .vjs-icon-placeholder {
+    height: 40px;
+    background-size: 22px 22px;
+  }
+  .vjs-skip-back,
+  .vjs-skip-fwd {
+    width: 34px !important;
+    min-width: 34px;
+  }
+  .vjs-frame-back .vjs-icon-placeholder,
+  .vjs-frame-fwd .vjs-icon-placeholder {
+    height: 40px;
+  }
+  .video-js .vjs-time-control {
+    line-height: 40px;
+    font-size: 0.72rem;
+  }
+  .video-js .vjs-playback-rate .vjs-playback-rate-value {
+    line-height: 40px;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Small phones (max-width: 480px)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* ─── Video Grid: single column ────────────────────── */
+  .video-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+
+  /* ─── Video Card: full width ───────────────────────── */
+  .video-card-body {
+    padding: var(--sp-2);
+  }
+  .video-card-title {
+    font-size: 0.88rem;
+  }
+
+  /* ─── Modal: near full screen, bottom sheet style ──── */
+  .modal-overlay {
+    padding: var(--sp-2);
+    align-items: flex-end;
+  }
+  .modal {
+    width: 100%;
+    max-width: none;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    max-height: 92vh;
+  }
+  .modal-body {
+    max-height: 55vh;
+    padding: var(--sp-3);
+  }
+  .modal-header {
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .modal-header h2,
+  .modal-header h3 {
+    font-size: 1rem;
+  }
+  .modal-footer {
+    padding: var(--sp-3);
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .modal-footer .btn {
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
+  }
+
+  /* ─── Upload Zone: compact but tappable ────────────── */
+  .upload-zone {
+    padding: var(--sp-5);
+    min-height: 120px;
+  }
+  .upload-zone .material-symbols-outlined {
+    font-size: 2rem;
+  }
+  .upload-zone p {
+    font-size: 0.85rem;
+  }
+  .upload-source-tabs {
+    gap: 0;
+  }
+  .upload-tab {
+    padding: var(--sp-2);
+    font-size: 0.75rem;
+    gap: 4px;
+  }
+  .upload-url-section {
+    padding: var(--sp-3);
+  }
+
+  /* ─── Shortcuts Panel: phone-optimized ─────────────── */
+  .shortcuts-panel {
+    width: 100%;
+    max-height: 85vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding: var(--sp-3);
+  }
+  .shortcuts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ─── Tools Sidebar: tighter on phone ──────────────── */
+  .tools-sidebar {
+    padding: 4px;
+    gap: 2px;
+    border-radius: var(--r-lg);
+  }
+  .tool-btn {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    gap: 4px;
+  }
+
+  /* ─── Clips Sidebar: more height on phone ──────────── */
+  .clips-sidebar {
+    max-height: 60vh;
+    padding: var(--sp-2);
+  }
+  .clip-card {
+    padding: var(--sp-2);
+  }
+
+  /* ─── I/O Bar: compact stack ───────────────────────── */
+  .clip-io-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+    font-size: 0.75rem;
+  }
+  .io-clear {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+
+  /* ─── Clip Time Controls: stack ────────────────────── */
+  .clip-time-control {
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+
+  /* ─── Analysis Header: compact ─────────────────────── */
+  .analysis-header {
+    gap: var(--sp-1);
+  }
+  .analysis-header h2 {
+    font-size: 0.92rem;
+  }
+
+  /* ─── Tags Bar: compact scrollable ─────────────────── */
+  .tags-bar {
+    padding: var(--sp-1) var(--sp-2);
+    gap: var(--sp-1);
+  }
+
+  /* ─── Quota Bar: responsive fill width ─────────────── */
+  .quota-bar .quota-fill {
+    width: 120px;
+  }
+
+  /* ─── Timeline: touch-friendly height ──────────────── */
+  .timeline-bar {
+    height: 40px;
+  }
+  .timeline-marker {
+    width: 6px;
+    height: 36px;
+  }
+
+  /* ─── Annotation Track: taller rows for touch ──────── */
+  .ann-track-row {
+    height: 36px;
+  }
+  .ann-bar {
+    height: 30px;
+    min-width: 16px;
+  }
+  .ann-handle {
+    width: 16px;
+  }
+
+  /* ─── Toast: full width ────────────────────────────── */
+  .toast {
+    inset-inline-start: var(--sp-2);
+    inset-inline-end: var(--sp-2);
+    top: var(--sp-2);
+    font-size: 0.82rem;
+    padding: 12px 16px;
+  }
+
+  /* ─── Scouting Filters: scrollable pills ───────────── */
+  .scouting-filters {
+    gap: var(--sp-1);
+  }
+  .scouting-filters .filter-btn {
+    padding: var(--sp-2) var(--sp-3);
+    min-height: 44px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+
+  /* ─── Btn-danger: full-width on phone ──────────────── */
+  .btn-danger {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+  }
+
+  /* ─── Inline Text Editor: phone adjustments ────────── */
+  .te-toolbar {
+    gap: 1px;
+    padding: 2px 3px;
+  }
+  .te-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* ─── Comparison Panel: full width stacked ─────────── */
+  .comparison-panel .comp-video-container {
+    max-height: 30vh;
+  }
+
+  /* ─── Clip Modal Players: 2-column grid ────────────── */
+  .clip-modal-players {
+    max-height: 140px;
+    gap: var(--sp-1);
+  }
+
+  /* ─── Form Groups: tighter spacing ─────────────────── */
+  .form-group {
+    margin-bottom: var(--sp-3);
+  }
+
+  /* ─── Prevent any horizontal overflow ──────────────── */
+  .analysis-view,
+  .analysis-layout,
+  .player-area {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* ─── Speed Badge: repositioned ────────────────────── */
+  .speed-badge {
+    top: 8px;
+    right: 8px;
+    font-size: 0.95rem;
+    padding: 3px 10px;
+  }
+
+  /* ─── Zoom Controls: compact ───────────────────────── */
+  .zoom-controls {
+    gap: 1px;
+    padding: 0;
+    margin: 0;
+    border: none;
+  }
+  .zoom-badge {
+    font-size: 0.68rem;
+    min-width: 26px;
+  }
+
+  /* ─── Export Progress: stacked ──────────────────────── */
+  .export-progress {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+  .export-progress-label {
+    text-align: center;
+  }
+
+  /* ─── Video.js Control Bar: phone compact ──────────── */
+  .video-js .vjs-control-bar {
+    height: 36px;
+    padding: 0 1px;
+  }
+  .video-js .vjs-control-bar .vjs-control {
+    height: 36px;
+  }
+  .video-js .vjs-control-bar .vjs-icon-placeholder::before {
+    line-height: 36px;
+    font-size: 1.1rem;
+  }
+  .video-js .vjs-play-control {
+    width: 36px;
+  }
+  .video-js .vjs-play-control .vjs-icon-placeholder::before {
+    font-size: 1.3rem;
+  }
+  .vjs-skip-back,
+  .vjs-skip-fwd {
+    width: 32px !important;
+    min-width: 32px;
+  }
+  .vjs-skip-back .vjs-icon-placeholder,
+  .vjs-skip-fwd .vjs-icon-placeholder {
+    height: 36px;
+    background-size: 20px 20px;
+  }
+  .vjs-skip-back .vjs-icon-placeholder::before,
+  .vjs-skip-fwd .vjs-icon-placeholder::before {
+    font-size: 0.45rem !important;
+  }
+  .video-js .vjs-time-control {
+    font-size: 0.65rem;
+    line-height: 36px;
+    padding: 0 2px;
+  }
+  .video-js .vjs-remaining-time {
+    display: none !important;
+  }
+  .video-js .vjs-playback-rate .vjs-playback-rate-value {
+    font-size: 0.68rem;
+    line-height: 36px;
+  }
+  .video-js .vjs-fullscreen-control,
+  .video-js .vjs-picture-in-picture-control {
+    width: 32px;
+  }
+  .video-js .vjs-progress-holder {
+    height: 3px;
+  }
+  .video-js .vjs-progress-control:hover .vjs-progress-holder {
+    height: 5px;
+  }
+  /* Hide frame buttons on small phones — keep skip buttons */
+  .vjs-frame-back,
+  .vjs-frame-fwd {
+    display: none !important;
+  }
+  /* Scouting filters — horizontal scroll on small phones */
+  .scouting-filters {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+  .filter-btn { flex-shrink: 0; }
+
+  /* ─── Card Creator: stack rows on phone ──────────────── */
+  .card-creator-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card-creator-preview {
+    margin-bottom: 12px;
+  }
+  .mode-toggle button {
+    padding: 10px 6px;
+    font-size: 0.78rem;
+  }
+}
+
+/* ── Scouting modals — safe areas on notched phones ─────── */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: env(safe-area-inset-top, 16px) 12px env(safe-area-inset-bottom, 16px);
+  }
+  .scouting-search { max-width: 100%; }
+}

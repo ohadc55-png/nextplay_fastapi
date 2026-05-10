@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <title>Verify your email — NextPlay</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+</head>
+<body class="auth-page">
+
+<div class="auth-container">
+    <div class="auth-card" style="text-align:center;">
+        <div class="auth-brand">
+            <a href="/main"><img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="80" height="80" style="display:inline-block;"></a>
+            <h1>NEXTPLAY</h1>
+        </div>
+
+        <div style="margin: 28px auto 18px; width:72px; height:72px; border-radius:50%;
+                    background:rgba(255,107,53,0.12); display:flex; align-items:center; justify-content:center;">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+            </svg>
+        </div>
+
+        <h2 style="margin:0 0 12px; color:#fff;">Check your inbox</h2>
+        <p style="color:var(--text-2, #9ba4b0); margin:0 0 8px;">
+            We just sent a verification link to:
+        </p>
+        <p style="color:#fff; font-weight:600; margin:0 0 24px;">
+            {{ email or 'your email' }}
+        </p>
+        <p style="color:var(--text-2, #9ba4b0); margin:0 0 28px; font-size:0.92rem; line-height:1.55;">
+            Click the link in that email to activate your 14-day free trial.<br>
+            The link expires in 24 hours.
+        </p>
+
+        <div id="resendStatus" class="auth-error" style="display:none;"></div>
+
+        <button type="button" id="resendBtn" class="btn-primary-auth" style="width:100%;">
+            Resend the email
+        </button>
+
+        <div class="auth-footer" style="margin-top:18px;">
+            Already verified? <a href="/login">Sign in</a>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function(){
+    const email = {{ (email or '')|tojson }};
+    const btn = document.getElementById('resendBtn');
+    const status = document.getElementById('resendStatus');
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        status.style.display = 'none';
+        try {
+            const res = await fetch('/api/auth/resend-verification', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email}),
+            });
+            const data = await res.json();
+            status.textContent = data.sent ? '✓ Verification email re-sent.' : '✓ If an unverified account exists for this address, we sent a new link.';
+            status.className = 'auth-success';
+            status.style.display = 'block';
+            status.style.background = 'rgba(34,197,94,0.10)';
+            status.style.borderColor = 'rgba(34,197,94,0.4)';
+            status.style.color = '#86efac';
+            btn.textContent = 'Sent ✓';
+            setTimeout(() => { btn.disabled = false; btn.textContent = 'Resend the email'; }, 8000);
+        } catch (e) {
+            status.textContent = 'Could not resend. Please try again.';
+            status.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Resend the email';
+        }
+    });
+})();
+</script>
+
+</body>
+</html>

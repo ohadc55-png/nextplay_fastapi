@@ -5,7 +5,6 @@ Each test signs in as a coach and seeds a TeamProfile + active_team_id.
 
 from __future__ import annotations
 
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import select

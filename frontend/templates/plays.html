@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set active_page = 'plays' %}
+{% block title %}Play Creator — NextPlay{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/play-creator.css') }}?v={{ config.get('CSS_VERSION', '2') }}">
+
+<div id="playCreatorRoot" style="padding: 16px; max-width: 100%; overflow-x: hidden;"></div>
+
+<div id="playCreatorMobileBlock" class="pc-mobile-block" hidden>
+    <div class="pc-mobile-card">
+        <div class="pc-mobile-icon" aria-hidden="true">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="14" rx="2"/>
+                <path d="M8 22h8"/>
+                <path d="M12 18v4"/>
+            </svg>
+        </div>
+        <h2 class="pc-mobile-title">Play Creator is desktop-only for now</h2>
+        <p class="pc-mobile-text">
+            Drawing plays needs the precision of a larger screen. We're actively working on a touch-first mobile experience — until then, please open NextPlay on a laptop or desktop to build and review your plays.
+        </p>
+        <p class="pc-mobile-hint">Every other feature — chat, notebook, scouting, roster — works great on mobile.</p>
+        <a href="/chat" class="pc-mobile-cta">Back to Chat</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/play-creator.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script nonce="{{ g.csp_nonce }}">
+  (function () {
+    var MOBILE_MAX = 768;
+    var isMobile = window.innerWidth <= MOBILE_MAX ||
+                   (('ontouchstart' in window) && window.innerWidth <= 820);
+    if (isMobile) {
+      var root = document.getElementById('playCreatorRoot');
+      var block = document.getElementById('playCreatorMobileBlock');
+      if (root) root.style.display = 'none';
+      if (block) block.hidden = false;
+      return;
+    }
+    new PlayCreator(document.getElementById('playCreatorRoot'));
+  })();
+</script>
+{% endblock %}

@@ -69,16 +69,30 @@ class TestSecurityHeaders:
         assert "https://*.cloudfront.net" in csp
 
     async def test_csp_nonce_is_per_request(self, client_with_middleware: AsyncClient):
-        r1 = await client_with_middleware.get("/api/anything")
-        r2 = await client_with_middleware.get("/api/anything")
-        nonce1 = next(part for part in r1.headers["Content-Security-Policy"].split(";")
-                      if "nonce-" in part)
-        nonce2 = next(part for part in r2.headers["Content-Security-Policy"].split(";")
-                      if "nonce-" in part)
+        """The middleware mints a fresh nonce per request even though we
+        don't put it in script-src (matching v1's `'unsafe-inline'`
+        compatibility). Templates that want the nonce read it from
+        `request.state.csp_nonce`."""
+        r1 = await client_with_middleware.post(
+            "/api/state-change", json={},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        r2 = await client_with_middleware.post(
+            "/api/state-change", json={},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        nonce1 = r1.json()["csp_nonce"]
+        nonce2 = r2.json()["csp_nonce"]
+        assert nonce1 and nonce2
         assert nonce1 != nonce2
 
     async def test_csp_nonce_is_exposed_to_handlers(self, client_with_middleware: AsyncClient):
-        """Routes can read `request.state.csp_nonce` to inject into templates."""
+        """Routes can read `request.state.csp_nonce` to inject into templates.
+        We deliberately do NOT include the nonce in script-src — when a
+        nonce is present, browsers ignore `'unsafe-inline'`, which v1's
+        templates depend on for the loader-fade and other inline scripts."""
         r = await client_with_middleware.post(
             "/api/state-change",
             json={},
@@ -86,8 +100,11 @@ class TestSecurityHeaders:
         )
         assert r.status_code == 200
         body_nonce = r.json()["csp_nonce"]
-        # The same nonce must appear in the CSP header for this response.
-        assert body_nonce in r.headers["Content-Security-Policy"]
+        assert body_nonce  # non-empty 16+ chars
+        # CSP must NOT carry the nonce — that would break unsafe-inline.
+        assert "nonce-" not in r.headers["Content-Security-Policy"]
+        # 'unsafe-inline' must be present so v1's inline scripts run.
+        assert "'unsafe-inline'" in r.headers["Content-Security-Policy"]
 
 
 # ---------------------------------------------------------------------------

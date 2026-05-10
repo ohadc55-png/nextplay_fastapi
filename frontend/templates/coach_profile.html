@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% set active_page = "profile" %}
+
+{% block content %}
+<div class="page-header">
+    <svg class="page-header-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <div>
+        <h1>Coach Profile</h1>
+        <p>Your personal information</p>
+    </div>
+</div>
+
+<!-- Profile Card -->
+<div class="card mb-24">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Personal Info
+        <button class="btn btn-ghost btn-sm" style="margin-inline-start:auto;" onclick="toggleEdit()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit
+        </button>
+    </div>
+
+    <!-- View mode -->
+    <div id="profileView" class="profile-details">
+        <div class="profile-avatar-section">
+            <div class="profile-avatar-large" id="avatarBox">
+                {% if avatar_display_url %}
+                {# referrerpolicy=no-referrer is needed so Google's googleusercontent
+                   CDN serves the image — without it, Chrome adds a Referer header
+                   that triggers Google's hot-link block.
+                   onerror swaps in the default icon if the image 404s. #}
+                <img src="{{ avatar_display_url }}" alt="Avatar"
+                     referrerpolicy="no-referrer"
+                     style="width:100%;height:100%;border-radius:50%;object-fit:cover;"
+                     data-fallback-icon="1">
+                {% else %}
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {% endif %}
+            </div>
+            <div>
+                <h2 style="margin:0;font-size:1.3rem;font-weight:800;">{{ user_profile.display_name or 'Coach' }}</h2>
+                <p style="margin:4px 0 0;color:var(--text-2);font-size:0.9rem;">{{ user_profile.email }}</p>
+                <span class="badge badge-orange" style="margin-top:8px;display:inline-block;">{{ user_profile.role or 'coach' }}</span>
+            </div>
+        </div>
+        <div class="profile-info-grid" style="margin-top:20px;">
+            <div class="profile-info-item">
+                <div class="info-label">Member Since</div>
+                <div class="info-value">{{ (user_profile.created_at|string)[:10] if user_profile.created_at else 'N/A' }}</div>
+            </div>
+            <div class="profile-info-item">
+                <div class="info-label">Teams</div>
+                <div class="info-value">{{ teams|length }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit mode (hidden by default) -->
+    <div id="profileEdit" style="display:none;padding:20px;">
+        <form onsubmit="saveProfile(event)">
+
+            <!-- Photo upload -->
+            <div class="form-group">
+                <label class="form-label">Profile Photo</label>
+                <div style="display:flex;align-items:center;gap:16px;">
+                    <div id="avatarPreview"
+                         style="width:80px;height:80px;border-radius:50%;background:var(--bg-input);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+                        {% if avatar_display_url %}
+                        <img id="avatarPreviewImg" src="{{ avatar_display_url }}" alt=""
+                             referrerpolicy="no-referrer"
+                             style="width:100%;height:100%;object-fit:cover;">
+                        {% else %}
+                        <svg id="avatarPreviewIcon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        {% endif %}
+                    </div>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                        <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp"
+                               style="display:none;">
+                        <button type="button" class="btn btn-ghost" id="avatarPickBtn" style="align-self:flex-start;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Upload photo
+                        </button>
+                        <button type="button" class="btn btn-ghost" id="avatarRemoveBtn"
+                                style="align-self:flex-start;color:var(--red,#f87171);"
+                                {% if not avatar_display_url %}hidden{% endif %}>
+                            Remove photo
+                        </button>
+                        <small style="color:var(--text-3);font-size:0.75rem;">JPG / PNG / WebP. Auto-cropped to square.</small>
+                        <div id="avatarStatus" style="font-size:0.78rem;font-weight:600;display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Display Name</label>
+                <input type="text" class="form-input" id="editName"
+                       value="{{ user_profile.display_name or '' }}" placeholder="Your name">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" value="{{ user_profile.email }}" disabled
+                       style="opacity:0.5;cursor:not-allowed;">
+                <small style="color:var(--text-3);font-size:0.75rem;">Email cannot be changed</small>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-ghost" onclick="toggleEdit()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Card -->
+<div class="card">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Activity
+    </div>
+    <div class="stats-grid" style="padding:20px;">
+        <div class="stat-card">
+            <div class="stat-value">{{ teams|length }}</div>
+            <div class="stat-label">Teams</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_messages }}</div>
+            <div class="stat-label">Messages Sent</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_sessions }}</div>
+            <div class="stat-label">Chat Sessions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_feedback }}</div>
+            <div class="stat-label">Feedback Given</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+function toggleEdit() {
+    const view = document.getElementById('profileView');
+    const edit = document.getElementById('profileEdit');
+    if (edit.style.display === 'none') {
+        view.style.display = 'none';
+        edit.style.display = 'block';
+    } else {
+        view.style.display = 'block';
+        edit.style.display = 'none';
+    }
+}
+
+async function saveProfile(e) {
+    e.preventDefault();
+    const name = document.getElementById('editName').value.trim();
+    if (!name) return;
+
+    const res = await fetch('/api/coach/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: name })
+    });
+
+    if (res.ok) {
+        location.reload();
+    }
+}
+
+/* ── Avatar: Google-image fallback + upload + remove ─────────────────
+   The view-mode <img> lives in #avatarBox and carries data-fallback-icon.
+   If Google's CDN refuses to serve us (rare but happens — referer block,
+   429, expired token), we swap the broken img for the default SVG. */
+(function () {
+    const box = document.getElementById('avatarBox');
+    if (!box) return;
+    const img = box.querySelector('img[data-fallback-icon]');
+    if (!img) return;
+    img.addEventListener('error', function () {
+        const svgNs = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNs, 'svg');
+        svg.setAttribute('width', '48');
+        svg.setAttribute('height', '48');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'var(--accent)');
+        svg.setAttribute('stroke-width', '1.5');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        const p = document.createElementNS(svgNs, 'path');
+        p.setAttribute('d', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2');
+        const c = document.createElementNS(svgNs, 'circle');
+        c.setAttribute('cx', '12'); c.setAttribute('cy', '7'); c.setAttribute('r', '4');
+        svg.appendChild(p); svg.appendChild(c);
+        img.replaceWith(svg);
+    });
+})();
+
+/* ── Upload + Remove handlers ─────────────────────────────────────── */
+(function () {
+    const pickBtn = document.getElementById('avatarPickBtn');
+    const removeBtn = document.getElementById('avatarRemoveBtn');
+    const fileInput = document.getElementById('avatarFileInput');
+    const status = document.getElementById('avatarStatus');
+    const previewBox = document.getElementById('avatarPreview');
+    if (!pickBtn || !fileInput) return;
+
+    function setStatus(text, color) {
+        if (!status) return;
+        status.style.display = text ? 'block' : 'none';
+        status.style.color = color || 'var(--text-3)';
+        status.textContent = text || '';
+    }
+
+    function setPreview(url) {
+        // Replace whatever's in the preview with an <img>.
+        while (previewBox.firstChild) previewBox.removeChild(previewBox.firstChild);
+        const im = document.createElement('img');
+        im.src = url;
+        im.alt = '';
+        im.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        previewBox.appendChild(im);
+    }
+
+    pickBtn.addEventListener('click', function () { fileInput.click(); });
+
+    fileInput.addEventListener('change', async function () {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        if (file.size > 8 * 1024 * 1024) {
+            setStatus('File too large (max 8 MB).', 'var(--red,#f87171)');
+            return;
+        }
+        // Local preview while we upload — feels instant.
+        setPreview(URL.createObjectURL(file));
+        setStatus('Uploading…', 'var(--text-3)');
+        pickBtn.disabled = true;
+
+        const fd = new FormData();
+        fd.append('photo', file);
+        try {
+            const res = await fetch('/api/coach/avatar', {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'fetch' },
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+                setStatus(data.error || ('Upload failed (HTTP ' + res.status + ')'), 'var(--red,#f87171)');
+                pickBtn.disabled = false;
+                return;
+            }
+            setStatus('✓ Saved!', '#4ade80');
+            if (removeBtn) removeBtn.removeAttribute('hidden');
+            // Hard reload so the view-mode photo + sidebar avatar (if any) refresh.
+            setTimeout(function () { location.reload(); }, 700);
+        } catch (e) {
+            setStatus('Upload failed: ' + (e && e.message), 'var(--red,#f87171)');
+            pickBtn.disabled = false;
+        }
+    });
+
+    if (removeBtn) removeBtn.addEventListener('click', async function () {
+        if (!confirm('Remove your profile photo?')) return;
+        removeBtn.disabled = true;
+        setStatus('Removing…', 'var(--text-3)');
+        try {
+            const res = await fetch('/api/coach/avatar', {
+                method: 'DELETE',
+                headers: { 'X-Requested-With': 'fetch' },
+            });
+            if (!res.ok) {
+                setStatus('Could not remove. Try again.', 'var(--red,#f87171)');
+                removeBtn.disabled = false;
+                return;
+            }
+            setStatus('✓ Removed', '#4ade80');
+            setTimeout(function () { location.reload(); }, 500);
+        } catch (e) {
+            setStatus('Failed: ' + (e && e.message), 'var(--red,#f87171)');
+            removeBtn.disabled = false;
+        }
+    });
+})();
+</script>
+
+<style>
+.profile-avatar-section {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+}
+.profile-avatar-large {
+    width: 90px;
+    height: 90px;
+    min-width: 90px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-dim, rgba(255,107,53,0.1)), rgba(255,107,53,0.05));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255,107,53,0.2);
+}
+.profile-details .profile-info-grid {
+    padding: 0 20px 20px;
+}
+</style>
+{% endblock %}

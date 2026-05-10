@@ -88,7 +88,7 @@ class NotebookEntryPlayersRepository(BaseRepository[NotebookEntryPlayer]):
 
 
 __all__ = [
-    "NotebookEntriesRepository",
     "NotebookAttendanceRepository",
+    "NotebookEntriesRepository",
     "NotebookEntryPlayersRepository",
 ]

@@ -20,7 +20,7 @@ to re-login when Railway flips to FastAPI).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from jose import JWTError, jwt
 
@@ -32,7 +32,7 @@ _ALGORITHM = "HS256"
 def create_access_token(*, user_id: int, email: str, role: str = "coach") -> str:
     """Mint a fresh access JWT. Mirrors v1.0-flask
     `backend/auth/utils.py:59`."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "email": email,

@@ -8,7 +8,6 @@ exactly so existing JWTs validate during the migration window.
 from __future__ import annotations
 
 import re
-from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -133,15 +132,15 @@ class AuditLogResponse(BaseModel):
 
 
 __all__ = [
-    "RegisterRequest",
-    "LoginRequest",
-    "TokenPair",
-    "RefreshRequest",
-    "ForgotPasswordRequest",
-    "ResetPasswordRequest",
-    "ChangePasswordRequest",
-    "VerifyEmailRequest",
-    "ResendVerificationRequest",
-    "DeleteAccountRequest",
     "AuditLogResponse",
+    "ChangePasswordRequest",
+    "DeleteAccountRequest",
+    "ForgotPasswordRequest",
+    "LoginRequest",
+    "RefreshRequest",
+    "RegisterRequest",
+    "ResendVerificationRequest",
+    "ResetPasswordRequest",
+    "TokenPair",
+    "VerifyEmailRequest",
 ]

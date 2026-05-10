@@ -7,8 +7,6 @@ import pytest
 from src.crew.agents import (
     AGENTS,
     DEFAULT_AGENT,
-    LINEUP_RULES,
-    MULTI_TEAM_DATA_RULES,
     build_agent_prompt,
 )
 
@@ -23,9 +21,9 @@ class TestAgentRegistry:
 
     def test_each_agent_has_display_metadata(self):
         for key, meta in AGENTS.items():
-            assert "name" in meta and meta["name"]
-            assert "role" in meta and meta["role"]
-            assert "specialty" in meta and meta["specialty"]
+            assert meta.get("name")
+            assert meta.get("role")
+            assert meta.get("specialty")
 
 
 class TestBuildAgentPrompt:

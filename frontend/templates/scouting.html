@@ -1,0 +1,965 @@
+{% extends "base.html" %}
+{% set active_page = 'scouting' %}
+{% block title %}Video Hub{% endblock %}
+
+{% block content %}
+<link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet"
+      integrity="sha384-6LeG/ONVwTyNrI1eNFYoIcUrglv6y7o8hvl3DB8Qd4K2/wD8niobYgHS3RJSO7uL"
+      crossorigin="anonymous">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scouting.css') }}?v={{ config.get('CSS_VERSION', '2') }}">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" crossorigin="anonymous">
+
+<div class="page-content" style="padding: var(--sp-6);">
+
+  <!-- ═══ VIDEO GRID (Landing) ═══ -->
+  <div id="gridView">
+    <div class="scouting-header">
+      <button class="btn btn-primary" onclick="openUploadModal()" aria-label="Upload video">
+        <span class="material-symbols-outlined">upload</span> <span>Upload Video</span>
+      </button>
+      <div class="scouting-filters" id="typeFilters" role="group" aria-label="Video type filter">
+        <button class="filter-btn active" data-type="" aria-label="Show all videos">All</button>
+        <button class="filter-btn" data-type="game" aria-label="Show game videos">Game</button>
+        <button class="filter-btn" data-type="practice" aria-label="Show practice videos">Practice</button>
+        <button class="filter-btn" data-type="highlight" aria-label="Show highlight videos">Highlight</button>
+      </div>
+      <input type="text" class="input scouting-search" id="videoSearch" placeholder="Search videos..." aria-label="Search videos">
+    </div>
+    <div class="quota-bar" id="quotaBar"></div>
+    <div class="video-grid" id="videoGrid">
+      <p style="color: var(--text-muted); grid-column: 1/-1; text-align: center; padding: var(--sp-8);">Loading videos...</p>
+    </div>
+  </div>
+
+  <!-- ═══ ANALYSIS VIEW (Video Selected) ═══ -->
+  <div id="analysisView" class="analysis-view">
+    <div class="analysis-header">
+      <button class="btn btn-ghost" onclick="backToGrid()" aria-label="Back to video grid">
+        <span class="material-symbols-outlined">arrow_back</span> <span>Back</span>
+      </button>
+      <h2 id="analysisTitle">Video Title</h2>
+      <span class="video-expiry-info" id="videoExpiryInfo"></span>
+      <button class="btn btn-ghost" id="keepForeverBtn" onclick="toggleKeepForever()" title="Keep forever" aria-label="Keep forever">
+        <span class="material-symbols-outlined">all_inclusive</span>
+      </button>
+      <button class="btn btn-ghost" style="color:#ef4444" onclick="deleteCurrentVideo()" aria-label="Delete video">
+        <span class="material-symbols-outlined">delete</span>
+      </button>
+      <!-- Phase 4 Controls -->
+      <div class="zoom-controls" role="group" aria-label="Zoom controls">
+        <button class="btn btn-ghost btn-sm" onclick="zoomOut()" title="Zoom Out (-)" aria-label="Zoom out"><span class="material-symbols-outlined">zoom_out</span></button>
+        <span class="zoom-badge" id="zoomBadge" style="display:none;">1.0x</span>
+        <button class="btn btn-ghost btn-sm" onclick="zoomIn()" title="Zoom In (+)" aria-label="Zoom in"><span class="material-symbols-outlined">zoom_in</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="resetZoom()" title="Reset Zoom (0)" aria-label="Reset zoom"><span class="material-symbols-outlined">fit_screen</span></button>
+      </div>
+      <button class="btn btn-ghost" id="comparisonBtn" onclick="toggleComparisonMode()" title="Compare Videos" aria-label="Compare videos">
+        <span class="material-symbols-outlined">compare</span>
+      </button>
+      <button class="btn btn-ghost" id="exportBtn" onclick="exportClipWithAnnotations()" title="Export Clip with Annotations" aria-label="Export clip with annotations">
+        <span class="material-symbols-outlined">download</span>
+      </button>
+      <button class="btn btn-ghost" onclick="toggleShortcutsOverlay()" title="Keyboard Shortcuts (?)" aria-label="Keyboard shortcuts" aria-keyshortcuts="?">
+        <span class="material-symbols-outlined">keyboard</span>
+      </button>
+    </div>
+
+    <div class="analysis-layout">
+      <!-- Left: Toolbar + Player + Timeline -->
+      <div class="player-area">
+        <div class="video-with-tools" id="videoWithTools">
+          <!-- Tools Sidebar (left of video on normal, top on fullscreen) -->
+          <div class="tools-sidebar" id="toolsSidebar" role="toolbar" aria-label="Drawing tools">
+            <!-- Unified Tool Buttons -->
+            <div class="tools-section">
+              <div class="tools-column">
+                <button class="tool-btn" data-tool="freehand" onclick="setDrawTool(this)" aria-keyshortcuts="d" aria-label="Freehand draw tool">
+                  <span class="material-symbols-outlined">draw</span>
+                  <span>Freehand</span>
+                </button>
+                <!-- Stroke settings (expand when freehand/arrow active) -->
+                <div class="tool-expand" id="drawSliders" style="display:none;">
+                  <div class="tool-expand-row">
+                    <span class="tool-expand-label">Width</span>
+                    <input type="range" min="1" max="8" value="3" class="tools-slider" id="strokeWidth" oninput="setStrokeWidth(this.value)" aria-label="Stroke width">
+                    <span class="stroke-width-preview" id="strokeWidthPreview"></span>
+                  </div>
+                  <div class="tool-expand-row">
+                    <input type="color" class="draw-color-input" id="drawColor" value="#FF0000" onchange="setDrawColor(this.value)" aria-label="Drawing color">
+                    <span class="tool-expand-label">Color</span>
+                  </div>
+                </div>
+
+                <button class="tool-btn" data-tool="text" onclick="setDrawTool(this)" aria-keyshortcuts="t" aria-label="Text annotation tool">
+                  <span class="material-symbols-outlined">text_fields</span>
+                  <span>Text</span>
+                </button>
+
+                <div class="tools-divider"></div>
+
+                <button class="tool-btn" id="scissorsBtn" onclick="scissorsCut()" aria-keyshortcuts="i o" aria-label="Clip tool">
+                  <span class="material-symbols-outlined">content_cut</span>
+                  <span id="scissorsLabel">Clip</span>
+                </button>
+
+                <div class="tools-divider"></div>
+
+                <button class="tool-btn" onclick="undoDraw()" aria-keyshortcuts="Control+z" aria-label="Undo drawing">
+                  <span class="material-symbols-outlined">undo</span>
+                  <span>Undo</span>
+                </button>
+
+                <button class="tool-btn tool-btn-danger" onclick="clearDrawings()" aria-label="Clear all drawings">
+                  <span class="material-symbols-outlined">delete_sweep</span>
+                  <span>Clear All</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video -->
+          <div class="video-container" id="videoContainer">
+            <video id="scoutingPlayer" class="video-js vjs-default-skin" playsinline></video>
+            <canvas id="telestratorCanvas" class="telestrator-canvas"></canvas>
+            <div class="speed-badge" id="speedBadge">1x</div>
+          </div>
+          <!-- Cards Panel (right of video) -->
+          <div class="cards-panel" id="cardsPanel">
+            <button class="cards-panel-btn" onclick="openGameIntroCreator()" title="Add Game Intro Card" aria-label="Add game intro card">
+              <span class="material-symbols-outlined">slideshow</span>
+              Game Intro
+            </button>
+            <button class="cards-panel-btn" onclick="openPlayerCardCreator()" title="Add Player Card" aria-label="Add player card">
+              <span class="material-symbols-outlined">person</span>
+              Player Card
+            </button>
+          </div>
+        </div>
+
+        <!-- Tags Bar (below video) -->
+        <div class="tags-bar">
+          <span class="tags-bar-label">Tag</span>
+          <div class="tags-bar-buttons" role="group" aria-label="Quick tag buttons">
+            <button class="tag-btn" data-action="pick_and_roll" onclick="quickTag(this)" aria-label="Tag pick and roll">PnR</button>
+            <button class="tag-btn" data-action="isolation" onclick="quickTag(this)" aria-label="Tag isolation">ISO</button>
+            <button class="tag-btn" data-action="fast_break" onclick="quickTag(this)" aria-label="Tag fast break">Fast Break</button>
+            <button class="tag-btn" data-action="defense" onclick="quickTag(this)" aria-label="Tag defense">Defense</button>
+            <button class="tag-btn" data-action="three_pointer" onclick="quickTag(this)" aria-label="Tag three pointer">3PT</button>
+            <button class="tag-btn" data-action="post_up" onclick="quickTag(this)" aria-label="Tag post up">Post Up</button>
+            <button class="tag-btn" data-action="screen" onclick="quickTag(this)" aria-label="Tag screen">Screen</button>
+            <button class="tag-btn" data-action="turnover" onclick="quickTag(this)" aria-label="Tag turnover">TO</button>
+            <button class="tag-btn" data-action="rebound" onclick="quickTag(this)" aria-label="Tag rebound">Reb</button>
+            <button class="tag-btn" data-action="transition" onclick="quickTag(this)" aria-label="Tag transition">Trans</button>
+            <button class="tag-btn" data-action="free_throw" onclick="quickTag(this)" aria-label="Tag free throw">FT</button>
+            <button class="tag-btn" data-action="out_of_bounds" onclick="quickTag(this)" aria-label="Tag out of bounds">OOB</button>
+            <button class="tag-btn" data-action="other" onclick="quickTag(this)" aria-label="Tag other">Other</button>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-section">
+          <div class="timeline-row">
+            <div class="ann-track-spacer"></div>
+            <div class="timeline-bar" id="timelineBar" onclick="seekTimeline(event)" style="flex:1;">
+              <div class="timeline-progress" id="timelineProgress"></div>
+            </div>
+          </div>
+          <!-- Annotation Track -->
+          <div class="annotation-track" id="annotationTrack"></div>
+          <div class="timeline-row">
+            <div class="ann-track-spacer"></div>
+            <div class="timeline-time" style="flex:1;">
+              <span id="timelineCurrent">0:00</span>
+              <span id="timelineDuration">0:00</span>
+            </div>
+          </div>
+          <!-- I/O Point Bar -->
+          <div class="clip-io-bar" id="clipIOBar" style="display:none;"></div>
+          <!-- Export Progress -->
+          <div class="export-progress" id="exportProgress" style="display:none;">
+            <div class="export-progress-label">Exporting clip...</div>
+            <div class="export-progress-bar"><div class="export-progress-fill"></div></div>
+            <button class="btn btn-ghost btn-sm" onclick="cancelExport()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Clip Timeline Strip -->
+        <div class="clip-timeline-strip" id="clipTimelineStrip" style="position:relative;">
+          <div class="clip-timeline-empty">No clips yet. Use the Clip tool to create clips.</div>
+        </div>
+
+        <!-- Clip Detail Popup (hidden) -->
+        <div class="clip-detail-popup" id="clipDetailPopup" style="display:none;"></div>
+
+        <!-- Timeline Action Bar -->
+        <div class="timeline-action-bar">
+          <button class="btn-compile" id="timelineCompileBtn" onclick="openCompileModal()" disabled aria-label="Compile video">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;">movie_edit</span>
+            Compile Video
+          </button>
+          <button class="btn-share" onclick="shareSelectedClips()" aria-label="Share clips">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;">share</span>
+            Share Clips
+          </button>
+          <div class="timeline-filters" id="timelineFilters"></div>
+          <!-- Mobile card buttons (hidden on desktop) -->
+          <div class="mobile-card-btns">
+            <button class="btn-share" onclick="openGameIntroCreator()" style="flex:1;">
+              <span class="material-symbols-outlined" style="font-size:1rem;">slideshow</span> Intro
+            </button>
+            <button class="btn-share" onclick="openPlayerCardCreator()" style="flex:1;">
+              <span class="material-symbols-outlined" style="font-size:1rem;">person</span> Card
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparison Panel -->
+      <div class="comparison-panel" id="comparisonPanel" style="display:none;">
+        <div class="comp-header">
+          <h3 id="compTitle2">Select video to compare</h3>
+          <label class="comp-sync-label"><input type="checkbox" id="compSync" checked onchange="if(this.checked) _setupCompSync()"> <span>Sync</span></label>
+        </div>
+        <div class="comp-video-picker">
+          <select class="input" id="compVideoSelect" onchange="loadComparisonVideo(this.value)">
+            <option value="">Choose video...</option>
+          </select>
+        </div>
+        <div class="comp-video-container" id="compVideo2Container">
+          <p style="color:var(--text-muted);text-align:center;padding:var(--sp-6);font-size:0.85rem;">Pick a video to compare</p>
+        </div>
+      </div>
+
+      <!-- Right: Clips Sidebar -->
+      <div class="clips-sidebar">
+        <div class="clips-sidebar-title">
+          <span class="material-symbols-outlined">movie_filter</span>
+          <span>Clips</span> <span id="clipCount" style="color:var(--text-muted);font-weight:400;"></span>
+        </div>
+        <!-- Tab Switcher: Clips / Playlists -->
+        <div class="clips-tab-bar">
+          <button class="clips-tab-btn active" data-tab="clips" onclick="switchClipSidebarTab('clips')" aria-label="Show clips">Clips</button>
+          <button class="clips-tab-btn" data-tab="playlists" onclick="switchClipSidebarTab('playlists')" aria-label="Show playlists">Playlists</button>
+          <button class="btn-icon" onclick="selectAllClips()" title="Select All" aria-label="Select all clips"><span class="material-symbols-outlined" style="font-size:1rem;">select_all</span></button>
+        </div>
+        <!-- Batch Action Bar -->
+        <div class="batch-bar" id="batchBar" style="display:none;">
+          <span class="batch-count">0 selected</span>
+          <button class="btn btn-ghost btn-sm" onclick="batchDeleteClips()" aria-label="Delete selected clips"><span class="material-symbols-outlined" style="font-size:0.9rem;">delete</span></button>
+          <button class="btn btn-ghost btn-sm" onclick="batchRateClips('positive')" aria-label="Rate selected clips positive">👍</button>
+          <button class="btn btn-ghost btn-sm" onclick="batchRateClips('negative')" aria-label="Rate selected clips negative">👎</button>
+          <button class="btn btn-ghost btn-sm" onclick="shareSelectedClips()" title="Share selected clips" aria-label="Share selected clips"><span class="material-symbols-outlined" style="font-size:0.9rem;">share</span></button>
+          <button class="btn btn-ghost btn-sm" onclick="deselectAllClips()" aria-label="Deselect all clips"><span class="material-symbols-outlined" style="font-size:0.9rem;">deselect</span></button>
+        </div>
+        <!-- Clip Filter Chips -->
+        <div id="clipFilterChips" class="clip-filter-chips" style="display:none;"></div>
+        <div id="clipsList"></div>
+        <!-- Compile Button -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm compile-clips-btn" id="compileClipsBtn" style="display:none;" onclick="openCompileModal()">
+            <span class="material-symbols-outlined" style="font-size:1rem;">movie_edit</span>
+            <span>Compile Video</span>
+          </button>
+          <button class="btn btn-ghost btn-sm" id="shareClipsBtn" style="display:none;" onclick="shareSelectedClips()">
+            <span class="material-symbols-outlined" style="font-size:1rem;">share</span>
+            <span>Share Clips</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ UPLOAD MODAL ═══ -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal" style="max-width: 520px;" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
+    <div class="modal-header">
+      <h2 id="uploadModalTitle">Upload Video</h2>
+      <button class="modal-close" onclick="cancelUploadModal()" aria-label="Close upload modal"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <!-- --- NEW: Hybrid Video Architecture --- -->
+      <div class="upload-source-tabs" id="uploadSourceTabs">
+        <button class="upload-tab active" data-source="file" onclick="switchUploadSource('file')" aria-label="Upload file">
+          <span class="material-symbols-outlined">upload_file</span> Upload File
+        </button>
+        <button class="upload-tab" data-source="url" onclick="switchUploadSource('url')" aria-label="Paste URL">
+          <span class="material-symbols-outlined">link</span> Paste URL
+        </button>
+      </div>
+      <!-- --- END NEW --- -->
+      <div class="upload-zone" id="uploadZone">
+        <span class="material-symbols-outlined">cloud_upload</span>
+        <p>Drag &amp; drop video or click to browse</p>
+        <p style="font-size:0.75rem;color:var(--text-muted);">MP4, MOV, WebM — up to 5GB</p>
+        <input type="file" id="videoFileInput" accept=".mp4,.mov,.webm" style="display:none">
+      </div>
+      <!-- --- NEW: Hybrid Video Architecture --- -->
+      <div class="upload-url-section" id="uploadUrlSection" style="display:none;">
+        <div class="form-group">
+          <label class="label">Video URL</label>
+          <input type="url" class="input" id="uploadVideoUrl" placeholder="https://youtube.com/watch?v=... or direct .mp4 link"
+                 oninput="document.getElementById('uploadSubmitBtn').disabled = !this.value.trim()">
+          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">YouTube, Vimeo, direct MP4/HLS links supported</p>
+        </div>
+      </div>
+      <!-- --- END NEW --- -->
+      <div class="upload-progress" id="uploadProgress">
+        <div class="upload-progress-bar"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
+        <div class="upload-progress-text" id="uploadProgressText">Uploading... 0%</div>
+      </div>
+      <div class="form-group"><label class="label">Title</label><input type="text" class="input" id="uploadTitle" placeholder="e.g. Game vs Maccabi"></div>
+      <div class="form-group"><label class="label">Type</label>
+        <select class="input" id="uploadType">
+          <option value="game">Game</option>
+          <option value="practice">Practice</option>
+          <option value="highlight">Highlight</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group" id="uploadCustomTypeGroup" style="display:none"><label class="label">Description</label><input type="text" class="input" id="uploadCustomType" maxlength="60" placeholder="e.g. Warm-up routine"></div>
+      <div class="form-group"><label class="label">Opponent (optional)</label><input type="text" class="input" id="uploadOpponent" placeholder="e.g. Maccabi Tel Aviv"></div>
+      <div class="form-group"><label class="label">Game Date (optional)</label><input type="date" class="input" id="uploadDate"></div>
+      <div class="form-group">
+        <label class="keep-forever-toggle">
+          <input type="checkbox" id="uploadKeepForever">
+          <span class="material-symbols-outlined" style="font-size:1.1rem;">all_inclusive</span>
+          <span>Keep forever</span> <span style="color:var(--text-muted);font-weight:400;">(no auto-delete after 14 days)</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cancelUploadModal()">Cancel</button>
+      <button class="btn btn-primary" id="uploadSubmitBtn" onclick="submitUpload()" disabled>Upload</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CLIP CREATE MODAL ═══ -->
+<div class="modal-overlay" id="clipModal">
+  <div class="modal" style="max-width: 480px;" role="dialog" aria-modal="true" aria-labelledby="clipModalTitle">
+    <div class="modal-header">
+      <h2 id="clipModalTitle">Tag Clip</h2>
+      <button class="modal-close" onclick="closeModal('clipModal'); clearIOPoints()"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:var(--sp-4);margin-bottom:var(--sp-3);align-items:flex-end;">
+        <div class="form-group" style="flex:1">
+          <label class="label">Start</label>
+          <div class="clip-time-control">
+            <button class="clip-time-btn" onclick="adjustClipTime('start',-1)"><span class="material-symbols-outlined">remove</span></button>
+            <input type="text" class="input clip-time-input" id="clipStart" placeholder="0:00" onchange="onClipTimeChange()">
+            <button class="clip-time-btn" onclick="adjustClipTime('start',1)"><span class="material-symbols-outlined">add</span></button>
+          </div>
+        </div>
+        <div class="form-group" style="flex:0 0 auto;">
+          <label class="label" style="text-align:center;">Duration</label>
+          <div class="clip-duration-badge" id="clipDuration">10s</div>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="label">End</label>
+          <div class="clip-time-control">
+            <button class="clip-time-btn" onclick="adjustClipTime('end',-1)"><span class="material-symbols-outlined">remove</span></button>
+            <input type="text" class="input clip-time-input" id="clipEnd" placeholder="0:00" onchange="onClipTimeChange()">
+            <button class="clip-time-btn" onclick="adjustClipTime('end',1)"><span class="material-symbols-outlined">add</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="form-group"><label class="label">Action Type</label><select class="input" id="clipAction" onchange="document.getElementById('customTagGroup').style.display=this.value==='other'?'':'none'"></select></div>
+      <div class="form-group" id="customTagGroup" style="display:none;"><label class="label">Custom Tag</label><input type="text" class="input" id="clipCustomTag" placeholder="Enter custom tag name" maxlength="50" dir="auto"></div>
+      <div class="form-group">
+        <label class="label">Rating</label>
+        <div style="display:flex;gap:var(--sp-2);">
+          <button class="tag-btn" id="ratingPos" onclick="setRating('positive')" style="flex:1;justify-content:center;">
+            <span class="material-symbols-outlined">thumb_up</span> <span>Positive</span>
+          </button>
+          <button class="tag-btn" id="ratingNeg" onclick="setRating('negative')" style="flex:1;justify-content:center;">
+            <span class="material-symbols-outlined">thumb_down</span> <span>Negative</span>
+          </button>
+        </div>
+      </div>
+      <div class="form-group"><label class="label">Notes (optional)</label><textarea class="input" id="clipNotes" rows="2" placeholder="Quick note..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('clipModal'); clearIOPoints()">Cancel</button>
+      <button class="btn btn-ghost" id="clipPreviewBtn" onclick="previewClip()">Preview</button>
+      <button class="btn btn-primary" onclick="stopClipPreview(); saveClip()">Save Clip</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMPILE CLIPS MODAL ═══ -->
+<div class="modal-overlay" id="compileModal">
+  <div class="modal" style="max-width:520px;" role="dialog" aria-modal="true" aria-labelledby="compileModalTitle">
+    <div class="modal-header">
+      <h3 id="compileModalTitle">Compile Video from Clips</h3>
+      <button class="modal-close" onclick="closeModal('compileModal')"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="input-group" style="margin-bottom:var(--sp-3);">
+        <label>Video Title</label>
+        <input type="text" class="input" id="compileTitle">
+      </div>
+      <div style="display:flex;gap:var(--sp-2);margin-bottom:var(--sp-3);">
+        <div class="input-group" style="flex:1;">
+          <label>Sort By</label>
+          <select class="select" id="compileSortBy" onchange="renderCompileTimeline()">
+            <option value="chrono">Chronological</option>
+            <option value="action">By Action</option>
+            <option value="rating">By Rating</option>
+          </select>
+        </div>
+        <div class="input-group" style="flex:1;">
+          <label>Filter</label>
+          <select class="select" id="compileFilter" onchange="renderCompileTimeline()">
+            <option value="">All</option>
+          </select>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-3);cursor:pointer;font-size:0.85rem;color:var(--text-secondary);">
+        <input type="checkbox" id="compileShowTags" checked style="accent-color:var(--primary);width:16px;height:16px;">
+        <span>Show annotations on video</span>
+      </label>
+      <!-- Intro Card Buttons -->
+      <div style="display:flex;gap:var(--sp-2);margin-bottom:var(--sp-3);">
+        <button class="btn btn-ghost btn-sm" onclick="openGameIntroCreator()" style="flex:1;">
+          <span class="material-symbols-outlined" style="font-size:1rem;">sports_basketball</span>
+          <span>+ Game Intro</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openPlayerCardCreator()" style="flex:1;">
+          <span class="material-symbols-outlined" style="font-size:1rem;">person</span>
+          <span>+ Player Card</span>
+        </button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-2);">
+        <button class="btn btn-ghost btn-sm" onclick="compileToggleAll(true)">Select All</button>
+        <button class="btn btn-ghost btn-sm" onclick="compileToggleAll(false)">Deselect All</button>
+      </div>
+      <ul id="compileTimeline" class="compile-timeline" style="max-height:280px;overflow-y:auto;"></ul>
+      <div id="compileSummary" style="text-align:center;color:var(--text-muted);font-size:0.82rem;margin-top:var(--sp-2);"></div>
+      <!-- Progress (hidden until generating) -->
+      <div id="compileProgress" style="display:none;margin-top:var(--sp-3);">
+        <div id="compileProgressLabel" style="text-align:center;font-size:0.82rem;margin-bottom:var(--sp-1);"></div>
+        <div style="background:var(--bg-surface);border-radius:var(--r-md);height:8px;overflow:hidden;">
+          <div id="compileProgressFill" style="height:100%;background:var(--primary);border-radius:var(--r-md);width:0%;transition:width 0.2s linear;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('compileModal')">Cancel</button>
+      <button class="btn btn-ghost" onclick="shareTimeline()">
+        <span class="material-symbols-outlined" style="font-size:1rem;">share</span>
+        <span>Share Timeline</span>
+      </button>
+      <button class="btn btn-primary" id="compileGenerateBtn" onclick="startCompilation()">
+        <span class="material-symbols-outlined" style="font-size:1rem;">movie_edit</span>
+        <span>Generate Video</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAME INTRO CREATOR MODAL ═══ -->
+<div class="modal-overlay" id="gameIntroCreatorModal">
+  <div class="modal" style="max-width:520px;" role="dialog" aria-modal="true" aria-labelledby="gameIntroCreatorTitle">
+    <div class="modal-header">
+      <h3 id="gameIntroCreatorTitle">Game Intro Card</h3>
+      <button class="modal-close" onclick="closeModal('gameIntroCreatorModal')"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="card-creator-preview">
+        <canvas id="gameIntroPreviewCanvas" width="640" height="360"></canvas>
+      </div>
+      <div class="card-creator-row">
+        <div class="form-group">
+          <label class="label">Team Name</label>
+          <input type="text" class="input" id="introTeamName" placeholder="e.g. Maccabi" oninput="previewGameIntro()">
+        </div>
+        <div class="form-group">
+          <label class="label">Opponent Name</label>
+          <input type="text" class="input" id="introOpponentName" placeholder="e.g. Hapoel" oninput="previewGameIntro()">
+        </div>
+      </div>
+      <div class="card-creator-row">
+        <div class="form-group">
+          <label class="label">Team Logo</label>
+          <div class="logo-upload-zone">
+            <div class="logo-preview" id="introTeamLogoPreview"><span class="material-symbols-outlined" style="color:var(--text-muted);font-size:1.2rem;">add_photo_alternate</span></div>
+            <button type="button" class="upload-btn" onclick="document.getElementById('introTeamLogo').click()">
+              <span class="material-symbols-outlined">drive_folder_upload</span>
+              <span>Upload</span>
+            </button>
+            <input type="file" id="introTeamLogo" accept="image/*" onchange="onIntroLogoChange('team', this)" style="display:none;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="label">Opponent Logo</label>
+          <div class="logo-upload-zone">
+            <div class="logo-preview" id="introOpponentLogoPreview"><span class="material-symbols-outlined" style="color:var(--text-muted);font-size:1.2rem;">add_photo_alternate</span></div>
+            <button type="button" class="upload-btn" onclick="document.getElementById('introOpponentLogo').click()">
+              <span class="material-symbols-outlined">drive_folder_upload</span>
+              <span>Upload</span>
+            </button>
+            <input type="file" id="introOpponentLogo" accept="image/*" onchange="onIntroLogoChange('opponent', this)" style="display:none;">
+          </div>
+        </div>
+      </div>
+      <div class="card-creator-row">
+        <div class="form-group">
+          <label class="label">League</label>
+          <input type="text" class="input" id="introLeague" placeholder="e.g. Super League" oninput="previewGameIntro()">
+        </div>
+        <div class="form-group">
+          <label class="label">Game Date</label>
+          <input type="date" class="input" id="introGameDate" oninput="previewGameIntro()">
+        </div>
+      </div>
+      <div class="card-creator-row">
+        <div class="form-group">
+          <label class="label">Tint Color</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="color" class="input" id="introTintColor" value="#1a237e" style="width:48px;height:36px;padding:2px;cursor:pointer;border-radius:8px;" oninput="previewGameIntro()">
+            <input type="range" id="introTintOpacity" min="10" max="80" value="35" class="input" style="flex:1;cursor:pointer;" oninput="document.getElementById('introTintOpacityLabel').textContent=this.value+'%';previewGameIntro()">
+            <span id="introTintOpacityLabel" style="font-size:0.78rem;color:var(--text-muted);min-width:32px;">35%</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="label">Coach Notes — Key Points</label>
+        <textarea class="input" id="introCoachNotes" rows="2" placeholder="e.g. Focus on transition defense, control the boards" oninput="previewGameIntro()" style="resize:vertical;min-height:48px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('gameIntroCreatorModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGameIntroToTimeline()">
+        <span class="material-symbols-outlined" style="font-size:1rem;">add</span>
+        <span>Add to Timeline</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PLAYER CARD CREATOR MODAL ═══ -->
+<div class="modal-overlay" id="playerCardCreatorModal">
+  <div class="modal" style="max-width:560px;" role="dialog" aria-modal="true" aria-labelledby="playerCardCreatorTitle">
+    <div class="modal-header">
+      <h3 id="playerCardCreatorTitle">Player Card</h3>
+      <button class="modal-close" onclick="closeModal('playerCardCreatorModal')"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="card-creator-preview">
+        <canvas id="playerCardPreviewCanvas" width="640" height="360"></canvas>
+      </div>
+      <div class="mode-toggle">
+        <button class="active" id="pcModeRoster" onclick="togglePlayerCardMode('roster')">My Player</button>
+        <button id="pcModeScouting" onclick="togglePlayerCardMode('scouting')">Scouting Player</button>
+      </div>
+      <!-- Roster mode: select from team -->
+      <div id="pcRosterSection">
+        <div class="form-group">
+          <label class="label">Select Player</label>
+          <select class="input" id="pcRosterSelect" onchange="onRosterPlayerSelected(this)">
+            <option value="">Choose a player...</option>
+          </select>
+        </div>
+      </div>
+      <!-- Scouting mode: manual entry -->
+      <div id="pcScoutingSection" style="display:none;">
+        <div class="card-creator-row">
+          <div class="form-group">
+            <label class="label">Player Name</label>
+            <input type="text" class="input" id="pcScoutName" placeholder="e.g. John Doe" oninput="previewPlayerCard()">
+          </div>
+          <div class="form-group" style="flex:0 0 90px;">
+            <label class="label">Number</label>
+            <input type="text" class="input" id="pcScoutNumber" placeholder="#" maxlength="3" oninput="previewPlayerCard()">
+          </div>
+        </div>
+        <div class="card-creator-row">
+          <div class="form-group">
+            <label class="label">Position</label>
+            <select class="input" id="pcScoutPosition" onchange="previewPlayerCard()">
+              <option value="PG">PG — Point Guard</option>
+              <option value="SG">SG — Shooting Guard</option>
+              <option value="SF">SF — Small Forward</option>
+              <option value="PF">PF — Power Forward</option>
+              <option value="C">C — Center</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="label">Hand</label>
+            <select class="input" id="pcScoutHand" onchange="previewPlayerCard()">
+              <option value="R">Right</option>
+              <option value="L">Left</option>
+            </select>
+          </div>
+        </div>
+        <div class="card-creator-row">
+          <div class="form-group">
+            <label class="label">Team Name</label>
+            <input type="text" class="input" id="pcScoutTeam" placeholder="e.g. Maccabi" oninput="previewPlayerCard()">
+          </div>
+        </div>
+        <div class="card-creator-row">
+          <div class="form-group">
+            <label class="label">Player Photo</label>
+            <div class="logo-upload-zone">
+              <div class="logo-preview" id="pcPhotoPreview"><span class="material-symbols-outlined" style="color:var(--text-muted);font-size:1.2rem;">person</span></div>
+              <button type="button" class="upload-btn" onclick="document.getElementById('pcScoutPhoto').click()">
+                <span class="material-symbols-outlined">drive_folder_upload</span>
+                <span>Upload</span>
+              </button>
+              <input type="file" id="pcScoutPhoto" accept="image/*" onchange="onPlayerCardFileChange('photo', this)" style="display:none;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="label">Team Logo</label>
+            <div class="logo-upload-zone">
+              <div class="logo-preview" id="pcTeamLogoPreview"><span class="material-symbols-outlined" style="color:var(--text-muted);font-size:1.2rem;">add_photo_alternate</span></div>
+              <button type="button" class="upload-btn" onclick="document.getElementById('pcScoutTeamLogo').click()">
+                <span class="material-symbols-outlined">drive_folder_upload</span>
+                <span>Upload</span>
+              </button>
+              <input type="file" id="pcScoutTeamLogo" accept="image/*" onchange="onPlayerCardFileChange('logo', this)" style="display:none;">
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Common fields -->
+      <div class="form-group">
+        <label class="label">Scouting Notes (one per line = one bullet)</label>
+        <textarea class="input" id="pcNotes" rows="3" placeholder="Fast first step&#10;Good court vision&#10;Weak left hand" oninput="previewPlayerCard()"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="label">Team Color</label>
+        <input type="color" class="input" id="pcTeamColor" value="#c62828" style="width:64px;height:40px;padding:4px;cursor:pointer;" oninput="previewPlayerCard()">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('playerCardCreatorModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePlayerCardToTimeline()">
+        <span class="material-symbols-outlined" style="font-size:1rem;">add</span>
+        <span>Add to Timeline</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DELETE ORIGINAL MODAL ═══ -->
+<div class="modal-overlay" id="compileDeleteModal">
+  <div class="modal" style="max-width:400px;" role="dialog" aria-modal="true" aria-labelledby="compileDeleteModalTitle">
+    <div class="modal-header">
+      <h3 id="compileDeleteModalTitle">Delete Original Video</h3>
+    </div>
+    <div class="modal-body" style="text-align:center;">
+      <span class="material-symbols-outlined" style="font-size:3rem;color:var(--primary);margin-bottom:var(--sp-2);">check_circle</span>
+      <p style="font-weight:600;margin-bottom:var(--sp-3);">Video created successfully!</p>
+      <p style="color:var(--text-muted);">Delete the original video to save storage space?</p>
+    </div>
+    <div class="modal-footer" style="justify-content:center;">
+      <button class="btn btn-danger" onclick="compileDeleteOriginal()">
+        <span class="material-symbols-outlined" style="font-size:1rem;">delete</span>
+        <span>Delete Original</span>
+      </button>
+      <button class="btn btn-primary" onclick="compileKeepOriginal()">
+        <span>Keep Original</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ UPGRADE STORAGE MODAL ═══ -->
+<div class="modal-overlay" id="upgradeModal">
+  <div class="modal" style="max-width:480px;" role="dialog" aria-modal="true" aria-labelledby="upgradeModalTitle">
+    <div class="modal-header">
+      <h2 id="upgradeModalTitle">Upgrade Your Storage</h2>
+      <button class="modal-close" onclick="closeModal('upgradeModal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-muted);margin-bottom:var(--sp-4);" id="upgradeDescription">
+        You've reached your storage limit. Upgrade your plan or delete older videos to free space.
+      </p>
+      <div id="upgradeTiers"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('upgradeModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ KEYBOARD SHORTCUTS OVERLAY ═══ -->
+<div class="shortcuts-overlay" id="shortcutsOverlay">
+  <div class="shortcuts-panel">
+    <div class="shortcuts-header">
+      <h3>Keyboard Shortcuts</h3>
+      <button class="btn-icon" onclick="toggleShortcutsOverlay()"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="shortcuts-grid">
+      <div class="shortcut-group">
+        <h4>Playback</h4>
+        <div class="shortcut-row"><kbd>Space</kbd><span>Play / Pause</span></div>
+        <div class="shortcut-row"><kbd>←</kbd> / <kbd>→</kbd><span>±5s / ±1 frame (paused)</span></div>
+        <div class="shortcut-row"><kbd>Shift+←/→</kbd><span>±1 second</span></div>
+        <div class="shortcut-row"><kbd>,</kbd> / <kbd>.</kbd><span>Previous / Next frame</span></div>
+        <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd><span>Slower / Faster speed</span></div>
+        <div class="shortcut-row"><kbd>1</kbd>-<kbd>5</kbd><span>Speed: 0.25x - 2x</span></div>
+      </div>
+      <div class="shortcut-group">
+        <h4>Drawing Tools</h4>
+        <div class="shortcut-row"><kbd>D</kbd><span>Freehand draw</span></div>
+        <div class="shortcut-row"><kbd>A</kbd><span>Arrow</span></div>
+        <div class="shortcut-row"><kbd>C</kbd><span>Circle</span></div>
+        <div class="shortcut-row"><kbd>T</kbd><span>Text</span></div>
+        <div class="shortcut-row"><kbd>S</kbd><span>Spotlight</span></div>
+        <div class="shortcut-row"><kbd>M</kbd><span>Player Marker</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+Z</kbd><span>Undo</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+C/V</kbd><span>Copy / Paste annotation</span></div>
+        <div class="shortcut-row"><kbd>Del</kbd><span>Delete selected</span></div>
+        <div class="shortcut-row"><kbd>Esc</kbd><span>Deselect tool</span></div>
+      </div>
+      <div class="shortcut-group">
+        <h4>Clipping &amp; Zoom</h4>
+        <div class="shortcut-row"><kbd>I</kbd><span>Set In-point</span></div>
+        <div class="shortcut-row"><kbd>O</kbd><span>Set Out-point</span></div>
+        <div class="shortcut-row"><kbd>+</kbd> / <kbd>-</kbd><span>Zoom in / out</span></div>
+        <div class="shortcut-row"><kbd>0</kbd><span>Reset zoom</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+Scroll</kbd><span>Scroll zoom</span></div>
+        <div class="shortcut-row"><kbd>?</kbd><span>Toggle this overlay</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"
+        integrity="sha384-KUwosImoEnKt2Q36Bs3MxeOh0vghQarvecyjG6yVFknPMBxWK1YB0/gqXVWFgzsj"
+        crossorigin="anonymous" nonce="{{ g.csp_nonce }}"></script>
+<!-- --- NEW: Hybrid Video Architecture — YouTube IFrame API --- -->
+<!-- YouTube IFrame API: no SRI (dynamic content varies per request).
+     IMPORTANT: do NOT set crossorigin="anonymous" — it breaks YouTube's
+     dynamic injection of widgetapi.js (per official YT IFrame API docs). -->
+<script src="https://www.youtube.com/iframe_api"></script>
+<!-- --- END NEW --- -->
+<script nonce="{{ g.csp_nonce }}">
+// Simple API wrapper (no auth needed)
+const API = {
+  async request(url, opts = {}) {
+    const headers = { 'Content-Type': 'application/json', ...opts.headers };
+    const res = await fetch(url, { ...opts, headers, redirect: 'follow' });
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      if (res.status === 401 || res.redirected) {
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+      throw new Error('Request failed (' + res.status + ')');
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return { data };
+  },
+  get(url, opts) { return this.request(url, opts); },
+  post(url, body) { return this.request(url, { method: 'POST', body: JSON.stringify(body) }); },
+  put(url, body) { return this.request(url, { method: 'PUT', body: JSON.stringify(body) }); },
+  del(url) { return this.request(url, { method: 'DELETE' }); },
+};
+
+// Simple toast notifications
+const Toast = {
+  _show(msg, type) {
+    const el = document.createElement('div');
+    el.className = 'toast toast-' + type;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => { el.classList.add('show'); }, 10);
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3000);
+  },
+  success(msg) { this._show(msg, 'success'); },
+  error(msg) { this._show(msg, 'error'); },
+  info(msg) { this._show(msg, 'info'); },
+};
+
+// HTML escape helper
+function esc(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+// Modal open/close helpers
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('active');
+}
+
+// i18n translation map for Scouting Room
+{% raw %}
+const _i18n = {
+  // Actions
+  'scouting.action.pick_and_roll': 'Pick & Roll',
+  'scouting.action.isolation': 'Isolation',
+  'scouting.action.fast_break': 'Fast Break',
+  'scouting.action.defense': 'Defense',
+  'scouting.action.transition': 'Transition',
+  'scouting.action.three_pointer': '3-Pointer',
+  'scouting.action.post_up': 'Post Up',
+  'scouting.action.screen': 'Screen',
+  'scouting.action.turnover': 'Turnover',
+  'scouting.action.rebound': 'Rebound',
+  'scouting.action.free_throw': 'Free Throw',
+  'scouting.action.out_of_bounds': 'Out of Bounds',
+  'scouting.action.other': 'Other',
+
+  // Grid
+  'scouting.grid.empty': 'No videos yet. Upload your first video to get started!',
+  'scouting.grid.load_failed': 'Error loading videos. Please try again.',
+  'scouting.grid.clips_label': 'clips',
+
+  // Badges
+  'scouting.badge.permanent': 'Permanent',
+  'scouting.badge.expired': 'Expired',
+  'scouting.badge.hours_left': '{{count}}h left',
+  'scouting.badge.days_left': '{{count}}d left',
+
+  // Quota
+  'scouting.quota.storage': '{{used}} GB / MAX {{limit}} GB',
+
+  // Upgrade
+  'scouting.upgrade.title': 'Upgrade Your Storage',
+  'scouting.upgrade.description': "You've reached your storage limit. Upgrade your plan or delete older videos to free space.",
+  'scouting.upgrade.max_reached': 'Maximum storage reached. Contact support or delete older videos.',
+  'scouting.upgrade.coming_soon': 'Upgrade flow coming soon!',
+
+  // Upload
+  'scouting.upload.drag_or_click': 'Drag & drop video or click to browse',
+  'scouting.upload.formats': 'MP4, MOV, WebM — up to 5GB',
+  'scouting.upload.invalid_type': 'Unsupported file type',
+  'scouting.upload.too_large': 'File too large (max 5GB)',
+  'scouting.upload.config_error': 'Upload service not configured',
+  'scouting.upload.uploading': 'Uploading...',
+  'scouting.upload.uploading_pct': 'Uploading... {{pct}}%',
+  'scouting.upload.saving': 'Saving...',
+  'scouting.upload.success': 'Video uploaded successfully!',
+  'scouting.upload.failed': 'Upload failed',
+  'scouting.upload.network_error': 'Network error',
+  'scouting.upload.timeout': 'Upload timed out',
+  'scouting.upload.cancelled': 'Upload cancelled',
+  'scouting.upload.no_response': 'No response from server',
+  'scouting.upload.chunk_failed': 'Error uploading chunk',
+  'scouting.upload.chunk_progress': 'Uploading chunk {{current}} of {{total}}',
+  'scouting.upload.retry_failed': 'Upload failed after retry',
+
+  // Analysis
+  'scouting.analysis.load_failed': 'Error loading video',
+
+  // Comparison
+  'scouting.comparison.choose_video': 'Choose video...',
+
+  // Shortcuts
+  'scouting.shortcuts.back_5s': 'Back 5s',
+  'scouting.shortcuts.forward_5s': 'Forward 5s',
+  'scouting.shortcuts.prev_frame': 'Previous frame',
+  'scouting.shortcuts.next_frame': 'Next frame',
+
+  // Annotations
+  'scouting.ann.type.freehand': 'Freehand',
+  'scouting.ann.type.arrow': 'Arrow',
+  'scouting.ann.type.text': 'Text',
+  'scouting.ann.deleted': 'Annotation deleted',
+  'scouting.ann.delete_failed': 'Error deleting annotation',
+  'scouting.ann.copied': 'Annotation copied',
+  'scouting.ann.pasted': 'Annotation pasted',
+  'scouting.ann.enter_text': 'Enter text',
+  'scouting.ann.save_failed': 'Error saving annotation',
+
+  // I/O Points
+  'scouting.io.in': 'In',
+  'scouting.io.out': 'Out',
+  'scouting.io.create_clip': 'Create Clip',
+
+  // Clips
+  'scouting.clip.preview': 'Preview',
+  'scouting.clip.stop': 'Stop',
+  'scouting.clips.empty': 'No clips yet. Use the Clip tool to create one.',
+  'scouting.clips.invalid_range': 'Invalid range — end must be after start',
+  'scouting.clips.tagged': 'Clip created!',
+  'scouting.clips.save_failed': 'Error saving clip: {{error}}',
+  'scouting.clips.confirm_delete': 'Delete this clip?',
+  'scouting.clips.deleted': 'Clip deleted',
+  'scouting.clips.delete_failed': 'Error deleting clip',
+  'scouting.clips.watched': 'Watched {{count}} times',
+
+  // Compile
+  'scouting.compile.btn': 'Compile Video',
+  'scouting.compile.filter_all': 'All',
+  'scouting.compile.min_clips': 'At least 2 clips required',
+  'scouting.compile.no_clips': 'No clips selected',
+  'scouting.compile.summary': '{{count}} clips, {{duration}}s',
+  'scouting.compile.processing': 'Processing clip {{current}} of {{total}} — {{pct}}%',
+  'scouting.compile.uploading': 'Uploading video...',
+  'scouting.compile.failed': 'Compilation failed',
+
+  // Drawing
+  'scouting.draw.clear_confirm': 'Clear all drawings?',
+
+  // Expiry
+  'scouting.expiry.permanent': 'Permanent — no auto-delete',
+  'scouting.expiry.keep_forever': 'Video marked as permanent',
+  'scouting.expiry.auto_delete': 'Video will auto-delete after 14 days',
+  'scouting.expiry.keep_forever_tooltip': 'Keep forever',
+  'scouting.expiry.remove_permanent_tooltip': 'Remove permanent flag',
+  'scouting.expiry.update_failed': 'Update failed',
+
+  // Video
+  'scouting.video.confirm_delete': 'Permanently delete this video?',
+  'scouting.video.deleted': 'Video deleted',
+  'scouting.video.delete_failed': 'Error deleting video',
+
+  // Export
+  'scouting.export.no_video': 'No video to export',
+
+  // Playlists
+  'scouting.playlist.empty': 'No playlists yet',
+  'scouting.playlist.create': 'Create Playlist',
+  'scouting.playlist.new': '+ New Playlist',
+  'scouting.playlist.prompt': 'Playlist name:',
+  'scouting.playlist.created': 'Playlist created!',
+  'scouting.playlist.create_failed': 'Error creating playlist',
+  'scouting.playlist.confirm_delete': 'Delete this playlist?',
+  'scouting.playlist.deleted': 'Playlist deleted',
+  'scouting.playlist.delete_failed': 'Error deleting playlist',
+  'scouting.playlist.create_first': 'Create a playlist first',
+  'scouting.playlist.added': 'Clip added to "{{name}}"',
+  'scouting.playlist.add_failed': 'Error adding to playlist',
+  'scouting.playlist.clips': '{{count}} clips',
+
+  // Batch
+  'scouting.batch.selected': '{{count}} selected',
+  'scouting.batch.delete_confirm': 'Delete {{count}} clips?',
+  'scouting.batch.deleted': 'Clips deleted',
+  'scouting.batch.delete_failed': 'Error deleting clips',
+  'scouting.batch.updated': 'Clips updated',
+  'scouting.batch.update_failed': 'Error updating clips',
+};
+{% endraw %}
+
+function t(key, params) {
+  let str = _i18n[key] || key;
+  if (params) {
+    Object.keys(params).forEach(k => {
+      str = str.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), params[k]);
+    });
+  }
+  return str;
+}
+</script>
+<script src="{{ url_for('static', filename='js/scouting-telestrator.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scouting.js') }}"></script>
+{% endblock %}

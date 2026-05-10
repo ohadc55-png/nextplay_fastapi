@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% set active_page = "history" %}
+
+{% block content %}
+<div class="page-header">
+    <svg class="page-header-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+    <div>
+        <h1>Chat History</h1>
+        <p>Browse your past conversations with the coaching staff.</p>
+    </div>
+</div>
+
+<!-- Search -->
+<div class="card mb-24">
+    <div class="form-group" style="margin-bottom: 0;">
+        <div style="position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--text-3)" style="position: absolute; inset-inline-start: 16px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <input class="form-input" id="searchInput" placeholder="Search conversations..."
+                   style="padding-inline-start: 44px;"
+                   oninput="debounceSearch(this.value)">
+        </div>
+    </div>
+    <div id="searchResults" style="margin-top: 12px;"></div>
+</div>
+
+<!-- Sessions -->
+<div class="card">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        All Sessions
+        <span class="badge badge-orange" style="margin-inline-start: auto;"><span dir="ltr">{{ sessions|length }}</span> sessions</span>
+    </div>
+
+    {% if sessions %}
+        {% for s in sessions %}
+        <div class="session-item" onclick="toggleSession('{{ s.session_id }}', this)">
+            <div style="flex: 1; min-width: 0;">
+                <div class="session-date" dir="ltr">{{ (s.started_at|string)[:16] if s.started_at else 'Unknown' }}</div>
+                {% if s.first_message %}
+                <div class="session-preview">{{ s.first_message[:120] }}{{ '...' if s.first_message|length > 120 else '' }}</div>
+                {% endif %}
+            </div>
+            <div class="session-count"><span dir="ltr">{{ s.message_count }}</span> {{ 'message' if s.message_count == 1 else 'messages' }}</div>
+        </div>
+        <div class="session-messages" id="session-{{ s.session_id }}" style="display: none;"></div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <p>No conversations yet.<br>Start chatting with your coaching staff!</p>
+            <a href="/chat" class="btn btn-primary btn-sm" style="margin-top: 16px;">Start Chat</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+// HTML escape to prevent XSS
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// SVG templates for history avatars
+const userAvatarSVG = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+const aiAvatarSVG = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="M5 5q7 7 0 14"/><path d="M19 5q-7 7 0 14"/></svg>';
+
+let searchTimer;
+function debounceSearch(q) {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => searchConversations(q), 300);
+}
+
+async function searchConversations(q) {
+    const container = document.getElementById('searchResults');
+    if (!q.trim()) { container.innerHTML = ''; return; }
+
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const results = await res.json();
+
+    if (!results.length) {
+        container.innerHTML = '<div class="empty-state" style="padding: 24px;"><p>No results found for "' + q.replace(/</g, '&lt;') + '"</p></div>';
+        return;
+    }
+
+    container.innerHTML = results.map(m => `
+        <div class="chat-msg ${m.role}" style="margin-bottom: 12px;">
+            <div class="avatar">
+                ${m.role === 'user' ? userAvatarSVG : aiAvatarSVG}
+            </div>
+            <div class="msg-content">
+                <div class="msg-sender">
+                    ${m.role === 'user' ? 'Coach' : 'AI Staff'}
+                    <span class="msg-time" dir="ltr">${esc(m.created_at || '')}</span>
+                </div>
+                <div class="bubble" style="white-space:pre-wrap;">
+                    ${esc((m.content || '').substring(0, 400))}${m.content.length > 400 ? '...' : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function toggleSession(sessionId, el) {
+    const container = document.getElementById(`session-${sessionId}`);
+    if (container.style.display !== 'none') {
+        container.style.display = 'none';
+        el.style.borderColor = '';
+        return;
+    }
+
+    el.style.borderColor = 'rgba(255,107,53,0.3)';
+
+    if (!container.innerHTML.trim()) {
+        container.innerHTML = '<div style="padding: 16px; color: var(--text-3); font-size: 0.85rem;">Loading messages...</div>';
+        container.style.display = '';
+
+        const res = await fetch(`/api/history/${sessionId}`);
+        const messages = await res.json();
+        container.innerHTML = messages.map(m => `
+            <div class="chat-msg ${m.role}" style="margin-bottom: 12px;">
+                <div class="avatar">
+                    ${m.role === 'user' ? userAvatarSVG : aiAvatarSVG}
+                </div>
+                <div class="msg-content">
+                    <div class="msg-sender">${m.role === 'user' ? 'Coach' : 'AI Staff'}</div>
+                    <div class="bubble" style="white-space:pre-wrap;">${esc(m.content || '')}</div>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        container.style.display = '';
+    }
+}
+</script>
+{% endblock %}

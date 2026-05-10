@@ -56,4 +56,4 @@ class PlayShareResponse(ORMModel):
     created_at: str | None = None
 
 
-__all__ = ["PlayCreate", "PlayUpdate", "PlayResponse", "PlayShareCreate", "PlayShareResponse"]
+__all__ = ["PlayCreate", "PlayResponse", "PlayShareCreate", "PlayShareResponse", "PlayUpdate"]

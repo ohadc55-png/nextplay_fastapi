@@ -7,6 +7,14 @@ Tracked deferrals from the Flask → FastAPI migration. Each entry has phase, ow
 - **Python runtime drift (local vs Railway).** Local default is 3.13.9 (anaconda); `runtime.txt` pins `python-3.11` for Railway parity with v1.0-flask. Most pinned deps support 3.13, but if anything fails locally, install Python 3.11 alongside or override `runtime.txt`. Decide before Phase 9 deploy.
 - **Frontend not yet copied.** `frontend/` will be ported verbatim from `basketball_coach_ai/frontend/` in Phase 8. Until then, `/static` and HTML page routes are not registered — `/healthz` is the only endpoint.
 
+## Phase 0 Enterprise — Multi-org foundation
+
+- **RLS verified against Postgres (deferred to staging).** The Postgres RLS migration `9a3f2b1c4e7d_add_org_rls_postgres` is a no-op on SQLite (test runtime). Before flipping Railway to FastAPI Enterprise, run `python tools/verify_rls.py` against staging Postgres and require exit-0. The CI alembic-smoke step uses SQLite and therefore does NOT cover RLS.
+- **Background tasks bypass `get_db` and the org GUC.** Memory extraction (`src/services/chat_service.py`) and email sender (`src/services/email.py`) open their own `AsyncSessionLocal()`, so `app.current_org_id` is unset during their work. Phase 0 background tasks don't touch org-scoped tables — safe. Any Phase 1+ background work that touches `team_profile`, `regions`, `branches`, `user_organizations`, `org_invites`, or `org_audit_logs` must explicitly `SELECT set_config('app.current_org_id', ...)` at the top of its session.
+- **Clubs → Orgs migration.** The legacy `clubs` table (B2B v1) and the new `organizations` table coexist for now. A future phase will migrate club members to a synthesized organization, retire `users.club_id` / `users.is_club_admin`, and drop the `clubs` / `invite_codes` tables. Out of scope for Phase 0.
+- **Org Admin HTML pages beyond Phase 0 set.** Only login, role-select, dashboard, and invite-accept landing exist. Members / branches / regions / teams / audit pages land in Phase 1 alongside the bulk-import flow for the 640-team Sha'ar Shivyon dataset.
+- **System Admin HTML pages for orgs.** `/admin/api/orgs/*` JSON endpoints ship in Phase 0; the corresponding `/admin/orgs` and `/admin/orgs/{id}` HTML pages are deferred to Phase 1 (matches the existing pattern where admin JSON shipped before HTML).
+
 ## Phase 2 — Repositories
 
 - **`PlayerMetricsRepository.upsert` UPDATE-path test deferred.** The
@@ -31,7 +39,11 @@ Tracked deferrals from the Flask → FastAPI migration. Each entry has phase, ow
 
 ## Phase 5 — AI
 
-- **Research cache cross-coach bug.** Re-key cache at `backend/research/web_researcher.py:684-700` (in v1.0-flask) by `(user_id, team_id, query, level_hint, url_hint, hour_bucket)`. **Fix is part of Phase 5; do not skip.**
+- **Research cache cross-coach bug.** Re-key cache at `backend/research/web_researcher.py:684-700` (in v1.0-flask) by `(user_id, team_id, query, level_hint, url_hint, hour_bucket)`. **Fix is part of Phase 5; do not skip.** ✅ DONE in batch 8 — see [src/research/cache.py](src/research/cache.py).
+- **Research pipeline Stages 5-7 (Extract / Verify / Synthesize).** Batches 8 + 8b ship Stages 0-4 (URL hint, Plan, Search, Triage, multi-Fetch). The fetched content is returned as `summary` so the calling agent's persona can extract directly. The structured per-page extract + cross-source verify + scout-report synthesize pipeline (gpt-4o, ~530 lines of prompts in v1 `prompts.py:155-528`) needs its own batch with careful per-stage testing. ✅ Stages 1-4 DONE in batch 8b.
+- **CrewAI multi-agent orchestration.** ✅ DONE in batch 10 — see [src/crew/manager.py](src/crew/manager.py). Multi-agent delegation (e.g., Brad → Hunter scout job) deferred — today each turn runs ONE specialist; routing layer (batch 4) picks which one.
+- **Vision pipeline** (GPT-4o Vision describe → specialist agent process). ✅ DONE in batch 9 — see [src/services/vision.py](src/services/vision.py). Wired-in via `/api/chat-upload` endpoint lands in Phase 7 (file processor batch).
+- **KB document ingestion script.** Batch 6 ships the wrapper but no documents. Port the `knowledge_base/documents/` chunking + embedding script before launch.
 
 ## Pre-cutover gate — DEPLOY FLASK WIP TO PROD FIRST
 

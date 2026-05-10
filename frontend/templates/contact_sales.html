@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Sales — {{ plan_label }} | NextPlay</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100vh;
+        background: #070c13;
+        color: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow-x: hidden;
+    }
+    /* Court background */
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: url("{{ url_for('static', filename='img/arena_bg.jpg') }}") center/cover no-repeat;
+        opacity: 0.25;
+        z-index: 0;
+    }
+    body::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(7,12,19,0.7) 0%, rgba(7,12,19,0.95) 100%);
+        z-index: 0;
+    }
+
+    .page-wrap {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 560px;
+        margin: 40px 20px;
+    }
+
+    /* Logo */
+    .logo-row {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+    .logo-row img {
+        height: 48px;
+        filter: drop-shadow(0 2px 8px rgba(244,140,37,0.3));
+    }
+
+    /* Back link */
+    .contact-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #9ca3af;
+        text-decoration: none;
+        font-size: 0.85rem;
+        margin-bottom: 20px;
+        transition: color 0.15s;
+    }
+    .contact-back:hover { color: #fff; }
+
+    /* Header */
+    .contact-header { margin-bottom: 24px; text-align: center; }
+    .contact-header h1 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 8px;
+    }
+    .contact-header p {
+        color: #9ca3af;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    /* Form card */
+    .contact-form {
+        background: rgba(15,22,33,0.85);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        padding: 28px 24px;
+    }
+    .contact-form .form-group { margin-bottom: 16px; }
+    .contact-form label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #9ca3af;
+        margin-bottom: 6px;
+    }
+    .contact-form label .req { color: #f48c25; }
+    .contact-form input,
+    .contact-form select,
+    .contact-form textarea {
+        width: 100%;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        color: #e5e7eb;
+        font-size: 0.9rem;
+        font-family: inherit;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .contact-form input::placeholder,
+    .contact-form textarea::placeholder { color: #4b5563; }
+    .contact-form input:focus,
+    .contact-form select:focus,
+    .contact-form textarea:focus {
+        outline: none;
+        border-color: #f48c25;
+        box-shadow: 0 0 0 2px rgba(244,140,37,0.15);
+    }
+    .contact-form select {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 36px;
+    }
+    .contact-form select option { background: #1a2332; color: #e5e7eb; }
+    .contact-form textarea { resize: vertical; min-height: 72px; }
+    .contact-row { display: flex; gap: 12px; }
+    .contact-row .form-group { flex: 1; }
+
+    /* Submit button */
+    .contact-submit {
+        width: 100%;
+        padding: 13px;
+        background: linear-gradient(135deg, #f48c25, #e07010);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        margin-top: 8px;
+        transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .contact-submit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 20px rgba(244,140,37,0.4);
+    }
+    .contact-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    /* Email note */
+    .contact-email-note {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 0.82rem;
+        color: #6b7280;
+    }
+    .contact-email-note a { color: #f48c25; text-decoration: none; }
+
+    /* Success */
+    .contact-success {
+        display: none;
+        text-align: center;
+        padding: 40px 24px;
+        background: rgba(15,22,33,0.85);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+    }
+    .contact-success .success-icon {
+        width: 64px; height: 64px; border-radius: 50%;
+        background: rgba(34,197,94,0.15);
+        display: inline-flex; align-items: center; justify-content: center;
+        margin-bottom: 16px;
+        font-size: 32px; color: #22c55e;
+    }
+    .contact-success h2 { color: #fff; margin-bottom: 8px; font-size: 1.3rem; }
+    .contact-success p { color: #9ca3af; margin-bottom: 24px; line-height: 1.5; font-size: 0.9rem; }
+    .contact-success a {
+        display: inline-flex; padding: 10px 28px;
+        background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+        color: #e5e7eb; border-radius: 8px;
+        text-decoration: none; font-weight: 600;
+        transition: background 0.15s;
+    }
+    .contact-success a:hover { background: rgba(255,255,255,0.1); }
+
+    /* Mobile */
+    @media (max-width: 560px) {
+        .contact-row { flex-direction: column; gap: 0; }
+        .page-wrap { margin: 20px 12px; }
+        .contact-form { padding: 20px 16px; }
+    }
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+    <div class="logo-row">
+        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+    </div>
+
+    <a href="/upgrade" class="contact-back" id="backLink">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to plans
+    </a>
+
+    <div class="contact-header">
+        <h1>Get {{ plan_label }} for Your Organization</h1>
+        <p>Tell us about your program and we'll get back to you within 24 hours.</p>
+    </div>
+
+    <div class="contact-form" id="contactForm">
+        <div class="contact-row">
+            <div class="form-group">
+                <label>Full Name <span class="req">*</span></label>
+                <input type="text" id="csName" placeholder="Your name" required>
+            </div>
+            <div class="form-group">
+                <label>Email <span class="req">*</span></label>
+                <input type="email" id="csEmail" placeholder="your@email.com" required>
+            </div>
+        </div>
+
+        <div class="contact-row">
+            <div class="form-group">
+                <label>Organization / Club Name <span class="req">*</span></label>
+                <input type="text" id="csOrg" placeholder="e.g. Maccabi Youth Academy">
+            </div>
+            <div class="form-group">
+                <label>Country</label>
+                <input type="text" id="csCountry" placeholder="e.g. Israel">
+            </div>
+        </div>
+
+        <div class="contact-row">
+            <div class="form-group">
+                <label>Number of Coaches <span class="req">*</span></label>
+                {% if plan == 'enterprise' %}
+                <input type="text" id="csCoaches" placeholder="e.g. 30" required>
+                {% else %}
+                <select id="csCoaches" required>
+                    <option value="">Select...</option>
+                    <option value="1-3">1 - 3</option>
+                    <option value="4-6">4 - 6</option>
+                    <option value="7-10">7 - 10</option>
+                    <option value="11-15">11 - 15</option>
+                </select>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label>Number of Teams <span class="req">*</span></label>
+                {% if plan == 'enterprise' %}
+                <input type="text" id="csTeams" placeholder="e.g. 12" required>
+                {% else %}
+                <select id="csTeams" required>
+                    <option value="">Select...</option>
+                    <option value="1-5">1 - 5</option>
+                    <option value="6-10">6 - 10</option>
+                    <option value="11-15">11 - 15</option>
+                    <option value="16+">16+</option>
+                </select>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Current Coaching Tools</label>
+            <input type="text" id="csTools" placeholder="e.g. Hudl, Synergy, spreadsheets, none">
+        </div>
+
+        <div class="form-group">
+            <label>Anything else we should know?</label>
+            <textarea id="csNotes" rows="3" placeholder="Goals, timeline, special requirements..."></textarea>
+        </div>
+
+        <button class="contact-submit" id="contactBtn" onclick="submitInquiry()">Send Inquiry</button>
+    </div>
+
+    <div class="contact-email-note">
+        Or email us directly at <a href="mailto:hello@trynextplay.com">hello@trynextplay.com</a>
+    </div>
+
+    <div class="contact-success" id="contactSuccess">
+        <div class="success-icon">&#10003;</div>
+        <h2>Thanks for reaching out!</h2>
+        <p>We'll review your inquiry and get back to you within 24 hours at the email you provided.</p>
+        <a href="/" id="successLink">Back to Home</a>
+    </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+/* Detect where user came from via ?from= param */
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var from = params.get('from');
+    if (from === 'welcome') {
+        document.getElementById('backLink').href = '/main#pricing';
+        document.getElementById('successLink').href = '/main';
+    } else {
+        document.getElementById('backLink').href = '/upgrade';
+        document.getElementById('successLink').href = '/upgrade';
+    }
+})();
+
+var _csPlan = '{{ plan }}';
+
+async function submitInquiry() {
+    var name = document.getElementById('csName').value.trim();
+    var email = document.getElementById('csEmail').value.trim();
+    var org = document.getElementById('csOrg').value.trim();
+    if (!name || !email || !org) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+    var coaches = document.getElementById('csCoaches').value;
+    var teams = document.getElementById('csTeams').value;
+    if (!coaches || !teams) {
+        alert('Please select number of coaches and teams.');
+        return;
+    }
+    var btn = document.getElementById('contactBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    try {
+        var res = await fetch('/api/contact-sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan: _csPlan,
+                full_name: name,
+                email: email,
+                organization: org,
+                country: document.getElementById('csCountry').value.trim(),
+                num_coaches: coaches,
+                num_teams: teams,
+                current_tools: document.getElementById('csTools').value.trim(),
+                notes: document.getElementById('csNotes').value.trim()
+            })
+        });
+        var data = await res.json();
+        if (data.success) {
+            document.getElementById('contactForm').style.display = 'none';
+            document.querySelector('.contact-email-note').style.display = 'none';
+            document.getElementById('contactSuccess').style.display = 'block';
+        } else {
+            btn.textContent = 'Try Again';
+            btn.disabled = false;
+            alert(data.error || 'Something went wrong');
+        }
+    } catch (e) {
+        btn.textContent = 'Try Again';
+        btn.disabled = false;
+        alert('Network error. Please try again.');
+    }
+}
+</script>
+</body>
+</html>

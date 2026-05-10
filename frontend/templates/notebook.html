@@ -1,0 +1,1977 @@
+{% extends "base.html" %}
+{% set active_page = "notebook" %}
+
+{% block content %}
+<style>
+/* ══════════════════════════════════════════════════════════════
+   Coach Notebook — Timeline + Forms
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Stats Mini Bar ───────────────────────────────────────── */
+.nb-stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.nb-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    transition: border-color 0.2s var(--ease);
+}
+.nb-stat .nb-stat-count {
+    font-weight: 800;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.82rem;
+}
+.nb-stat[data-type="practice_plan"] { border-color: var(--accent); color: var(--accent); }
+.nb-stat[data-type="game_summary"] { border-color: var(--green); color: var(--green); }
+.nb-stat[data-type="tactical_plan"] { border-color: var(--red); color: var(--red); }
+.nb-stat[data-type="player_note"] { border-color: var(--blue); color: var(--blue); }
+.nb-stat[data-type="period_plan"] { border-color: var(--purple); color: var(--purple); }
+.nb-stat[data-type="attendance"] { border-color: var(--yellow); color: var(--yellow); }
+.nb-stat[data-type="free_document"] { border-color: var(--text-2); color: var(--text-2); }
+
+/* ── Filter Bar ───────────────────────────────────────────── */
+.nb-filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.nb-filters .form-select,
+.nb-filters .form-input {
+    min-width: 0;
+    flex: 1;
+    max-width: 220px;
+    height: 42px;
+    font-size: 0.85rem;
+}
+.nb-filters .form-input {
+    max-width: 280px;
+}
+.nb-search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 280px;
+}
+.nb-search-wrap svg {
+    position: absolute;
+    inset-inline-start: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+.nb-search-wrap .form-input {
+    padding-inline-start: 40px;
+    max-width: none;
+    width: 100%;
+}
+.nb-new-btn {
+    margin-inline-start: auto;
+}
+
+/* ── Timeline (Grid) ───────────────────────────────────────── */
+/* ── List container — replaces the old grid timeline ─────── */
+.nb-timeline {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+/* ── Entry row (compact by default, expandable on click) ─── */
+.nb-entry {
+    display: grid;
+    grid-template-columns: 14px 110px 1fr 90px 76px;
+    grid-template-rows: 56px;
+    align-items: center;
+    gap: 14px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s var(--ease);
+    position: relative;
+}
+.nb-entry:last-child {
+    border-bottom: none;
+}
+.nb-entry:hover {
+    background: rgba(255,255,255,0.025);
+}
+.nb-entry.expanded {
+    background: rgba(255,255,255,0.025);
+    grid-template-rows: 56px auto;
+    padding-bottom: 16px;
+    cursor: default;
+}
+
+/* Type dot — colored circle, leftmost column */
+.nb-type-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    grid-row: 1;
+}
+.nb-type-dot[data-type="practice_plan"] { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.nb-type-dot[data-type="game_summary"] { background: var(--green); box-shadow: 0 0 0 3px var(--green-dim); }
+.nb-type-dot[data-type="tactical_plan"] { background: var(--red); box-shadow: 0 0 0 3px var(--red-dim); }
+.nb-type-dot[data-type="player_note"] { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-dim); }
+.nb-type-dot[data-type="period_plan"] { background: var(--purple); box-shadow: 0 0 0 3px var(--purple-dim); }
+.nb-type-dot[data-type="attendance"] { background: var(--yellow); box-shadow: 0 0 0 3px var(--yellow-dim); }
+.nb-type-dot[data-type="free_document"] { background: var(--text-3); }
+
+/* Type label — colored pill, second column */
+.nb-type-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 4px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+    text-align: center;
+    grid-row: 1;
+}
+.nb-type-label[data-type="practice_plan"] { background: var(--accent-dim); color: var(--accent); }
+.nb-type-label[data-type="game_summary"] { background: var(--green-dim); color: var(--green); }
+.nb-type-label[data-type="tactical_plan"] { background: var(--red-dim); color: var(--red); }
+.nb-type-label[data-type="player_note"] { background: var(--blue-dim); color: var(--blue); }
+.nb-type-label[data-type="period_plan"] { background: var(--purple-dim); color: var(--purple); }
+.nb-type-label[data-type="attendance"] { background: var(--yellow-dim); color: var(--yellow); }
+.nb-type-label[data-type="free_document"] { background: rgba(92,99,112,0.15); color: var(--text-2); }
+
+/* Title — third column, truncates on one line */
+.nb-entry-title {
+    grid-row: 1;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nb-entry-title .nb-title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.nb-ai-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: var(--purple);
+    background: var(--purple-dim);
+    padding: 2px 7px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+/* Date — fourth column */
+.nb-entry-date {
+    grid-row: 1;
+    font-size: 0.78rem;
+    color: var(--text-3);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Actions — fifth column. Visible on hover or expand. */
+.nb-entry-actions {
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.2s var(--ease);
+}
+.nb-entry:hover .nb-entry-actions,
+.nb-entry.expanded .nb-entry-actions {
+    opacity: 1;
+}
+.nb-entry-actions button {
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    color: var(--text-3);
+    border-radius: var(--radius-xs);
+    transition: color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.nb-entry-actions button:hover {
+    color: var(--text);
+    background: var(--bg-elevated);
+}
+.nb-entry-actions button.nb-del:hover {
+    color: var(--red);
+    background: var(--red-dim);
+}
+.nb-chevron {
+    color: var(--text-3);
+    transition: transform 0.25s var(--ease), color 0.15s;
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: 2px;
+    pointer-events: none;
+}
+.nb-entry.expanded .nb-chevron {
+    transform: rotate(90deg);
+    color: var(--text-2);
+}
+
+/* Expanded body — full content, lazy-rendered */
+.nb-entry-body {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    padding: 8px 0 4px;
+    font-size: 0.86rem;
+    color: var(--text-2);
+    line-height: 1.6;
+    display: none;
+    cursor: default;
+}
+.nb-entry.expanded .nb-entry-body {
+    display: block;
+    animation: nbBodyFadeIn 0.22s var(--ease);
+}
+@keyframes nbBodyFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Group-by-type toggle button (lives in the filter bar) ── */
+.nb-group-toggle {
+    height: 42px;
+    padding: 0 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    color: var(--text-2);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+    white-space: nowrap;
+}
+.nb-group-toggle:hover {
+    border-color: var(--border-2);
+    color: var(--text);
+}
+.nb-group-toggle.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.nb-group-toggle svg {
+    flex-shrink: 0;
+}
+
+/* ── Grouped-view sections (only visible when .nb-timeline.grouped) ── */
+.nb-group {
+    border-bottom: 1px solid var(--border);
+}
+.nb-group:last-child {
+    border-bottom: none;
+}
+
+.nb-group-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(255,255,255,0.015);
+    transition: background 0.15s var(--ease);
+}
+.nb-group-header:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+.nb-group-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+.nb-group[data-type="practice_plan"] .nb-group-icon { background: var(--accent-dim); color: var(--accent); }
+.nb-group[data-type="game_summary"] .nb-group-icon { background: var(--green-dim); color: var(--green); }
+.nb-group[data-type="tactical_plan"] .nb-group-icon { background: var(--red-dim); color: var(--red); }
+.nb-group[data-type="player_note"] .nb-group-icon { background: var(--blue-dim); color: var(--blue); }
+.nb-group[data-type="period_plan"] .nb-group-icon { background: var(--purple-dim); color: var(--purple); }
+.nb-group[data-type="attendance"] .nb-group-icon { background: var(--yellow-dim); color: var(--yellow); }
+.nb-group[data-type="free_document"] .nb-group-icon { background: rgba(108,114,128,0.15); color: var(--text-2); }
+
+.nb-group-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.nb-group-count {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--text-3);
+    background: var(--bg-elevated);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-inline-start: 4px;
+}
+.nb-group-arrow {
+    margin-inline-start: auto;
+    color: var(--text-3);
+    transition: transform 0.2s var(--ease);
+    display: inline-flex;
+    align-items: center;
+}
+.nb-group.collapsed .nb-group-arrow {
+    transform: rotate(-90deg);
+}
+.nb-group.collapsed .nb-group-rows {
+    display: none;
+}
+
+/* In grouped mode, the type pill on each row is hidden (header carries the type info)
+   and rows lose that column to free up title space. */
+.nb-timeline.grouped .nb-entry {
+    grid-template-columns: 14px 1fr 90px 76px;
+    height: 60px;
+}
+.nb-timeline.grouped .nb-entry .nb-type-label {
+    display: none;
+}
+.nb-timeline.grouped .nb-entry.expanded {
+    height: auto;
+}
+
+.nb-field {
+    margin-bottom: 14px;
+}
+.nb-field:last-child {
+    margin-bottom: 0;
+}
+.nb-field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.nb-field-value {
+    font-size: 0.88rem;
+    color: var(--text);
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+/* ── Attendance Display ───────────────────────────────────── */
+.nb-att-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+.nb-att-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.nb-att-chip.present { background: var(--green-dim); color: var(--green); }
+.nb-att-chip.absent { background: var(--red-dim); color: var(--red); }
+.nb-att-chip.late { background: var(--yellow-dim); color: var(--yellow); }
+.nb-att-chip.injured { background: var(--purple-dim); color: var(--purple); }
+
+/* ── Modal ────────────────────────────────────────────────── */
+.nb-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 9999;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 16px;
+    overflow-y: auto;
+}
+.nb-modal-overlay.active {
+    display: flex;
+}
+.nb-modal {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 640px;
+    box-shadow: var(--shadow-lg);
+    animation: modalSlideIn 0.3s var(--ease-spring);
+}
+.nb-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+.nb-modal-header h3 {
+    flex: 1;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+}
+.nb-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-xs);
+    transition: color 0.15s;
+}
+.nb-modal-close:hover { color: var(--text); }
+.nb-modal-body {
+    padding: 20px 24px;
+    max-height: calc(80vh - 140px);
+    overflow-y: auto;
+}
+.nb-modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+}
+
+/* ── Type Selector Grid ───────────────────────────────────── */
+.nb-type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.nb-type-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-2);
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    text-align: center;
+}
+.nb-type-btn:hover {
+    border-color: var(--border-2);
+    background: var(--bg-card-hover);
+}
+.nb-type-btn.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+.nb-type-btn svg {
+    width: 28px;
+    height: 28px;
+    opacity: 0.8;
+}
+.nb-type-btn.selected svg {
+    opacity: 1;
+}
+
+/* ── Form ─────────────────────────────────────────────────── */
+.nb-form-section {
+    margin-bottom: 16px;
+}
+.nb-form-section:last-child {
+    margin-bottom: 0;
+}
+.nb-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Quarter Grid ─────────────────────────────────────────── */
+.nb-quarter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+.nb-quarter-item {
+    text-align: center;
+}
+.nb-quarter-item label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-3);
+    margin-bottom: 4px;
+}
+.nb-quarter-item .form-input {
+    text-align: center;
+    font-size: 0.82rem;
+    height: 36px;
+}
+
+/* ── Attendance Form ──────────────────────────────────────── */
+.nb-att-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.nb-att-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-xs);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+.nb-att-name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.nb-att-toggle {
+    display: flex;
+    gap: 4px;
+}
+.nb-att-toggle button {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    background: var(--bg-input);
+    color: var(--text-3);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    transition: all 0.15s;
+}
+.nb-att-toggle button.active-present {
+    background: var(--green-dim);
+    color: var(--green);
+    border-color: var(--green);
+}
+.nb-att-toggle button.active-absent {
+    background: var(--red-dim);
+    color: var(--red);
+    border-color: var(--red);
+}
+.nb-att-toggle button.active-late {
+    background: var(--yellow-dim);
+    color: var(--yellow);
+    border-color: var(--yellow);
+}
+.nb-att-toggle button.active-injured {
+    background: var(--purple-dim);
+    color: var(--purple);
+    border-color: var(--purple);
+}
+
+/* ── Post-Practice Summary Accordion ──────────────────────── */
+.nb-summary-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-2);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    margin-top: 8px;
+}
+.nb-summary-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.nb-summary-fields {
+    display: none;
+    margin-top: 12px;
+}
+.nb-summary-fields.open {
+    display: block;
+}
+
+/* ── Period Selector ──────────────────────────────────────── */
+.nb-period-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+.nb-period-chip {
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--bg-card);
+    color: var(--text-2);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.nb-period-chip:hover { border-color: var(--purple); color: var(--purple); }
+.nb-period-chip.active {
+    border-color: var(--purple);
+    background: var(--purple-dim);
+    color: var(--purple);
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .nb-filters {
+        flex-direction: column;
+    }
+    .nb-filters .form-select,
+    .nb-filters .form-input,
+    .nb-search-wrap {
+        max-width: none;
+        width: 100%;
+    }
+    .nb-new-btn {
+        margin-inline-start: 0;
+        width: 100%;
+    }
+    .nb-type-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .nb-form-row {
+        grid-template-columns: 1fr;
+    }
+    .nb-quarter-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .nb-modal {
+        max-width: none;
+        margin: 0;
+        border-radius: 16px 16px 0 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 90vh;
+    }
+    .nb-modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+    /* Compact row on mobile: drop the type-label column (dot conveys type),
+       use auto-sized date + actions so they take only what they need. */
+    .nb-entry {
+        grid-template-columns: 14px 1fr auto auto;
+        gap: 8px;
+        padding: 0 12px;
+    }
+    .nb-entry.expanded {
+        grid-template-columns: 14px 1fr auto auto;
+    }
+    .nb-type-label {
+        display: none;
+    }
+    .nb-entry-date {
+        font-size: 0.72rem;
+    }
+    .nb-entry-actions {
+        opacity: 1;
+        gap: 0;
+    }
+    .nb-entry-actions button {
+        padding: 4px;
+    }
+    .nb-chevron {
+        display: none;  /* tap to expand is discoverable enough on mobile without an icon hint */
+    }
+    .nb-entry-body {
+        grid-column: 2 / -1;
+        font-size: 0.84rem;
+    }
+}
+@media (max-width: 480px) {
+    .nb-stats {
+        gap: 6px;
+    }
+    .nb-stat {
+        padding: 4px 10px;
+        font-size: 0.72rem;
+    }
+    .nb-entry-header {
+        padding: 12px 14px;
+    }
+}
+</style>
+
+<!-- Page Header -->
+<div class="page-header">
+    <svg class="page-header-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        <line x1="9" y1="7" x2="17" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/>
+    </svg>
+    <div>
+        <h1>Coach Notebook</h1>
+        <p>Document practices, games, player notes and more</p>
+    </div>
+</div>
+
+<!-- Stats Mini Bar -->
+<div class="nb-stats" id="nbStats"></div>
+
+<!-- Filter Bar -->
+<div class="nb-filters">
+    <select class="form-select" id="filterType" onchange="applyFilters()" aria-label="Filter by type">
+        <option value="">All Types</option>
+        <option value="practice_plan">Practice Plan</option>
+        <option value="game_summary">Game Summary</option>
+        <option value="tactical_plan">Tactical Plan</option>
+        <option value="player_note">Player Note</option>
+        <option value="period_plan">Period Plan</option>
+        <option value="attendance">Attendance</option>
+        <option value="free_document">Free Document</option>
+    </select>
+    <select class="form-select" id="filterPlayer" onchange="applyFilters()" aria-label="Filter by player">
+        <option value="">All Players</option>
+        {% for p in players %}
+        <option value="{{ p.id }}">{{ p.name }}{% if p.number %} #{{ p.number }}{% endif %}</option>
+        {% endfor %}
+    </select>
+    <div class="nb-search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--text-3)">
+            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input class="form-input" id="filterSearch" placeholder="Search notebook..." oninput="debounceSearch()" aria-label="Search notebook">
+    </div>
+    <button id="nbGroupToggle" class="nb-group-toggle" onclick="toggleGroupedMode()" aria-label="Group entries by type" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        Group by type
+    </button>
+    <button class="btn btn-primary nb-new-btn" onclick="openNewEntry()" aria-label="New notebook entry">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New
+    </button>
+</div>
+
+<!-- Timeline -->
+<div class="nb-timeline" id="nbTimeline"></div>
+
+<!-- New / Edit Entry Modal -->
+<div class="nb-modal-overlay" id="nbModal" role="dialog" aria-modal="true" aria-labelledby="nbModalTitle">
+    <div class="nb-modal">
+        <div class="nb-modal-header">
+            <h3 id="nbModalTitle">New Entry</h3>
+            <button class="nb-modal-close" onclick="closeModal()" aria-label="Close modal">&times;</button>
+        </div>
+        <div class="nb-modal-body" id="nbModalBody">
+            <!-- Type selector -->
+            <div id="nbTypeSelector">
+                <div class="nb-type-grid" role="group" aria-label="Entry type selection">
+                    <button class="nb-type-btn" data-type="practice_plan" onclick="selectType('practice_plan')" aria-label="Practice Plan">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><circle cx="12" cy="14" r="4"/><path d="M8 14h8"/><path d="M12 10v8"/></svg>
+                        Practice Plan
+                    </button>
+                    <button class="nb-type-btn" data-type="game_summary" onclick="selectType('game_summary')" aria-label="Game Summary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0V4z"/><path d="M7 7H4a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3h1"/><path d="M17 7h3a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3h-1"/></svg>
+                        Game Summary
+                    </button>
+                    <button class="nb-type-btn" data-type="tactical_plan" onclick="selectType('tactical_plan')" aria-label="Tactical Plan">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 3v3"/><path d="M12 18v3"/><path d="M3 12h3"/><path d="M18 12h3"/></svg>
+                        Tactical Plan
+                    </button>
+                    <button class="nb-type-btn" data-type="player_note" onclick="selectType('player_note')" aria-label="Player Note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 1.5.23"/><path d="M16 13h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"/><path d="M17 16.5h3"/><path d="M17 19h2"/></svg>
+                        Player Note
+                    </button>
+                    <button class="nb-type-btn" data-type="period_plan" onclick="selectType('period_plan')" aria-label="Period Plan">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h2"/><path d="M8 18h2"/><path d="M14 14h2"/><path d="M14 18h2"/></svg>
+                        Period Plan
+                    </button>
+                    <button class="nb-type-btn" data-type="attendance" onclick="selectType('attendance')" aria-label="Attendance">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="5" r="2.5"/><path d="M1.5 17v-1.5A4 4 0 0 1 5 11.5h4a4 4 0 0 1 3.5 4V17"/><circle cx="17" cy="5" r="2.5"/><path d="M14.5 17v-1.5a4 4 0 0 1 1.5-3.1"/><path d="M15.5 14l1.5 1.5L20 12"/></svg>
+                        Attendance
+                    </button>
+                    <button class="nb-type-btn" data-type="free_document" onclick="selectType('free_document')" aria-label="Free Document">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+                        Free Document
+                    </button>
+                </div>
+            </div>
+            <!-- Dynamic form -->
+            <div id="nbFormArea"></div>
+        </div>
+        <div class="nb-modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="nbSaveBtn" onclick="saveEntry()" aria-label="Save entry">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+// ═══════════════════════════════════════════════════════════════
+// Coach Notebook — Client Logic
+// ═══════════════════════════════════════════════════════════════
+
+const PLAYERS = {{ players | tojson }};
+const TYPE_LABELS = {
+    practice_plan: 'Practice Plan',
+    game_summary: 'Game Summary',
+    tactical_plan: 'Tactical Plan',
+    player_note: 'Player Note',
+    period_plan: 'Period Plan',
+    attendance: 'Attendance',
+    free_document: 'Free Document'
+};
+const PERIOD_TYPES = {
+    weekly: { label: 'Weekly', days: 7 },
+    monthly: { label: 'Monthly', days: 30 },
+    semi_annual: { label: 'Semi-Annual', days: 182 },
+    annual: { label: 'Annual', days: 365 }
+};
+
+let currentEntries = [];
+let editingId = null;
+let selectedType = 'practice_plan';
+let selectedPeriod = 'weekly';
+let searchTimeout = null;
+
+// Grouped-view state (declared early so init code below can reference it
+// without hitting the let-temporal-dead-zone). Persisted in localStorage.
+let groupedMode = (function () {
+    try { return localStorage.getItem('nb_grouped_mode') === '1'; }
+    catch (e) { return false; }
+})();
+let collapsedGroups = (function () {
+    try { return JSON.parse(localStorage.getItem('nb_collapsed_groups') || '{}') || {}; }
+    catch (e) { return {}; }
+})();
+const GROUP_ICONS = {
+    practice_plan: '\u25A6',  // ▦
+    game_summary:  '\u25C6',  // ◆
+    tactical_plan: '\u25B6',  // ▶
+    player_note:   '\u25CF',  // ●
+    period_plan:   '\u25B2',  // ▲
+    attendance:    '\u2713',  // ✓
+    free_document: '\u25A1',  // □
+};
+const GROUP_ORDER = ['practice_plan','game_summary','tactical_plan','player_note','period_plan','attendance','free_document'];
+
+// ── Init ─────────────────────────────────────────────────────
+// Reflect saved grouped-mode state on the toggle button before first render.
+(function () {
+    var btn = document.getElementById('nbGroupToggle');
+    if (btn && groupedMode) btn.classList.add('active');
+})();
+loadStats();
+loadEntries();
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('player_id')) document.getElementById('filterPlayer').value = urlParams.get('player_id');
+if (urlParams.get('type')) {
+    document.getElementById('filterType').value = urlParams.get('type');
+    selectedType = urlParams.get('type');
+}
+if (urlParams.get('player_id') || urlParams.get('type')) applyFilters();
+if (urlParams.get('new') === '1') {
+    const preType = urlParams.get('type');
+    const prePlayer = urlParams.get('preselect');
+    if (preType) selectedType = preType;
+    openNewEntry(preType, prePlayer);
+}
+
+// ── API Calls ────────────────────────────────────────────────
+async function loadEntries() {
+    const type = document.getElementById('filterType').value;
+    const playerId = document.getElementById('filterPlayer').value;
+    const search = document.getElementById('filterSearch').value;
+    const params = new URLSearchParams();
+    if (type) params.set('type', type);
+    if (playerId) params.set('player_id', playerId);
+    if (search) params.set('search', search);
+
+    try {
+        const url = '/api/notebook?' + params.toString();
+        console.log('[Notebook] Loading entries:', url);
+        const res = await fetch(url);
+        const json = await res.json();
+        currentEntries = json.data || [];
+        console.log('[Notebook] Entries loaded:', currentEntries.length, 'total:', json.total);
+        renderTimeline();
+    } catch (e) {
+        console.error('Failed to load entries:', e);
+    }
+}
+
+async function loadStats() {
+    try {
+        const res = await fetch('/api/notebook/stats');
+        const json = await res.json();
+        renderStats(json.data || {});
+    } catch (e) {
+        console.error('Failed to load stats:', e);
+    }
+}
+
+async function saveEntry() {
+    const data = collectFormData();
+    if (!data) return;
+
+    const btn = document.getElementById('nbSaveBtn');
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+
+    try {
+        const url = editingId ? '/api/notebook/' + editingId : '/api/notebook';
+        const method = editingId ? 'PUT' : 'POST';
+        let res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        // Auto-refresh token on 401 and retry once
+        if (res.status === 401) {
+            await fetch('/api/auth/refresh', { method: 'POST' });
+            res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        }
+        const json = await res.json();
+        if (!res.ok) {
+            NpDialog.alert(json.error || 'Error saving entry', { title: 'Error', icon: 'error' });
+            return;
+        }
+        closeModal();
+        loadEntries();
+        loadStats();
+    } catch (e) {
+        console.error('Save failed:', e);
+        NpDialog.alert('Error saving entry', { title: 'Error', icon: 'error' });
+    } finally {
+        btn.classList.remove('btn-loading');
+        btn.disabled = false;
+    }
+}
+
+async function deleteEntry(id, ev) {
+    if (ev) ev.stopPropagation();
+    const ok = await NpDialog.confirm('Delete this entry?', { danger: true, ok: 'Delete', cancel: 'Cancel' });
+    if (!ok) return;
+    try {
+        await fetch('/api/notebook/' + id, { method: 'DELETE' });
+        loadEntries();
+        loadStats();
+    } catch (e) {
+        console.error('Delete failed:', e);
+    }
+}
+
+async function editEntry(id, ev) {
+    if (ev) ev.stopPropagation();
+    try {
+        const res = await fetch('/api/notebook/' + id);
+        const json = await res.json();
+        if (!json.data) return;
+        openEditEntry(json.data);
+    } catch (e) {
+        console.error('Load entry failed:', e);
+    }
+}
+
+// ── Rendering ────────────────────────────────────────────────
+function renderStats(data) {
+    const counts = data.counts || {};
+    const total = data.total || 0;
+    const el = document.getElementById('nbStats');
+    let html = `<div class="nb-stat"><span class="nb-stat-count" dir="ltr">${total}</span> Total</div>`;
+    for (const [type, label] of Object.entries(TYPE_LABELS)) {
+        const c = counts[type] || 0;
+        if (c > 0) {
+            html += `<div class="nb-stat" data-type="${type}"><span class="nb-stat-count" dir="ltr">${c}</span> ${label}</div>`;
+        }
+    }
+    el.innerHTML = html;
+}
+
+function renderTimeline() {
+    const container = document.getElementById('nbTimeline');
+    // Reset any inline styles from a previous empty-state render so we don't
+    // inherit display:flex (which would lay rows out horizontally).
+    container.style.display = '';
+    container.style.justifyContent = '';
+    container.style.alignItems = '';
+    container.style.minHeight = '';
+    container.classList.toggle('grouped', !!groupedMode);
+
+    if (!currentEntries.length) {
+        container.style.display = 'flex';
+        container.style.justifyContent = 'center';
+        container.style.alignItems = 'center';
+        container.style.minHeight = '50vh';
+        container.textContent = '';
+        var emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.style.textAlign = 'center';
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '64'); svg.setAttribute('height', '64');
+        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'var(--text-3)'); svg.setAttribute('stroke-width', '1.2');
+        svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+        var p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p1.setAttribute('d', 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20');
+        var p2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p2.setAttribute('d', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z');
+        svg.appendChild(p1); svg.appendChild(p2);
+        emptyDiv.appendChild(svg);
+        var txt = document.createElement('p');
+        txt.textContent = 'No entries found. Try a different filter or create a new entry.';
+        emptyDiv.appendChild(txt);
+        var btn = document.createElement('button');
+        btn.className = 'btn btn-primary btn-sm';
+        btn.style.marginTop = '16px';
+        btn.textContent = 'Create First Entry';
+        btn.onclick = function() { openNewEntry(); };
+        emptyDiv.appendChild(btn);
+        container.appendChild(emptyDiv);
+        return;
+    }
+
+    let html = '';
+    if (groupedMode) {
+        // Bucket entries by type, preserving newest-first order within each bucket.
+        const buckets = {};
+        for (const entry of currentEntries) {
+            const t = entry.entry_type || 'free_document';
+            if (!buckets[t]) buckets[t] = [];
+            buckets[t].push(entry);
+        }
+        // Render in canonical order, skipping empty types
+        for (const type of GROUP_ORDER) {
+            const list = buckets[type];
+            if (!list || !list.length) continue;
+            const label = TYPE_LABELS[type] || type;
+            const icon = GROUP_ICONS[type] || '\u2022';
+            const isCollapsed = collapsedGroups[type] === true;
+            html += `<div class="nb-group${isCollapsed ? ' collapsed' : ''}" data-type="${type}">
+                <div class="nb-group-header" onclick="toggleGroupCollapse('${type}', event)">
+                    <div class="nb-group-icon">${icon}</div>
+                    <div class="nb-group-title">${esc(label)}${list.length > 1 ? 's' : ''}</div>
+                    <span class="nb-group-count">${list.length}</span>
+                    <span class="nb-group-arrow">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </span>
+                </div>
+                <div class="nb-group-rows">`;
+            for (const entry of list) {
+                try { html += renderCard(entry); }
+                catch (err) { console.error('[Notebook] renderCard error', entry.id, err); }
+            }
+            html += `</div></div>`;
+        }
+    } else {
+        // Flat chronological list (already sorted newest-first by the API)
+        for (const entry of currentEntries) {
+            try {
+                html += renderCard(entry);
+            } catch (err) {
+                console.error('[Notebook] renderCard error for entry', entry.id, err);
+            }
+        }
+    }
+    container.innerHTML = html;
+}
+
+// Toggle the global flat ↔ grouped mode and re-render.
+function toggleGroupedMode() {
+    groupedMode = !groupedMode;
+    try { localStorage.setItem('nb_grouped_mode', groupedMode ? '1' : '0'); }
+    catch (e) {}
+    const btn = document.getElementById('nbGroupToggle');
+    if (btn) btn.classList.toggle('active', groupedMode);
+    renderTimeline();
+}
+
+// Collapse / expand a single group section. Stops the click from bubbling
+// into row-level onclick handlers.
+function toggleGroupCollapse(type, ev) {
+    if (ev) ev.stopPropagation();
+    const isNowCollapsed = !collapsedGroups[type];
+    if (isNowCollapsed) collapsedGroups[type] = true;
+    else delete collapsedGroups[type];
+    try { localStorage.setItem('nb_collapsed_groups', JSON.stringify(collapsedGroups)); }
+    catch (e) {}
+    // Toggle the class directly without re-rendering — keeps any expanded rows intact.
+    const groupEl = document.querySelector('.nb-group[data-type="' + type + '"]');
+    if (groupEl) groupEl.classList.toggle('collapsed', isNowCollapsed);
+}
+
+function renderCard(e) {
+    const typeLabel = TYPE_LABELS[e.entry_type] || e.entry_type;
+    const dateStr = formatDate(e.entry_date);
+    const aiTag = e.source === 'ai_chat' ? '<span class="nb-ai-tag">AI</span>' : '';
+
+    // Compact row (default). Body is empty until first expand — toggleEntryExpand()
+    // populates it lazily so collapsed rows don't pay the rendering cost.
+    return `
+    <div class="nb-entry" id="entry-${e.id}" data-entry-id="${e.id}" onclick="toggleEntryExpand(${e.id}, event)">
+        <div class="nb-type-dot" data-type="${e.entry_type}"></div>
+        <span class="nb-type-label" data-type="${e.entry_type}">${esc(typeLabel)}</span>
+        <div class="nb-entry-title">
+            <span class="nb-title-text">${esc(e.title)}</span>
+            ${aiTag}
+        </div>
+        <div class="nb-entry-date" dir="ltr">${esc(dateStr)}</div>
+        <div class="nb-entry-actions">
+            <button onclick="editEntry(${e.id}, event)" title="Edit">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="nb-del" onclick="deleteEntry(${e.id}, event)" title="Delete">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+            <span class="nb-chevron">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            </span>
+        </div>
+        <div class="nb-entry-body" data-rendered="0"></div>
+    </div>`;
+}
+
+// Toggle a row's expanded state. Lazy-renders full content on first expand
+// using the existing renderExpandedContent() function. Clicks on action
+// buttons (edit, delete) are stopped before reaching here.
+// Uses Range.createContextualFragment for safer HTML insertion than innerHTML.
+function toggleEntryExpand(entryId, ev) {
+    if (ev) {
+        var t = ev.target;
+        while (t && t !== ev.currentTarget) {
+            if (t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'INPUT') return;
+            t = t.parentNode;
+        }
+    }
+    var row = document.getElementById('entry-' + entryId);
+    if (!row) return;
+    var body = row.querySelector('.nb-entry-body');
+    if (!body) return;
+
+    var willExpand = !row.classList.contains('expanded');
+    if (willExpand && body.getAttribute('data-rendered') !== '1') {
+        var entry = currentEntries.find(function (x) { return x.id == entryId; });
+        if (entry) {
+            try {
+                var htmlStr = renderExpandedContent(entry);
+                while (body.firstChild) body.removeChild(body.firstChild);
+                var range = document.createRange();
+                range.selectNodeContents(body);
+                body.appendChild(range.createContextualFragment(htmlStr));
+            } catch (err) {
+                console.error('[Notebook] renderExpandedContent error', err);
+                body.textContent = 'Could not render entry contents.';
+            }
+            body.setAttribute('data-rendered', '1');
+        }
+    }
+    row.classList.toggle('expanded');
+}
+
+function renderExpandedContent(e) {
+    const c = e.content || {};
+    // Agent badge for chat-sourced entries
+    var _chatBadge = '';
+    if (e.source === 'chat' && c.source_agent_name) {
+        _chatBadge = '<div style="margin-bottom:10px;"><span style="background:rgba(244,140,37,0.12);color:#f48c25;padding:3px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;">From: ' + esc(c.source_agent_name) + '</span></div>';
+    }
+    switch (e.entry_type) {
+        case 'practice_plan':
+            return _chatBadge + fieldBlock('Topic', c.topic)
+                + fieldBlock('Duration', c.duration)
+                + fieldBlock('Warmup', c.warmup)
+                + fieldBlock('Main Part', c.main_part)
+                + fieldBlock('Cooldown', c.cooldown)
+                + fieldBlock('Notes', c.notes)
+                + (c.post_summary || c.what_worked || c.what_didnt || c.next_focus
+                    ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'
+                      + '<div class="nb-field-label" style="color:var(--accent);margin-bottom:8px">Post-Practice Summary</div>'
+                      + fieldBlock('Summary', c.post_summary)
+                      + fieldBlock('What Worked', c.what_worked)
+                      + fieldBlock('What Didn\'t Work', c.what_didnt)
+                      + fieldBlock('Next Focus', c.next_focus)
+                      + '</div>'
+                    : '');
+
+        case 'game_summary':
+            const score = (c.score_us != null && c.score_them != null)
+                ? `<div class="nb-field"><div class="nb-field-value" style="font-family:Orbitron,monospace;font-size:1.3rem;font-weight:800" dir="ltr">${c.score_us} - ${c.score_them}</div></div>` : '';
+            let quarters = '';
+            if (c.quarter_scores && c.quarter_scores.length) {
+                quarters = '<div class="nb-field"><div class="nb-field-label">Quarter Scores</div><div class="nb-quarter-grid" style="max-width:320px">';
+                c.quarter_scores.forEach((q, i) => {
+                    quarters += `<div class="nb-quarter-item"><label>Q${i+1}</label><div class="nb-field-value" dir="ltr" style="font-weight:700">${q.us || 0}-${q.them || 0}</div></div>`;
+                });
+                quarters += '</div></div>';
+            }
+            return _chatBadge + fieldBlock('Opponent', c.opponent)
+                + score + quarters
+                + fieldBlock('What Worked', c.what_worked)
+                + fieldBlock('What Didn\'t Work', c.what_didnt)
+                + fieldBlock('Standout Players', c.standout_players)
+                + fieldBlock('Next Practice Focus', c.next_practice_focus)
+                + fieldBlock('Notes', c.notes);
+
+        case 'tactical_plan': {
+            const tpFields = [
+                ['Scenario', c.scenario], ['Offense', c.offense], ['Defense', c.defense],
+                ['Transition', c.transition], ['Set Plays', c.set_plays],
+                ['vs Press', c.vs_press], ['vs Zone', c.vs_zone],
+                ['Key Principles', c.key_principles], ['Matchup Notes', c.matchup_notes],
+                ['Notes', c.notes]
+            ];
+            const hasAny = tpFields.some(([, v]) => v && String(v).trim());
+            if (!hasAny) {
+                // Fallback: show raw / content if structured extraction returned all empty
+                const raw = c._raw || c.content || '';
+                return _chatBadge + (raw ? fieldBlock('', raw) : '<div class="nb-field-value" style="color:var(--text-3);font-style:italic">No content extracted</div>');
+            }
+            return _chatBadge + tpFields.map(([l, v]) => fieldBlock(l, v)).join('');
+        }
+
+        case 'player_note':
+            const player = PLAYERS.find(p => p.id == e.player_id);
+            const pName = player ? (player.name + (player.number ? ' #' + player.number : '')) : '';
+            return (pName ? fieldBlock('Player', pName) : '')
+                + fieldBlock('Note', c.content);
+
+        case 'period_plan': {
+            const periodLabel = PERIOD_TYPES[c.period_type] ? PERIOD_TYPES[c.period_type].label : (c.period_type || 'Weekly');
+            let body = fieldBlock('Period', periodLabel)
+                + fieldBlock('Date Range', (c.period_start && c.period_end) ? c.period_start + ' — ' + c.period_end : '')
+                + fieldBlock('Main Focus', c.focus);
+
+            if (c.period_type === 'annual' || c.period_type === 'semi_annual') {
+                body += fieldBlock('Season Goals', c.season_goals)
+                    + fieldBlock('Player Development Priorities', c.dev_priorities)
+                    + fieldBlock('Key Milestones', c.milestones)
+                    + fieldBlock('Periodization Strategy', c.periodization);
+            } else if (c.period_type === 'monthly') {
+                body += fieldBlock('Monthly Goals', c.monthly_goals)
+                    + fieldBlock('Weekly Breakdown', c.weekly_breakdown)
+                    + fieldBlock('Key Games', c.key_games)
+                    + fieldBlock('Focus Areas', c.focus_areas);
+            } else {
+                // weekly
+                let days = '';
+                if (c.daily_breakdown && typeof c.daily_breakdown === 'object') {
+                    const dayNames = {sunday:'Sunday', monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday'};
+                    for (const [day, val] of Object.entries(c.daily_breakdown)) {
+                        if (val) days += fieldBlock(dayNames[day] || day, val);
+                    }
+                }
+                body += days;
+            }
+            return body + fieldBlock('Game Prep', c.game_prep) + fieldBlock('Notes', c.notes);
+        }
+
+        case 'attendance':
+            let attHtml = '';
+            if (e.attendance && e.attendance.length) {
+                attHtml = '<div class="nb-field"><div class="nb-field-label">Attendance</div><div class="nb-att-grid">';
+                for (const a of e.attendance) {
+                    const pl = PLAYERS.find(p => p.id == a.player_id);
+                    const name = pl ? pl.name : '#' + a.player_id;
+                    attHtml += `<span class="nb-att-chip ${a.status}">${esc(name)} ${statusIcon(a.status)}</span>`;
+                }
+                attHtml += '</div></div>';
+            }
+            return fieldBlock('Type', c.session_type === 'game' ? 'Game' : 'Practice')
+                + attHtml
+                + fieldBlock('Notes', c.notes);
+
+        case 'free_document':
+            return _chatBadge + fieldBlock('', c.content);
+
+        default:
+            return '<div class="nb-field-value">' + esc(JSON.stringify(c)) + '</div>';
+    }
+}
+
+function renderCardPreview(e) {
+    const c = e.content || {};
+    if (e.source === 'chat' && c.content) {
+        var dir = _isHeb(c.content) ? 'rtl' : 'ltr';
+        var badge = c.source_agent_name ? '<span style="color:#f48c25;font-size:0.72rem;font-weight:600;">' + esc(c.source_agent_name) + '</span><br>' : '';
+        return badge + '<div dir="' + dir + '">' + esc((c.content || '').slice(0, 200)).replace(/\n/g, '<br>') + '</div>';
+    }
+    switch (e.entry_type) {
+        case 'practice_plan':
+            return miniField('Topic', c.topic) + miniField('Duration', c.duration) + miniField('Notes', c.notes);
+        case 'game_summary': {
+            let s = '';
+            if (c.score_us != null && c.score_them != null)
+                s += `<div style="font-family:Orbitron,monospace;font-size:1.1rem;font-weight:800;color:var(--accent);margin-bottom:4px" dir="ltr">${c.score_us} - ${c.score_them}</div>`;
+            s += miniField('Opponent', c.opponent) + miniField('What Worked', c.what_worked);
+            return s;
+        }
+        case 'tactical_plan': {
+            const preview = miniField('Scenario', c.scenario) + miniField('Offense', c.offense) + miniField('Defense', c.defense);
+            if (preview) return preview;
+            // Fallback to raw if no structured fields populated
+            const raw = c._raw || c.content || '';
+            if (!raw) return '';
+            const dir = _isHeb(raw) ? 'rtl' : 'ltr';
+            return `<div dir="${dir}">${esc(raw.slice(0, 200)).replace(/\n/g, '<br>')}</div>`;
+        }
+        case 'player_note': {
+            const pl = PLAYERS.find(p => p.id == e.player_id);
+            const dir = _isHeb(c.content || '') ? 'rtl' : 'ltr';
+            return (pl ? `<div style="font-size:0.78rem;color:var(--blue);font-weight:600;margin-bottom:4px">${esc(pl.name)}</div>` : '')
+                + `<div dir="${dir}">${esc(c.content || '').replace(/\n/g, '<br>')}</div>`;
+        }
+        case 'period_plan':
+            return miniField('Period', PERIOD_TYPES[c.period_type] ? PERIOD_TYPES[c.period_type].label : '') + miniField('Focus', c.focus);
+        case 'attendance':
+            return miniField('Type', c.session_type === 'game' ? 'Game' : 'Practice');
+        case 'free_document': {
+            const dir = _isHeb(c.content || '') ? 'rtl' : 'ltr';
+            return `<div dir="${dir}">${esc((c.content || '').slice(0, 200)).replace(/\n/g, '<br>')}</div>`;
+        }
+        default: return '';
+    }
+}
+
+// Hebrew detection (local copy for notebook scope)
+function _isHeb(text) {
+    return /[\u0590-\u05FF]/.test(text);
+}
+
+function miniField(label, value) {
+    if (!value) return '';
+    const dir = _isHeb(String(value)) ? 'rtl' : 'ltr';
+    return `<div style="margin-bottom:4px"><span style="font-size:0.7rem;font-weight:700;color:var(--text-3);text-transform:uppercase">${esc(label)}</span> <span dir="${dir}" style="color:var(--text)">${esc(String(value).slice(0, 100))}</span></div>`;
+}
+
+function fieldBlock(label, value) {
+    if (!value) return '';
+    const dir = _isHeb(String(value)) ? 'rtl' : 'ltr';
+    return `<div class="nb-field">${label ? '<div class="nb-field-label">' + esc(label) + '</div>' : ''}<div class="nb-field-value" dir="${dir}">${esc(String(value))}</div></div>`;
+}
+
+function statusIcon(s) {
+    switch (s) {
+        case 'present': return '✓';
+        case 'absent': return '✗';
+        case 'late': return '⏰';
+        case 'injured': return '🩹';
+        default: return '';
+    }
+}
+
+function getPreview(e) {
+    const c = e.content || {};
+    if (e.source === 'chat' && c.content) return (c.content || '').slice(0, 60);
+    switch (e.entry_type) {
+        case 'practice_plan': return c.topic || '';
+        case 'game_summary': {
+            let s = c.opponent || '';
+            if (c.score_us != null && c.score_them != null) s += (s ? ' ' : '') + c.score_us + '-' + c.score_them;
+            return s;
+        }
+        case 'tactical_plan': return c.scenario || c.key_principles || '';
+        case 'player_note': {
+            const pl = PLAYERS.find(p => p.id == e.player_id);
+            return pl ? pl.name : '';
+        }
+        case 'period_plan': {
+            const pLabel = PERIOD_TYPES[c.period_type] ? PERIOD_TYPES[c.period_type].label : '';
+            return (pLabel ? pLabel + ' — ' : '') + (c.focus || '');
+        }
+        case 'attendance': return c.session_type === 'game' ? 'Game' : 'Practice';
+        case 'free_document': return (c.content || '').slice(0, 60);
+        default: return '';
+    }
+}
+
+// ── Filters ──────────────────────────────────────────────────
+function applyFilters() { loadEntries(); }
+function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => applyFilters(), 350);
+}
+
+// ── Modal ────────────────────────────────────────────────────
+function openNewEntry(preType, prePlayerId) {
+    editingId = null;
+    selectedType = preType || 'practice_plan';
+    selectedPeriod = 'weekly';
+    document.getElementById('nbModalTitle').textContent = 'New Entry';
+
+    if (preType) {
+        // Skip type selector, go directly to form
+        document.getElementById('nbTypeSelector').style.display = 'none';
+    } else {
+        document.getElementById('nbTypeSelector').style.display = '';
+    }
+
+    document.querySelectorAll('.nb-type-btn').forEach(b => b.classList.toggle('selected', b.dataset.type === selectedType));
+
+    // Build a fake entry stub with pre-selected player
+    const stub = prePlayerId ? { player_id: parseInt(prePlayerId), content: {} } : null;
+    renderForm(selectedType, stub);
+    document.getElementById('nbModal').classList.add('active');
+}
+
+function openEditEntry(entry) {
+    editingId = entry.id;
+    selectedType = entry.entry_type;
+    selectedPeriod = (entry.content && entry.content.period_type) || 'weekly';
+    document.getElementById('nbModalTitle').textContent = 'Edit Entry';
+    document.getElementById('nbTypeSelector').style.display = 'none';
+    renderForm(selectedType, entry);
+    document.getElementById('nbModal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('nbModal').classList.remove('active');
+    editingId = null;
+}
+
+function selectType(type) {
+    selectedType = type;
+    document.querySelectorAll('.nb-type-btn').forEach(b => b.classList.toggle('selected', b.dataset.type === type));
+    renderForm(type);
+}
+
+document.getElementById('nbModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// ── Form Rendering ───────────────────────────────────────────
+function renderForm(type, entry) {
+    const c = (entry && entry.content) || {};
+    const title = entry ? entry.title : '';
+    const date = entry ? entry.entry_date : new Date().toISOString().slice(0, 10);
+    const area = document.getElementById('nbFormArea');
+
+    let html = '';
+    if (type === 'attendance') {
+        const sessionType = c.session_type || 'practice';
+        html += `
+        <div class="nb-form-section">
+            <div class="nb-form-row">
+                <div class="form-group">
+                    <label>Session Type *</label>
+                    <select class="form-select" id="fSessionType">
+                        <option value="practice" ${sessionType === 'practice' ? 'selected' : ''}>Practice</option>
+                        <option value="game" ${sessionType === 'game' ? 'selected' : ''}>Game</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input class="form-input" id="fDate" type="date" value="${esc(date)}">
+                </div>
+            </div>
+        </div>`;
+    } else {
+        html += `
+        <div class="nb-form-section">
+            <div class="nb-form-row">
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input class="form-input" id="fTitle" value="${esc(title)}" placeholder="Entry title">
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input class="form-input" id="fDate" type="date" value="${esc(date)}">
+                </div>
+            </div>
+        </div>`;
+    }
+
+    switch (type) {
+        case 'practice_plan':
+            html += `
+            <div class="nb-form-section">
+                <div class="nb-form-row">
+                    <div class="form-group"><label>Main Topic</label><input class="form-input" id="fTopic" value="${esc(c.topic || '')}"></div>
+                    <div class="form-group"><label>Duration</label><input class="form-input" id="fDuration" value="${esc(c.duration || '')}" placeholder="90 min"></div>
+                </div>
+                <div class="form-group"><label>Warmup</label><textarea class="form-textarea" id="fWarmup" rows="2">${esc(c.warmup || '')}</textarea></div>
+                <div class="form-group"><label>Main Part</label><textarea class="form-textarea" id="fMainPart" rows="4">${esc(c.main_part || '')}</textarea></div>
+                <div class="form-group"><label>Cooldown</label><textarea class="form-textarea" id="fCooldown" rows="2">${esc(c.cooldown || '')}</textarea></div>
+                <div class="form-group"><label>Notes</label><textarea class="form-textarea" id="fNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+                <button type="button" class="nb-summary-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    Post-Practice Summary (optional)
+                </button>
+                <div class="nb-summary-fields ${(c.post_summary || c.what_worked || c.what_didnt || c.next_focus) ? 'open' : ''}">
+                    <div class="form-group"><label>Summary</label><textarea class="form-textarea" id="fPostSummary" rows="2">${esc(c.post_summary || '')}</textarea></div>
+                    <div class="form-group"><label>What Worked</label><textarea class="form-textarea" id="fWhatWorked" rows="2">${esc(c.what_worked || '')}</textarea></div>
+                    <div class="form-group"><label>What Didn't Work</label><textarea class="form-textarea" id="fWhatDidnt" rows="2">${esc(c.what_didnt || '')}</textarea></div>
+                    <div class="form-group"><label>Next Focus</label><input class="form-input" id="fNextFocus" value="${esc(c.next_focus || '')}"></div>
+                </div>
+            </div>`;
+            break;
+
+        case 'game_summary':
+            let qScores = c.quarter_scores || [{us:'',them:''},{us:'',them:''},{us:'',them:''},{us:'',them:''}];
+            while (qScores.length < 4) qScores.push({us:'',them:''});
+            html += `
+            <div class="nb-form-section">
+                <div class="nb-form-row">
+                    <div class="form-group"><label>Opponent</label><input class="form-input" id="fOpponent" value="${esc(c.opponent || '')}"></div>
+                    <div class="form-group">
+                        <label>Final Score</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input class="form-input" id="fScoreUs" type="number" value="${c.score_us != null ? c.score_us : ''}" placeholder="Us" style="width:80px;text-align:center">
+                            <span style="color:var(--text-3);font-weight:700">-</span>
+                            <input class="form-input" id="fScoreThem" type="number" value="${c.score_them != null ? c.score_them : ''}" placeholder="Them" style="width:80px;text-align:center">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Quarter Scores (optional)</label>
+                    <div class="nb-quarter-grid">
+                        ${qScores.map((q, i) => `
+                        <div class="nb-quarter-item">
+                            <label>Q${i+1}</label>
+                            <div style="display:flex;gap:4px">
+                                <input class="form-input nb-q-us" type="number" value="${q.us || ''}" placeholder="—" data-qi="${i}">
+                                <input class="form-input nb-q-them" type="number" value="${q.them || ''}" placeholder="—" data-qi="${i}">
+                            </div>
+                        </div>`).join('')}
+                    </div>
+                </div>
+                <div class="form-group"><label>What Worked</label><textarea class="form-textarea" id="fGWhatWorked" rows="2">${esc(c.what_worked || '')}</textarea></div>
+                <div class="form-group"><label>What Didn't Work</label><textarea class="form-textarea" id="fGWhatDidnt" rows="2">${esc(c.what_didnt || '')}</textarea></div>
+                <div class="form-group"><label>Standout Players</label><textarea class="form-textarea" id="fStandout" rows="2">${esc(c.standout_players || '')}</textarea></div>
+                <div class="form-group"><label>Next Practice Focus</label><input class="form-input" id="fNextPracticeFocus" value="${esc(c.next_practice_focus || '')}"></div>
+                <div class="form-group"><label>Notes</label><textarea class="form-textarea" id="fGNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+            </div>`;
+            break;
+
+        case 'tactical_plan':
+            html += `
+            <div class="nb-form-section">
+                <div class="form-group"><label>Scenario</label><input class="form-input" id="fTacScenario" value="${esc(c.scenario || '')}" placeholder="e.g. half-court vs man, late-game"></div>
+                <div class="form-group"><label>Offense</label><textarea class="form-textarea" id="fTacOffense" rows="3" placeholder="Offensive principles, spacing, actions">${esc(c.offense || '')}</textarea></div>
+                <div class="form-group"><label>Defense</label><textarea class="form-textarea" id="fTacDefense" rows="3" placeholder="Defensive scheme, rotations, coverages">${esc(c.defense || '')}</textarea></div>
+                <div class="form-group"><label>Transition</label><textarea class="form-textarea" id="fTacTransition" rows="2" placeholder="Fast break, transition defense">${esc(c.transition || '')}</textarea></div>
+                <div class="form-group"><label>Set Plays</label><textarea class="form-textarea" id="fTacSetPlays" rows="2" placeholder="Named plays / specific actions">${esc(c.set_plays || '')}</textarea></div>
+                <div class="nb-form-row">
+                    <div class="form-group"><label>vs Press</label><textarea class="form-textarea" id="fTacVsPress" rows="2">${esc(c.vs_press || '')}</textarea></div>
+                    <div class="form-group"><label>vs Zone</label><textarea class="form-textarea" id="fTacVsZone" rows="2">${esc(c.vs_zone || '')}</textarea></div>
+                </div>
+                <div class="form-group"><label>Key Principles</label><textarea class="form-textarea" id="fTacPrinciples" rows="2" placeholder="Core ideas to emphasize">${esc(c.key_principles || '')}</textarea></div>
+                <div class="form-group"><label>Matchup Notes</label><textarea class="form-textarea" id="fTacMatchups" rows="2" placeholder="Specific player matchups / assignments">${esc(c.matchup_notes || '')}</textarea></div>
+                <div class="form-group"><label>Notes</label><textarea class="form-textarea" id="fTacNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+            </div>`;
+            break;
+
+        case 'player_note':
+            html += `
+            <div class="nb-form-section">
+                <div class="form-group">
+                    <label>Player *</label>
+                    <select class="form-select" id="fPlayerId">
+                        <option value="">Select player...</option>
+                        ${PLAYERS.map(p => `<option value="${p.id}" ${entry && entry.player_id == p.id ? 'selected' : ''}>${esc(p.name)}${p.number ? ' #' + p.number : ''}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group"><label>Note</label><textarea class="form-textarea" id="fPContent" rows="5">${esc(c.content || '')}</textarea></div>
+            </div>`;
+            break;
+
+        case 'period_plan':
+            html += renderPeriodForm(c);
+            break;
+
+        case 'attendance':
+            const existingAtt = (entry && entry.attendance) || [];
+            html += `
+            <div class="nb-form-section">
+                <div class="form-group">
+                    <label>Players</label>
+                    <div class="nb-att-list" id="fAttList">
+                        ${PLAYERS.map(p => {
+                            const existing = existingAtt.find(a => a.player_id == p.id);
+                            const status = existing ? existing.status : 'present';
+                            return `
+                            <div class="nb-att-row" data-pid="${p.id}">
+                                <span class="nb-att-name">${esc(p.name)}${p.number ? ' <span style="color:var(--text-3)">#' + p.number + '</span>' : ''}</span>
+                                <div class="nb-att-toggle">
+                                    <button type="button" onclick="setAttStatus(this,'present')" class="${status==='present' ? 'active-present' : ''}">✓</button>
+                                    <button type="button" onclick="setAttStatus(this,'absent')" class="${status==='absent' ? 'active-absent' : ''}">✗</button>
+                                    <button type="button" onclick="setAttStatus(this,'late')" class="${status==='late' ? 'active-late' : ''}">Late</button>
+                                    <button type="button" onclick="setAttStatus(this,'injured')" class="${status==='injured' ? 'active-injured' : ''}">Inj</button>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+                <div class="form-group"><label>Notes</label><textarea class="form-textarea" id="fAttNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+            </div>`;
+            break;
+
+        case 'free_document':
+            html += `
+            <div class="nb-form-section">
+                <div class="form-group"><label>Content</label><textarea class="form-textarea" id="fFreeContent" rows="10">${esc(c.content || '')}</textarea></div>
+            </div>`;
+            break;
+    }
+
+    // Tagged Players — many-to-many. Available on every entry type except
+    // attendance (which already binds players row-by-row in its own table).
+    html += renderPlayerTagger(entry);
+
+    area.innerHTML = html;
+
+    // Initial chip render now that the container is in the DOM.
+    renderTaggedChips();
+}
+
+// ── Tagged Players (many-to-many on any entry type) ─────────────
+function renderPlayerTagger(entry) {
+    if (selectedType === 'attendance') return '';
+    // Seed selection with: explicit entry.player_ids (new) + legacy
+    // single entry.player_id (so editing an old player_note pre-fills).
+    let selected = (entry && Array.isArray(entry.player_ids)) ? entry.player_ids.slice() : [];
+    if (entry && entry.player_id && !selected.includes(entry.player_id)) {
+        selected.push(entry.player_id);
+    }
+    return `
+        <div class="nb-form-section">
+            <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px">
+                <span>Tagged Players</span>
+                <small style="font-weight:400;color:var(--text-3);font-size:0.72rem;font-style:italic">
+                    Tagged players see this note on their profile too
+                </small>
+            </label>
+            <div id="taggedPlayersChips" data-selected='${esc(JSON.stringify(selected))}'
+                 style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:30px;padding:6px;border:1px dashed rgba(255,255,255,0.06);border-radius:8px;background:rgba(255,255,255,0.02)"></div>
+            <select id="taggedPlayerPicker" class="form-select" onchange="addTaggedPlayer(this)" style="font-size:0.85rem">
+                <option value="">+ Add player to this note...</option>
+                ${PLAYERS.map(p => `<option value="${p.id}">${esc(p.name)}${p.number ? ' #' + p.number : ''}</option>`).join('')}
+            </select>
+        </div>`;
+}
+
+function _taggerSelected() {
+    const c = document.getElementById('taggedPlayersChips');
+    if (!c) return [];
+    try { return JSON.parse(c.dataset.selected || '[]'); } catch { return []; }
+}
+
+function _taggerSetSelected(ids) {
+    const c = document.getElementById('taggedPlayersChips');
+    if (!c) return;
+    c.dataset.selected = JSON.stringify(ids);
+    renderTaggedChips();
+}
+
+function renderTaggedChips() {
+    const container = document.getElementById('taggedPlayersChips');
+    if (!container) return;
+    const selected = _taggerSelected();
+    if (!selected.length) {
+        container.innerHTML = '<span style="color:var(--text-3);font-size:0.78rem;font-style:italic;padding:4px 6px">No players tagged</span>';
+    } else {
+        container.innerHTML = selected.map(pid => {
+            const p = PLAYERS.find(x => x.id == pid);
+            const name = p ? p.name : '#' + pid;
+            return `<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(255,107,53,0.12);color:var(--accent);border:1px solid rgba(255,107,53,0.3);border-radius:999px;font-size:0.8rem;font-weight:600">
+                ${esc(name)}
+                <button type="button" onclick="removeTaggedPlayer(${pid})" aria-label="Remove ${esc(name)}" style="background:transparent;border:0;color:var(--accent);cursor:pointer;font-size:1.1rem;line-height:1;padding:0;font-weight:700">&times;</button>
+            </span>`;
+        }).join('');
+    }
+    const picker = document.getElementById('taggedPlayerPicker');
+    if (picker) {
+        Array.from(picker.options).forEach(opt => {
+            opt.disabled = !!opt.value && selected.includes(parseInt(opt.value));
+        });
+        picker.value = '';
+    }
+}
+
+function addTaggedPlayer(selectEl) {
+    const pid = parseInt(selectEl.value);
+    if (!pid) return;
+    const selected = _taggerSelected();
+    if (!selected.includes(pid)) selected.push(pid);
+    _taggerSetSelected(selected);
+}
+
+function removeTaggedPlayer(pid) {
+    _taggerSetSelected(_taggerSelected().filter(x => x !== pid));
+}
+
+// ── Period Plan Form ─────────────────────────────────────────
+function renderPeriodForm(c) {
+    const pt = c.period_type || selectedPeriod;
+    selectedPeriod = pt;
+
+    let html = `
+    <div class="nb-form-section">
+        <div class="form-group">
+            <label>Planning Period</label>
+            <div class="nb-period-chips" id="periodChips">
+                ${Object.entries(PERIOD_TYPES).map(([k, v]) =>
+                    `<button type="button" class="nb-period-chip ${pt === k ? 'active' : ''}" data-period="${k}" onclick="switchPeriod('${k}')">${v.label}</button>`
+                ).join('')}
+            </div>
+        </div>
+        <div class="nb-form-row">
+            <div class="form-group"><label>Start Date</label><input class="form-input" id="fPeriodStart" type="date" value="${esc(c.period_start || '')}"></div>
+            <div class="form-group"><label>End Date</label><input class="form-input" id="fPeriodEnd" type="date" value="${esc(c.period_end || '')}"></div>
+        </div>
+        <div class="form-group"><label>Main Focus</label><textarea class="form-textarea" id="fFocus" rows="2">${esc(c.focus || '')}</textarea></div>
+    </div>
+    <div id="periodSpecificFields">${renderPeriodSpecificFields(pt, c)}</div>
+    <div class="nb-form-section">
+        <div class="form-group"><label>Game Prep</label><textarea class="form-textarea" id="fGamePrep" rows="2">${esc(c.game_prep || '')}</textarea></div>
+        <div class="form-group"><label>Notes</label><textarea class="form-textarea" id="fPNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+    </div>`;
+    return html;
+}
+
+function renderPeriodSpecificFields(periodType, c) {
+    c = c || {};
+    switch (periodType) {
+        case 'annual':
+        case 'semi_annual':
+            return `
+            <div class="nb-form-section">
+                <div class="form-group"><label>Season Goals</label><textarea class="form-textarea" id="fSeasonGoals" rows="3" placeholder="Overall objectives for this period">${esc(c.season_goals || '')}</textarea></div>
+                <div class="form-group"><label>Player Development Priorities</label><textarea class="form-textarea" id="fDevPriorities" rows="3" placeholder="Key areas to develop across the roster">${esc(c.dev_priorities || '')}</textarea></div>
+                <div class="form-group"><label>Key Milestones</label><textarea class="form-textarea" id="fMilestones" rows="3" placeholder="Important dates, tournaments, evaluation points">${esc(c.milestones || '')}</textarea></div>
+                <div class="form-group"><label>Periodization Strategy</label><textarea class="form-textarea" id="fPeriodization" rows="3" placeholder="Training load phases: preparation, competition, recovery">${esc(c.periodization || '')}</textarea></div>
+            </div>`;
+
+        case 'monthly':
+            return `
+            <div class="nb-form-section">
+                <div class="form-group"><label>Monthly Goals</label><textarea class="form-textarea" id="fMonthlyGoals" rows="3" placeholder="Specific goals for this month">${esc(c.monthly_goals || '')}</textarea></div>
+                <div class="form-group"><label>Weekly Breakdown</label><textarea class="form-textarea" id="fWeeklyBreakdown" rows="3" placeholder="Week-by-week focus and progression">${esc(c.weekly_breakdown || '')}</textarea></div>
+                <div class="form-group"><label>Key Games</label><textarea class="form-textarea" id="fKeyGames" rows="2" placeholder="Important matchups this month">${esc(c.key_games || '')}</textarea></div>
+                <div class="form-group"><label>Focus Areas</label><textarea class="form-textarea" id="fFocusAreas" rows="2" placeholder="Skills, tactics, or systems to emphasize">${esc(c.focus_areas || '')}</textarea></div>
+            </div>`;
+
+        case 'weekly':
+        default:
+            const db = c.daily_breakdown || {};
+            return `
+            <div class="nb-form-section">
+                <div class="form-group"><label>Daily Breakdown</label>
+                    ${['sunday','monday','tuesday','wednesday','thursday','friday'].map(d => {
+                        const dayNames = {sunday:'Sunday', monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday'};
+                        return `<div style="margin-bottom:8px"><label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:2px">${dayNames[d]}</label><input class="form-input nb-day-input" data-day="${d}" value="${esc(db[d] || '')}"></div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    }
+}
+
+function switchPeriod(periodType) {
+    selectedPeriod = periodType;
+    document.querySelectorAll('.nb-period-chip').forEach(b => b.classList.toggle('active', b.dataset.period === periodType));
+    document.getElementById('periodSpecificFields').innerHTML = renderPeriodSpecificFields(periodType, {});
+}
+
+function setAttStatus(btn, status) {
+    const toggle = btn.parentElement;
+    toggle.querySelectorAll('button').forEach(b => b.className = '');
+    btn.className = 'active-' + status;
+}
+
+// ── Collect Form Data ────────────────────────────────────────
+function collectFormData() {
+    const date = document.getElementById('fDate').value;
+    if (!date) { NpDialog.alert('Please select a date', { title: 'Missing Date', icon: 'calendar_today' }); return null; }
+
+    let title;
+    if (selectedType === 'attendance') {
+        const st = val('fSessionType');
+        title = (st === 'game' ? 'Game' : 'Practice') + ' — ' + date;
+    } else {
+        title = (document.getElementById('fTitle').value || '').trim();
+        if (!title) { NpDialog.alert('Please enter a title', { title: 'Missing Title', icon: 'title' }); return null; }
+    }
+
+    const data = {
+        entry_type: selectedType,
+        title,
+        entry_date: date,
+        content: {}
+    };
+
+    switch (selectedType) {
+        case 'practice_plan':
+            data.content = {
+                topic: val('fTopic'), duration: val('fDuration'),
+                warmup: val('fWarmup'), main_part: val('fMainPart'),
+                cooldown: val('fCooldown'), notes: val('fNotes'),
+                post_summary: val('fPostSummary'), what_worked: val('fWhatWorked'),
+                what_didnt: val('fWhatDidnt'), next_focus: val('fNextFocus')
+            };
+            break;
+
+        case 'game_summary':
+            const quarters = [];
+            document.querySelectorAll('.nb-q-us').forEach((el, i) => {
+                const them = document.querySelectorAll('.nb-q-them')[i];
+                quarters.push({ us: el.value || '', them: them ? them.value || '' : '' });
+            });
+            data.content = {
+                opponent: val('fOpponent'),
+                score_us: numVal('fScoreUs'), score_them: numVal('fScoreThem'),
+                quarter_scores: quarters,
+                what_worked: val('fGWhatWorked'), what_didnt: val('fGWhatDidnt'),
+                standout_players: val('fStandout'),
+                next_practice_focus: val('fNextPracticeFocus'),
+                notes: val('fGNotes')
+            };
+            break;
+
+        case 'tactical_plan':
+            data.content = {
+                scenario: val('fTacScenario'),
+                offense: val('fTacOffense'),
+                defense: val('fTacDefense'),
+                transition: val('fTacTransition'),
+                set_plays: val('fTacSetPlays'),
+                vs_press: val('fTacVsPress'),
+                vs_zone: val('fTacVsZone'),
+                key_principles: val('fTacPrinciples'),
+                matchup_notes: val('fTacMatchups'),
+                notes: val('fTacNotes')
+            };
+            break;
+
+        case 'player_note': {
+            const pid = document.getElementById('fPlayerId').value;
+            if (!pid) { NpDialog.alert('Please select a player', { title: 'Missing Player', icon: 'person' }); return null; }
+            data.player_id = parseInt(pid);
+            data.content = { content: val('fPContent') };
+            break;
+        }
+
+        case 'period_plan': {
+            const base = {
+                period_type: selectedPeriod,
+                period_start: val('fPeriodStart'), period_end: val('fPeriodEnd'),
+                focus: val('fFocus'),
+                game_prep: val('fGamePrep'), notes: val('fPNotes')
+            };
+            if (selectedPeriod === 'annual' || selectedPeriod === 'semi_annual') {
+                base.season_goals = val('fSeasonGoals');
+                base.dev_priorities = val('fDevPriorities');
+                base.milestones = val('fMilestones');
+                base.periodization = val('fPeriodization');
+            } else if (selectedPeriod === 'monthly') {
+                base.monthly_goals = val('fMonthlyGoals');
+                base.weekly_breakdown = val('fWeeklyBreakdown');
+                base.key_games = val('fKeyGames');
+                base.focus_areas = val('fFocusAreas');
+            } else {
+                const dailyBreakdown = {};
+                document.querySelectorAll('.nb-day-input').forEach(el => {
+                    if (el.value.trim()) dailyBreakdown[el.dataset.day] = el.value.trim();
+                });
+                base.daily_breakdown = dailyBreakdown;
+            }
+            data.content = base;
+            break;
+        }
+
+        case 'attendance': {
+            const attendance = [];
+            document.querySelectorAll('.nb-att-row').forEach(row => {
+                const pid = row.dataset.pid;
+                const activeBtn = row.querySelector('.nb-att-toggle button[class*="active-"]');
+                const status = activeBtn ? activeBtn.className.replace('active-', '') : 'present';
+                attendance.push({ player_id: parseInt(pid), status });
+            });
+            data.content = { session_type: val('fSessionType'), notes: val('fAttNotes') };
+            data.attendance = attendance;
+            break;
+        }
+
+        case 'free_document':
+            data.content = { content: val('fFreeContent') };
+            break;
+    }
+
+    // Many-to-many player tagging — available on every type except attendance.
+    // For player_note, the primary subject (data.player_id) is also auto-mirrored
+    // into the join table by the backend, so no double-counting needed here.
+    if (selectedType !== 'attendance') {
+        data.player_ids = _taggerSelected();
+    }
+
+    return data;
+}
+
+function val(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+function numVal(id) {
+    const v = val(id);
+    return v !== '' ? parseInt(v) : null;
+}
+
+// ── Date Formatting ──────────────────────────────────────────
+function formatDate(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso + 'T00:00:00');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+    } catch {
+        return iso;
+    }
+}
+</script>
+{% endblock %}

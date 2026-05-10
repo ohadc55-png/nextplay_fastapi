@@ -91,6 +91,23 @@ class Settings(BaseSettings):
     PUSH_MORNING_END: int = 12  # exclusive end
     PUSH_INACTIVE_HOURS: int = 48
 
+    # === Rate limiting ===
+    # When False, RateLimitMiddleware is a no-op. Tests flip this off
+    # in conftest because every test re-uses a single app instance and
+    # would otherwise burn through the per-endpoint cap. Mirrors v1's
+    # `app.config["TESTING"]` skip at flask_app.py:276-277.
+    RATE_LIMIT_ENABLED: bool = True
+
+    # === Knowledge base (ChromaDB) ===
+    # Path to the ChromaDB persistent store. Default sits next to the
+    # repo root so dev + prod look identical. Override via env in CI /
+    # ephemeral environments.
+    CHROMA_PERSIST_DIR: str = "./knowledge_base/chroma_store"
+    CHROMA_COLLECTION: str = "basketball_knowledge"
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    # Cross-encoder reranker (sentence-transformers). Empty disables it.
+    RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-12-v2"
+
     # === Internal cron auth ===
     CRON_SECRET: str = ""
 

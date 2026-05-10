@@ -100,10 +100,10 @@ class PlayerGameStatResponse(PlayerGameStatCreate, ORMModel):
 
 __all__ = [
     "PlayerCreate",
-    "PlayerUpdate",
-    "PlayerResponse",
-    "PlayerMetricsUpdate",
-    "PlayerMetricsResponse",
     "PlayerGameStatCreate",
     "PlayerGameStatResponse",
+    "PlayerMetricsResponse",
+    "PlayerMetricsUpdate",
+    "PlayerResponse",
+    "PlayerUpdate",
 ]

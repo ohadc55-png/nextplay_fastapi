@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Admin Login - NextPlay</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body class="admin-body admin-login-page">
+
+<div class="admin-login-card">
+    <div class="login-brand">
+        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="56" height="56" style="border-radius: 12px;">
+        <h1>NEXTPLAY <span class="brand-tag">Admin</span></h1>
+        <p>Sign in to the admin dashboard</p>
+    </div>
+
+    {% if error %}
+    <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.login') }}">
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="admin@nextplay.co" required autocomplete="email">
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Enter admin password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="login-btn">Sign In</button>
+    </form>
+</div>
+
+</body>
+</html>

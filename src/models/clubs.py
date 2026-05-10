@@ -33,7 +33,7 @@ class Club(Base):
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
     updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
 
-    members: Mapped[list["User"]] = relationship("User", back_populates="club", lazy="raise")
+    members: Mapped[list[User]] = relationship("User", back_populates="club", lazy="raise")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Club id={self.id} name={self.name!r}>"

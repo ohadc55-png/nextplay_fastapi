@@ -62,9 +62,10 @@ class AuthToken(Base):
     __tablename__ = "auth_tokens"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    # NULL allowed for org_invite tokens issued before the invitee's user row exists.
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-    purpose: Mapped[str] = mapped_column(Text, nullable=False)  # verify_email | reset_password | change_email | ...
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)  # verify_email | reset_password | change_email | org_invite | ...
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())
@@ -93,4 +94,4 @@ class AuditLog(Base):
     )
 
 
-__all__ = ["SocialAccount", "RefreshToken", "AuthToken", "AuditLog"]
+__all__ = ["AuditLog", "AuthToken", "RefreshToken", "SocialAccount"]

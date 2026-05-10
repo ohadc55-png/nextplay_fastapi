@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Select role - NextPlay Enterprise</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+</head>
+<body class="admin-body admin-login-page">
+
+<div class="admin-login-card" style="max-width: 520px;">
+    <div class="login-brand">
+        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="56" height="56" style="border-radius: 12px;">
+        <h1>NEXTPLAY <span class="brand-tag">Enterprise</span></h1>
+        <p>Welcome back, {{ user_email }}. Choose a role to continue.</p>
+    </div>
+
+    <ul class="role-list" style="list-style: none; padding: 0; margin: 0;">
+        {% for r in roles %}
+        <li style="margin-bottom: 12px;">
+            <form method="POST" action="/org/switch-role">
+                <input type="hidden" name="organization_id" value="{{ r.organization_id }}">
+                <input type="hidden" name="role" value="{{ r.role }}">
+                <button type="submit" class="login-btn" style="width: 100%; text-align: left;">
+                    <strong>{{ r.organization_name }}</strong>
+                    <span style="opacity: .8; margin-left: 8px;">{{ r.role }}</span>
+                </button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <p style="margin-top: 24px; text-align: center;">
+        <a href="/org/logout" style="color: var(--admin-text-muted, #888);">Sign out</a>
+    </p>
+</div>
+
+</body>
+</html>

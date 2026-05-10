@@ -76,4 +76,4 @@ class AdminTaskComment(Base):
     )
 
 
-__all__ = ["AdminTask", "AdminTaskSubtask", "AdminTaskComment"]
+__all__ = ["AdminTask", "AdminTaskComment", "AdminTaskSubtask"]

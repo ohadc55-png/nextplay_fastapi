@@ -1,0 +1,190 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Mailing Lists{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+        <h2>Mailing Lists</h2>
+        <p>Group users for targeted broadcasts</p>
+    </div>
+    <a href="{{ url_for('admin.email_log_view') }}" style="color:var(--admin-text-2);text-decoration:none;font-size:13px;">&larr; Back to log</a>
+</div>
+
+<div class="admin-card">
+    <h3 style="margin:0 0 14px 0;font-size:1rem;">Create a list</h3>
+    <div style="display:flex;gap:10px;align-items:end;">
+        <div style="flex:1;">
+            <label class="form-label">Name</label>
+            <input type="text" id="newListName" class="form-input" placeholder="e.g. Israeli academy coaches">
+        </div>
+        <div style="flex:2;">
+            <label class="form-label">Description (optional)</label>
+            <input type="text" id="newListDesc" class="form-input" placeholder="What this list is for">
+        </div>
+        <button type="button" id="createListBtn" class="btn-primary" style="padding:9px 18px;border-radius:8px;background:var(--admin-accent);color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;">+ Create</button>
+    </div>
+    <div id="createStatus" style="margin-top:8px;font-size:0.85rem;"></div>
+</div>
+
+<div class="admin-card" style="margin-top:24px;">
+    <h3 style="margin:0 0 14px 0;font-size:1rem;">Existing lists</h3>
+    {% if lists %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th style="text-align:right;">Members</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lists %}
+            <tr data-list-id="{{ l.id }}">
+                <td><strong>{{ l.name }}</strong></td>
+                <td style="color:var(--admin-text-2);font-size:0.88rem;">{{ l.description }}</td>
+                <td style="text-align:right;">{{ l.member_count }}</td>
+                <td style="font-size:0.78rem;color:var(--admin-text-3);">{{ (l.created_at|string)[:10] }}</td>
+                <td style="text-align:right;">
+                    <button type="button" class="manage-btn" data-list-id="{{ l.id }}" data-list-name="{{ l.name }}" style="background:transparent;color:var(--admin-accent);border:none;cursor:pointer;font-size:0.85rem;">Manage</button>
+                    <button type="button" class="delete-btn" data-list-id="{{ l.id }}" data-list-name="{{ l.name }}" style="background:transparent;color:#ff6b6b;border:none;cursor:pointer;font-size:0.85rem;margin-left:8px;">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--admin-text-3);font-size:0.88rem;text-align:center;padding:24px;">No mailing lists yet. Create one above.</p>
+    {% endif %}
+</div>
+
+<!-- Manage members modal -->
+<div id="manageOverlay" hidden style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <div style="background:var(--admin-surface);border:1px solid var(--admin-border-2);border-radius:12px;width:100%;max-width:540px;max-height:80vh;display:flex;flex-direction:column;">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--admin-border);display:flex;justify-content:space-between;align-items:center;">
+            <h3 id="manageTitle" style="margin:0;font-size:1rem;">Members</h3>
+            <button type="button" id="closeManageBtn" style="background:transparent;border:none;color:var(--admin-text-2);font-size:1.4rem;cursor:pointer;">×</button>
+        </div>
+        <div style="padding:18px 22px;display:flex;gap:8px;align-items:end;">
+            <div style="flex:1;">
+                <label class="form-label">Add member by email</label>
+                <input type="email" id="addMemberEmail" class="form-input" placeholder="coach@team.com">
+            </div>
+            <button type="button" id="addMemberBtn" style="padding:9px 16px;border-radius:8px;background:var(--admin-accent);color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;">+ Add</button>
+        </div>
+        <div id="addMemberStatus" style="padding:0 22px;font-size:0.85rem;"></div>
+        <div id="memberList" style="padding:14px 22px 22px;overflow-y:auto;flex:1;">
+            <p style="color:var(--admin-text-3);">Loading…</p>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    let currentListId = null;
+
+    function clearChildren(node) {
+        while (node.firstChild) node.removeChild(node.firstChild);
+    }
+
+    $('createListBtn').addEventListener('click', async () => {
+        const name = $('newListName').value.trim();
+        if (!name) { $('createStatus').textContent = 'Name is required.'; return; }
+        const r = await fetch('/admin/emails/lists/api', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, description: $('newListDesc').value.trim()}),
+        });
+        const data = await r.json();
+        if (data.success) location.reload();
+        else $('createStatus').textContent = '✗ ' + (data.error || 'failed');
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.listId;
+            const name = btn.dataset.listName;
+            if (!confirm('Delete list "' + name + '"? This removes all member assignments. Users themselves are not affected.')) return;
+            const r = await fetch('/admin/emails/lists/' + id, {method: 'DELETE'});
+            if ((await r.json()).success) location.reload();
+        });
+    });
+
+    document.querySelectorAll('.manage-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentListId = btn.dataset.listId;
+            $('manageTitle').textContent = 'Members of "' + btn.dataset.listName + '"';
+            $('manageOverlay').hidden = false;
+            $('addMemberStatus').textContent = '';
+            loadMembers();
+        });
+    });
+
+    $('closeManageBtn').addEventListener('click', () => {
+        $('manageOverlay').hidden = true;
+        currentListId = null;
+    });
+
+    async function loadMembers() {
+        const r = await fetch('/admin/emails/lists/' + currentListId + '/members');
+        const data = await r.json();
+        const list = $('memberList');
+        clearChildren(list);
+        const members = data.members || [];
+        if (members.length === 0) {
+            const p = document.createElement('p');
+            p.style.color = 'var(--admin-text-3)';
+            p.textContent = 'No members yet. Add the first one above.';
+            list.appendChild(p);
+            return;
+        }
+        for (const m of members) {
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:10px 12px;background:var(--admin-bg-2);border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;';
+            const left = document.createElement('div');
+            const emailLine = document.createElement('div');
+            emailLine.textContent = m.email;
+            emailLine.style.fontSize = '0.9rem';
+            const nameLine = document.createElement('div');
+            nameLine.textContent = m.display_name || '';
+            nameLine.style.fontSize = '0.78rem';
+            nameLine.style.color = 'var(--admin-text-3)';
+            left.appendChild(emailLine);
+            if (m.display_name) left.appendChild(nameLine);
+
+            const rmBtn = document.createElement('button');
+            rmBtn.textContent = 'Remove';
+            rmBtn.style.cssText = 'background:transparent;color:#ff6b6b;border:none;cursor:pointer;font-size:0.85rem;';
+            rmBtn.addEventListener('click', async () => {
+                const r = await fetch('/admin/emails/lists/' + currentListId + '/members/' + m.id, {method: 'DELETE'});
+                if ((await r.json()).success) loadMembers();
+            });
+
+            row.appendChild(left);
+            row.appendChild(rmBtn);
+            list.appendChild(row);
+        }
+    }
+
+    $('addMemberBtn').addEventListener('click', async () => {
+        const email = $('addMemberEmail').value.trim();
+        if (!email) return;
+        const r = await fetch('/admin/emails/lists/' + currentListId + '/members', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email}),
+        });
+        const data = await r.json();
+        if (data.success) {
+            $('addMemberEmail').value = '';
+            $('addMemberStatus').textContent = '';
+            loadMembers();
+        } else {
+            $('addMemberStatus').textContent = '✗ ' + (data.error || 'failed');
+            $('addMemberStatus').style.color = '#ff6b6b';
+        }
+    });
+})();
+</script>
+{% endblock %}

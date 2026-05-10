@@ -1,0 +1,1778 @@
+{% extends "base.html" %}
+{% set active_page = "team-setup" %}
+
+{% block content %}
+<style>
+/* ══════════════════════════════════════════════════════════════
+   Player Profile — Football Manager Style
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Back Link ─────────────────────────────────────────────── */
+.pp-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-2);
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    transition: color 0.2s var(--ease);
+}
+.pp-back:hover { color: var(--accent); }
+.pp-back svg { transition: transform 0.2s var(--ease); }
+.pp-back:hover svg { transform: translateX(-3px); }
+
+/* ── Top Section: Two-Column Layout ────────────────────────── */
+.pp-top {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+    max-width: 900px;
+}
+
+/* ── Player Card (Left Column) ─────────────────────────────── */
+.pp-card {
+    background: linear-gradient(165deg, var(--bg-card), rgba(22,29,40,0.95));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+}
+.pp-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent-gradient);
+}
+
+/* Photo Area */
+.pp-photo-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: linear-gradient(135deg, rgba(255,107,53,0.04), rgba(255,107,53,0.01));
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.3s var(--ease);
+}
+.pp-photo-wrap:hover {
+    background: linear-gradient(135deg, rgba(255,107,53,0.08), rgba(255,107,53,0.03));
+}
+.pp-photo-wrap:hover .pp-photo-overlay {
+    opacity: 1;
+}
+.pp-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.pp-photo-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-3);
+}
+.pp-photo-placeholder svg {
+    width: 48px;
+    height: 48px;
+    opacity: 0.3;
+}
+.pp-photo-placeholder span {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.5;
+}
+.pp-photo-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.25s var(--ease);
+}
+.pp-photo-overlay span {
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 20px;
+    background: rgba(255,107,53,0.8);
+    backdrop-filter: blur(4px);
+}
+
+/* Player Identity (Below Photo) */
+.pp-identity {
+    padding: 14px 18px 18px;
+}
+.pp-jersey-name {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 8px;
+}
+.pp-jersey {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+}
+.pp-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+.pp-position {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: var(--blue-dim);
+    color: var(--blue);
+    margin-bottom: 16px;
+}
+
+/* Physical Stats Row */
+.pp-physicals {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    background: var(--border);
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+    margin-bottom: 18px;
+}
+.pp-physical-stat {
+    background: var(--bg-card);
+    padding: 10px 8px;
+    text-align: center;
+}
+.pp-physical-stat .stat-label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    margin-bottom: 4px;
+}
+.pp-physical-stat .stat-value {
+    display: block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+/* Strengths & Weaknesses */
+.pp-traits {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.editable-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-xs);
+    background: rgba(255,255,255,0.02);
+    transition: background 0.2s var(--ease);
+}
+.editable-field:hover {
+    background: rgba(255,255,255,0.04);
+}
+.editable-field:hover .edit-btn {
+    opacity: 1;
+}
+.editable-field .trait-icon {
+    font-weight: 800;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+.editable-field .trait-icon.positive { color: var(--green); }
+.editable-field .trait-icon.negative { color: var(--red); }
+.editable-text {
+    flex: 1;
+    font-size: 0.82rem;
+    color: var(--text-2);
+    line-height: 1.5;
+    white-space: pre-line;
+}
+.edit-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0;
+    transition: all 0.2s var(--ease);
+    border-radius: 4px;
+}
+.edit-btn:hover {
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+
+/* Edit Form */
+.edit-form {
+    padding: 0 12px;
+}
+.edit-form .edit-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-2);
+}
+.edit-textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-xs);
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s var(--ease);
+}
+.edit-textarea:focus {
+    border-color: var(--accent);
+}
+.edit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+.btn-edit-save {
+    padding: 6px 16px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    font-family: inherit;
+}
+.btn-edit-save:hover { background: var(--accent-bright); }
+.btn-edit-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-edit-cancel {
+    padding: 6px 16px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    font-family: inherit;
+}
+.btn-edit-cancel:hover {
+    border-color: var(--border-3);
+    color: var(--text);
+}
+
+/* ── Radar Chart Card (Right Column) ───────────────────────── */
+.pp-radar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.pp-radar canvas {
+    max-width: 100%;
+    height: auto !important;
+}
+.radar-legend {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+.radar-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-2);
+}
+.radar-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ── Strengths / Weaknesses Row ────────────────────────────── */
+.pp-traits-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.pp-trait-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Player Page Tabs
+   ══════════════════════════════════════════════════════════════ */
+.pp-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    margin-top: 28px;
+}
+.pp-tab {
+    padding: 14px 28px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-2);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    letter-spacing: 0.01em;
+}
+.pp-tab:hover { color: var(--text); }
+.pp-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+.pp-tab-panel {
+    display: none;
+}
+.pp-tab-panel.active {
+    display: block;
+}
+
+/* ── Notes List ───────────────────────────────────────────────
+   Visual parity with the /notebook page rows: colored type dot,
+   colored type label pill, title, date. One row per note, clickable
+   to jump into /notebook filtered to this player. */
+.pp-notes-grid {
+    display: block;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.pp-note-row {
+    display: grid;
+    grid-template-columns: 14px 110px 1fr 90px;
+    grid-template-rows: 56px;
+    align-items: center;
+    gap: 14px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+    color: inherit;
+}
+.pp-note-row:last-child { border-bottom: none; }
+.pp-note-row:hover { background: rgba(255,255,255,0.025); }
+
+/* Type dot — colored circle, leftmost column. Same color tokens as /notebook */
+.pp-note-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.pp-note-dot[data-type="practice_plan"] { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.pp-note-dot[data-type="game_summary"] { background: var(--green); box-shadow: 0 0 0 3px var(--green-dim); }
+.pp-note-dot[data-type="tactical_plan"] { background: var(--red); box-shadow: 0 0 0 3px var(--red-dim); }
+.pp-note-dot[data-type="player_note"] { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-dim); }
+.pp-note-dot[data-type="period_plan"] { background: var(--purple); box-shadow: 0 0 0 3px var(--purple-dim); }
+.pp-note-dot[data-type="attendance"] { background: var(--yellow); box-shadow: 0 0 0 3px var(--yellow-dim); }
+.pp-note-dot[data-type="free_document"] { background: var(--text-3); }
+
+/* Type label pill — second column */
+.pp-note-type {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 4px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+    text-align: center;
+}
+.pp-note-type[data-type="practice_plan"] { background: var(--accent-dim); color: var(--accent); }
+.pp-note-type[data-type="game_summary"] { background: var(--green-dim); color: var(--green); }
+.pp-note-type[data-type="tactical_plan"] { background: var(--red-dim); color: var(--red); }
+.pp-note-type[data-type="player_note"] { background: var(--blue-dim); color: var(--blue); }
+.pp-note-type[data-type="period_plan"] { background: var(--purple-dim); color: var(--purple); }
+.pp-note-type[data-type="attendance"] { background: var(--yellow-dim); color: var(--yellow); }
+.pp-note-type[data-type="free_document"] { background: rgba(92,99,112,0.15); color: var(--text-2); }
+
+/* Title — third column, single-line truncate */
+.pp-note-title {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+/* Date — fourth column */
+.pp-note-date {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.pp-notes-empty {
+    color: var(--text-3);
+    font-size: 0.85rem;
+    padding: 24px 0;
+    text-align: center;
+    width: 100%;
+}
+
+/* Mobile — drop the type pill to give title more room */
+@media (max-width: 600px) {
+    .pp-note-row {
+        grid-template-columns: 14px 1fr 80px;
+        gap: 10px;
+        padding: 0 14px;
+    }
+    .pp-note-type { display: none; }
+}
+
+/* ── Stats Summary & Table ─────────────────────────────────── */
+.pp-stats-summary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+.pp-avg-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    padding: 8px 14px;
+    text-align: center;
+    min-width: 60px;
+}
+.pp-avg-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 3px;
+    opacity: 0.85;
+}
+.pp-avg-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--accent);
+}
+.pp-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+}
+.pp-stats-table th {
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--border-2);
+    white-space: nowrap;
+    background: var(--bg-elevated);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.pp-stats-table td {
+    padding: 10px 8px;
+    text-align: center;
+    color: #f0f3f6;
+    font-weight: 600;
+    font-size: 0.84rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.pp-stats-table tr:hover td {
+    background: var(--bg-card-hover);
+}
+.pp-stats-table td:first-child,
+.pp-stats-table th:first-child {
+    text-align: left;
+}
+.pp-stats-totals {
+    border-top: 2px solid var(--accent);
+    background: rgba(255,107,53,0.06);
+}
+.pp-stats-totals td {
+    font-weight: 700 !important;
+    color: #fff !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+}
+.pp-pct {
+    display: inline-block;
+    font-size: 0.68rem;
+    color: var(--accent);
+    font-weight: 800;
+    margin-inline-start: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Attribute Grid — FM-style metric categories
+   ══════════════════════════════════════════════════════════════ */
+.pp-section-title {
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #fff;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.metric-category {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0;
+    overflow: hidden;
+    transition: border-color 0.3s var(--ease);
+}
+.metric-category:hover {
+    border-color: var(--border-2);
+}
+
+.metric-category-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+    color: var(--cat-color, var(--text));
+    letter-spacing: -0.01em;
+}
+.metric-category-avg {
+    margin-inline-start: auto;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--cat-color, var(--text));
+    background: rgba(255,255,255,0.04);
+    padding: 2px 10px;
+    border-radius: var(--radius-xs);
+    min-width: 42px;
+    text-align: center;
+}
+
+.metric-category-body {
+    padding: 8px 18px 12px;
+}
+
+.metric-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.025);
+    transition: background 0.15s var(--ease);
+}
+.metric-item:last-child {
+    border-bottom: none;
+}
+.metric-item:hover {
+    background: rgba(255,255,255,0.015);
+    margin: 0 -18px;
+    padding-left: 18px;
+    padding-right: 18px;
+}
+.metric-item label {
+    flex: 1;
+    font-size: 0.8rem;
+    color: var(--text-2);
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: 0;
+}
+.metric-item input[type="range"] {
+    flex: 2;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    outline: none;
+    transition: background 0.2s var(--ease);
+}
+.metric-item input[type="range"]:hover {
+    background: rgba(255,255,255,0.1);
+}
+.metric-item input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--cat-color, var(--accent));
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.metric-item input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+.metric-item input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--cat-color, var(--accent));
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+
+/* ── FM-Style Metric Value Badge ───────────────────────────── */
+.metric-value {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 800;
+    font-size: 0.82rem;
+    min-width: 36px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-xs);
+    flex-shrink: 0;
+    transition: all 0.25s var(--ease);
+    letter-spacing: 0.02em;
+}
+/* Color tiers — set by JS dynamically */
+.metric-value[data-tier="low"] {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid rgba(248,81,73,0.2);
+}
+.metric-value[data-tier="mid"] {
+    background: var(--yellow-dim);
+    color: var(--yellow);
+    border: 1px solid rgba(240,180,41,0.2);
+}
+.metric-value[data-tier="good"] {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(255,107,53,0.2);
+}
+.metric-value[data-tier="elite"] {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(63,185,80,0.2);
+}
+
+/* ── Save Button ───────────────────────────────────────────── */
+.btn-save-metrics {
+    position: sticky;
+    bottom: 20px;
+    width: 100%;
+    max-width: 400px;
+    margin: 24px auto 0;
+    display: block;
+    z-index: 50;
+}
+.btn-save-metrics .btn {
+    box-shadow: 0 4px 20px rgba(255,107,53,0.3);
+}
+.btn-save-metrics .btn:hover {
+    box-shadow: 0 6px 28px rgba(255,107,53,0.45);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Responsive
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+    .pp-top {
+        grid-template-columns: 320px 1fr;
+    }
+}
+@media (max-width: 768px) {
+    .pp-top {
+        grid-template-columns: 1fr;
+    }
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* ── Horizontal player card on mobile ─────────────────────
+       Photo on one side, identity + stats on the other.
+       Cleaner, more compact, scannable without scrolling. */
+    .pp-card {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        max-width: none;
+        margin: 0;
+    }
+    .pp-photo-wrap {
+        aspect-ratio: unset;
+        width: 140px;
+        height: 100%;
+        min-height: 200px;
+        border-right: 1px solid var(--border);
+    }
+    [dir="rtl"] .pp-photo-wrap {
+        border-right: none;
+        border-left: 1px solid var(--border);
+    }
+    .pp-photo-placeholder svg {
+        width: 36px;
+        height: 36px;
+    }
+    .pp-photo-placeholder span {
+        font-size: 0.62rem;
+        letter-spacing: 0.05em;
+        padding: 0 8px;
+        text-align: center;
+        line-height: 1.3;
+    }
+    .pp-identity {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .pp-jersey-name {
+        gap: 10px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+    .pp-jersey {
+        font-size: 1.6rem;
+    }
+    .pp-name {
+        font-size: 1rem;
+    }
+    .pp-position {
+        margin-bottom: 12px;
+        padding: 3px 10px;
+        font-size: 0.65rem;
+    }
+    .pp-physicals {
+        grid-template-columns: repeat(2, 1fr);
+        margin-bottom: 12px;
+    }
+    .pp-physical-stat {
+        padding: 8px 6px;
+    }
+    .pp-physical-stat .stat-label {
+        font-size: 0.6rem;
+    }
+    .pp-physical-stat .stat-value {
+        font-size: 0.82rem;
+    }
+}
+@media (max-width: 480px) {
+    .pp-card {
+        grid-template-columns: 120px 1fr;
+    }
+    .pp-photo-wrap {
+        width: 120px;
+        min-height: 180px;
+    }
+    .pp-jersey-name {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+    .pp-jersey {
+        font-size: 1.5rem;
+    }
+    .pp-name {
+        font-size: 0.95rem;
+    }
+    .pp-identity {
+        padding: 12px 14px;
+    }
+    .pp-top {
+        grid-template-columns: 1fr;
+        max-width: none;
+    }
+    .pp-tab {
+        padding: 10px 16px;
+        font-size: 0.88rem;
+    }
+    .pp-stats-summary {
+        gap: 6px;
+    }
+    .pp-avg-box {
+        padding: 6px 10px;
+        min-width: 50px;
+    }
+    .pp-avg-label {
+        font-size: 0.6rem;
+    }
+    .pp-avg-value {
+        font-size: 0.85rem;
+    }
+    .pp-stats-table {
+        font-size: 0.72rem;
+    }
+    .pp-stats-table th,
+    .pp-stats-table td {
+        padding: 6px 4px;
+    }
+    /* Notes list mobile rules now live in the .pp-note-row block above. */
+}
+</style>
+
+<!-- Back Link -->
+<a href="/team-setup" class="pp-back">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Roster
+</a>
+
+<!-- ═══ TOP SECTION: Player Card + Radar Chart ═══ -->
+<div class="pp-top">
+
+    <!-- LEFT: Player Card -->
+    <div class="pp-card">
+        <!-- Photo Area -->
+        <div class="pp-photo-wrap" onclick="triggerPhotoUpload()">
+            <input type="file" id="photoInput" accept="image/*" hidden onchange="uploadPhoto(this)">
+            {% if photo_url %}
+                <img src="{{ photo_url }}" alt="{{ player.name }}" class="pp-photo-img">
+            {% else %}
+                <div class="pp-photo-placeholder">
+                    <svg viewBox="0 0 120 120" fill="none">
+                        <circle cx="60" cy="38" r="22" stroke="currentColor" stroke-width="2.5" opacity="0.4"/>
+                        <path d="M20 105c0-22 18-40 40-40s40 18 40 40" stroke="currentColor" stroke-width="2.5" opacity="0.4" stroke-linecap="round"/>
+                        <circle cx="60" cy="60" r="56" stroke="currentColor" stroke-width="1.5" opacity="0.15"/>
+                    </svg>
+                    <span>Click to upload photo</span>
+                </div>
+            {% endif %}
+            <div class="pp-photo-overlay">
+                <span>Change Photo</span>
+            </div>
+        </div>
+
+        <!-- Identity -->
+        <div class="pp-identity">
+            <div class="pp-jersey-name">
+                <span class="pp-jersey" dir="ltr">#{{ player.number or '?' }}</span>
+                <span class="pp-name" dir="auto">{{ player.name }}</span>
+            </div>
+
+            {% if player.position %}
+                <div class="pp-position">{{ player.position }}</div>
+            {% endif %}
+
+            <!-- Physical Stats -->
+            <div class="pp-physicals">
+                <div class="pp-physical-stat">
+                    <span class="stat-label">Height</span>
+                    <span class="stat-value" dir="ltr">{{ player.height or '—' }}</span>
+                </div>
+                <div class="pp-physical-stat">
+                    <span class="stat-label">Weight</span>
+                    <span class="stat-value" dir="ltr">{{ player.weight or '—' }}</span>
+                </div>
+                <div class="pp-physical-stat">
+                    <span class="stat-label">Age</span>
+                    <span class="stat-value" dir="ltr">{{ player.age or '—' }}</span>
+                </div>
+                <div class="pp-physical-stat">
+                    <span class="stat-label">Hand</span>
+                    <span class="stat-value">{{ player.dominant_hand or '—' }}</span>
+                </div>
+            </div>
+
+            <!-- Attendance Rate (inline) -->
+            <div id="ppAttendance" style="margin-top: 14px;"></div>
+
+            <!-- Quick Add Note -->
+            <a href="/notebook?player_id={{ player.id }}&type=player_note&new=1&preselect={{ player.id }}" class="btn btn-ghost btn-sm" style="margin-top: 10px; font-size: 0.75rem; padding: 6px 14px; gap: 6px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Note
+            </a>
+
+        </div>
+    </div>
+
+    <!-- RIGHT: Radar Chart -->
+    <div class="pp-radar">
+        <canvas id="radarChart" width="440" height="440"></canvas>
+        <div class="radar-legend">
+            <div class="radar-legend-item"><span class="radar-legend-dot" style="background:#ff6b35;"></span>Offense</div>
+            <div class="radar-legend-item"><span class="radar-legend-dot" style="background:#4da6ff;"></span>Defense</div>
+            <div class="radar-legend-item"><span class="radar-legend-dot" style="background:#bc8ff3;"></span>Basketball IQ</div>
+            <div class="radar-legend-item"><span class="radar-legend-dot" style="background:#3fb950;"></span>Character</div>
+            <div class="radar-legend-item"><span class="radar-legend-dot" style="background:#f0b429;"></span>Tactical Discipline</div>
+            <div class="radar-legend-item"><span class="radar-legend-dot" style="background:#f85149;"></span>Physicality</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══ TABS: Abilities / Notes ═══ -->
+<div class="pp-tabs">
+    <button class="pp-tab active" onclick="switchTab('abilities')">Abilities</button>
+    <button class="pp-tab" onclick="switchTab('notes')">Notes <span id="ppNotesCount" style="font-size:0.7rem;opacity:0.6;margin-inline-start:4px"></span></button>
+    <button class="pp-tab" onclick="switchTab('stats')">Stats <span id="ppStatsCount" style="font-size:0.7rem;opacity:0.6;margin-inline-start:4px"></span></button>
+</div>
+
+<!-- TAB: Abilities -->
+<div class="pp-tab-panel active" id="tab-abilities">
+
+<!-- Strengths & Weaknesses -->
+<div class="pp-traits-row">
+    <div class="pp-trait-block">
+        <div class="editable-field" id="strengths-display">
+            <span class="trait-icon positive">+</span>
+            <span class="editable-text" dir="auto">{{ player.strengths or '—' }}</span>
+            <button class="edit-btn" onclick="startEdit('strengths')" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+        </div>
+        <div class="edit-form" id="strengths-edit" style="display:none;">
+            <div class="edit-label"><span style="color:var(--green);font-weight:700;">+</span><span>Strengths</span></div>
+            <textarea id="strengths-input" class="edit-textarea" rows="3" dir="auto" placeholder="Player strengths...">{{ player.strengths or '' }}</textarea>
+            <div class="edit-actions">
+                <button class="btn-edit-save" onclick="saveField('strengths')">Save</button>
+                <button class="btn-edit-cancel" onclick="cancelEdit('strengths')">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <div class="pp-trait-block">
+        <div class="editable-field" id="weaknesses-display">
+            <span class="trait-icon negative">-</span>
+            <span class="editable-text" dir="auto">{{ player.weaknesses or '—' }}</span>
+            <button class="edit-btn" onclick="startEdit('weaknesses')" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+        </div>
+        <div class="edit-form" id="weaknesses-edit" style="display:none;">
+            <div class="edit-label"><span style="color:var(--red);font-weight:700;">-</span><span>Weaknesses</span></div>
+            <textarea id="weaknesses-input" class="edit-textarea" rows="3" dir="auto" placeholder="Player weaknesses...">{{ player.weaknesses or '' }}</textarea>
+            <div class="edit-actions">
+                <button class="btn-edit-save" onclick="saveField('weaknesses')">Save</button>
+                <button class="btn-edit-cancel" onclick="cancelEdit('weaknesses')">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attribute Grid -->
+<div class="pp-section-title">Player Attributes</div>
+
+<div class="metrics-grid">
+
+    <!-- Offense -->
+    <div class="metric-category" style="--cat-color:#ff6b35;">
+        <div class="metric-category-header">
+            <span>Offense</span>
+            <span class="metric-category-avg" id="avg-offense">5.0</span>
+        </div>
+        <div class="metric-category-body">
+            <div class="metric-item">
+                <label>Shooting</label>
+                <input type="range" min="1" max="10" value="5" data-metric="shooting" data-category="offense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Ball Handling</label>
+                <input type="range" min="1" max="10" value="5" data-metric="ball_handling" data-category="offense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Passing</label>
+                <input type="range" min="1" max="10" value="5" data-metric="passing" data-category="offense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Driving</label>
+                <input type="range" min="1" max="10" value="5" data-metric="driving" data-category="offense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Offensive IQ</label>
+                <input type="range" min="1" max="10" value="5" data-metric="offensive_iq" data-category="offense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Defense -->
+    <div class="metric-category" style="--cat-color:#4da6ff;">
+        <div class="metric-category-header">
+            <span>Defense</span>
+            <span class="metric-category-avg" id="avg-defense">5.0</span>
+        </div>
+        <div class="metric-category-body">
+            <div class="metric-item">
+                <label>On-Ball Defense</label>
+                <input type="range" min="1" max="10" value="5" data-metric="on_ball_defense" data-category="defense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Help Defense</label>
+                <input type="range" min="1" max="10" value="5" data-metric="help_defense" data-category="defense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Defensive IQ</label>
+                <input type="range" min="1" max="10" value="5" data-metric="defensive_iq" data-category="defense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Rebounding</label>
+                <input type="range" min="1" max="10" value="5" data-metric="rebounding" data-category="defense" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Basketball IQ -->
+    <div class="metric-category" style="--cat-color:#bc8ff3;">
+        <div class="metric-category-header">
+            <span>Basketball IQ</span>
+            <span class="metric-category-avg" id="avg-basketball_iq">5.0</span>
+        </div>
+        <div class="metric-category-body">
+            <div class="metric-item">
+                <label>Court Vision</label>
+                <input type="range" min="1" max="10" value="5" data-metric="court_vision" data-category="basketball_iq" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Decision Making</label>
+                <input type="range" min="1" max="10" value="5" data-metric="decision_making" data-category="basketball_iq" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Coachability</label>
+                <input type="range" min="1" max="10" value="5" data-metric="coachability" data-category="basketball_iq" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Character -->
+    <div class="metric-category" style="--cat-color:#3fb950;">
+        <div class="metric-category-header">
+            <span>Character</span>
+            <span class="metric-category-avg" id="avg-character">5.0</span>
+        </div>
+        <div class="metric-category-body">
+            <div class="metric-item">
+                <label>Competitiveness</label>
+                <input type="range" min="1" max="10" value="5" data-metric="competitiveness" data-category="character" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Teamwork</label>
+                <input type="range" min="1" max="10" value="5" data-metric="teamwork" data-category="character" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Composure</label>
+                <input type="range" min="1" max="10" value="5" data-metric="composure" data-category="character" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tactical Discipline -->
+    <div class="metric-category" style="--cat-color:#f0b429;">
+        <div class="metric-category-header">
+            <span>Tactical Discipline</span>
+            <span class="metric-category-avg" id="avg-tactical_discipline">5.0</span>
+        </div>
+        <div class="metric-category-body">
+            <div class="metric-item">
+                <label>System Execution</label>
+                <input type="range" min="1" max="10" value="5" data-metric="system_execution" data-category="tactical_discipline" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Transition Play</label>
+                <input type="range" min="1" max="10" value="5" data-metric="transition_play" data-category="tactical_discipline" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Spacing & Movement</label>
+                <input type="range" min="1" max="10" value="5" data-metric="spacing_movement" data-category="tactical_discipline" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Physicality -->
+    <div class="metric-category" style="--cat-color:#f85149;">
+        <div class="metric-category-header">
+            <span>Physicality</span>
+            <span class="metric-category-avg" id="avg-physicality">5.0</span>
+        </div>
+        <div class="metric-category-body">
+            <div class="metric-item">
+                <label>Speed & Agility</label>
+                <input type="range" min="1" max="10" value="5" data-metric="speed_agility" data-category="physicality" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Strength & Toughness</label>
+                <input type="range" min="1" max="10" value="5" data-metric="strength_toughness" data-category="physicality" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+            <div class="metric-item">
+                <label>Stamina</label>
+                <input type="range" min="1" max="10" value="5" data-metric="stamina" data-category="physicality" oninput="onMetricChange(this)">
+                <span class="metric-value" data-tier="mid">5</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Save Button (inside Abilities tab) -->
+<div class="btn-save-metrics" id="saveMetricsWrap" style="display:none;">
+    <button class="btn btn-primary btn-full" onclick="saveMetrics()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+        Save Metrics
+    </button>
+</div>
+
+</div><!-- /tab-abilities -->
+
+<!-- TAB: Notes -->
+<div class="pp-tab-panel" id="tab-notes">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="pp-section-title" style="margin:0;padding-bottom:0;border-bottom:none">Player Notes</div>
+        <a href="/notebook?player_id={{ player.id }}&type=player_note&new=1&preselect={{ player.id }}" class="btn btn-primary btn-sm" style="font-size:0.78rem;padding:8px 16px;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Note
+        </a>
+    </div>
+    <div id="ppNotebookNotes">
+        <div class="pp-notes-empty">Loading...</div>
+    </div>
+</div><!-- /tab-notes -->
+
+<!-- TAB: Stats -->
+<div class="pp-tab-panel" id="tab-stats">
+    <div class="pp-section-title" style="margin:0 0 16px 0;padding-bottom:0;border-bottom:none">Season Averages</div>
+    <div id="ppStatsSummary" class="pp-stats-summary"></div>
+    <div class="pp-section-title" style="margin:20px 0 12px 0;padding-bottom:0;border-bottom:none">Game Log</div>
+    <div id="ppStatsTable" style="overflow-x:auto">
+        <div class="pp-notes-empty">Loading...</div>
+    </div>
+</div><!-- /tab-stats -->
+
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+// ── Photo Upload ──
+function triggerPhotoUpload() {
+    document.getElementById('photoInput').click();
+}
+async function uploadPhoto(input) {
+    if (!input.files[0]) return;
+    const form = new FormData();
+    form.append('photo', input.files[0]);
+    try {
+        const res = await fetch('/api/player/{{ player.id }}/photo', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: form
+        });
+        if (res.ok) { location.reload(); }
+        else { toast('Photo upload failed', 'error'); }
+    } catch (e) {
+        toast('Network error uploading photo', 'error');
+    }
+}
+
+// ── Category definitions ──
+const categories = {
+    offense:              { metrics: ['shooting','ball_handling','passing','driving','offensive_iq'], color: '#ff6b35', label: 'Offense' },
+    defense:              { metrics: ['on_ball_defense','help_defense','defensive_iq','rebounding'],  color: '#4da6ff', label: 'Defense' },
+    basketball_iq:        { metrics: ['court_vision','decision_making','coachability'],               color: '#bc8ff3', label: 'Basketball IQ' },
+    character:            { metrics: ['competitiveness','teamwork','composure'],                      color: '#3fb950', label: 'Character' },
+    tactical_discipline:  { metrics: ['system_execution','transition_play','spacing_movement'],       color: '#f0b429', label: 'Tactical Discipline' },
+    physicality:          { metrics: ['speed_agility','strength_toughness','stamina'],                color: '#f85149', label: 'Physicality' }
+};
+
+const categoryOrder = ['offense','defense','basketball_iq','character','tactical_discipline','physicality'];
+
+// ── Metric value tier (FM-style coloring) ──
+function getValueTier(val) {
+    val = parseInt(val);
+    if (val <= 3) return 'low';
+    if (val <= 5) return 'mid';
+    if (val <= 7) return 'good';
+    return 'elite';
+}
+
+function updateValueBadge(el, val) {
+    el.textContent = val;
+    el.setAttribute('data-tier', getValueTier(val));
+}
+
+// ── Initialize sliders from server data ──
+const savedMetrics = {{ metrics | tojson }};
+
+document.querySelectorAll('input[type="range"][data-metric]').forEach(slider => {
+    const key = slider.dataset.metric;
+    const val = (savedMetrics && savedMetrics[key] !== undefined) ? savedMetrics[key] : 5;
+    slider.value = val;
+    updateValueBadge(slider.nextElementSibling, val);
+});
+
+// Update all category averages on load
+categoryOrder.forEach(cat => updateCategoryAvg(cat));
+
+// Draw initial chart
+drawRadarChart();
+
+// ── Metric change handler ──
+function onMetricChange(el) {
+    updateValueBadge(el.nextElementSibling, el.value);
+    updateCategoryAvg(el.dataset.category);
+    drawRadarChart();
+    document.getElementById('saveMetricsWrap').style.display = '';
+}
+
+// ── Update category average display ──
+function updateCategoryAvg(catKey) {
+    const cat = categories[catKey];
+    const sliders = document.querySelectorAll(`input[data-category="${catKey}"]`);
+    let sum = 0;
+    sliders.forEach(s => sum += parseInt(s.value));
+    const avg = (sum / sliders.length).toFixed(1);
+    const el = document.getElementById(`avg-${catKey}`);
+    if (el) el.textContent = avg;
+}
+
+// ── Get category averages ──
+function getCategoryAverages() {
+    return categoryOrder.map(catKey => {
+        const sliders = document.querySelectorAll(`input[data-category="${catKey}"]`);
+        let sum = 0;
+        sliders.forEach(s => sum += parseInt(s.value));
+        return sum / sliders.length;
+    });
+}
+
+// ── Radar / Spider Chart ──
+function drawRadarChart() {
+    const canvas = document.getElementById('radarChart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+
+    const cssW = 440;
+    const cssH = 440;
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const cx = cssW / 2;
+    const cy = cssH / 2;
+    const maxR = 140;
+    const sides = 6;
+    const angleStep = (Math.PI * 2) / sides;
+    const startAngle = -Math.PI / 2;
+
+    const values = getCategoryAverages();
+    const gridLevels = [2.5, 5, 7.5, 10];
+
+    function getPoint(axisIdx, value) {
+        const angle = startAngle + axisIdx * angleStep;
+        const r = (value / 10) * maxR;
+        return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    }
+
+    // Concentric hexagonal grid lines
+    gridLevels.forEach(level => {
+        ctx.beginPath();
+        for (let i = 0; i <= sides; i++) {
+            const p = getPoint(i % sides, level);
+            if (i === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+
+    // Axis lines
+    for (let i = 0; i < sides; i++) {
+        const p = getPoint(i, 10);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(p.x, p.y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Scale numbers
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    gridLevels.forEach(level => {
+        const p = getPoint(0, level);
+        ctx.fillText(level.toString(), p.x + 6, p.y);
+    });
+
+    // Data polygon (fill)
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+        const p = getPoint(i, values[i]);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,107,53,0.15)';
+    ctx.fill();
+
+    // Data polygon (stroke with glow)
+    ctx.save();
+    ctx.shadowColor = '#ff6b35';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+        const p = getPoint(i, values[i]);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = '#ff6b35';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Data point dots
+    for (let i = 0; i < sides; i++) {
+        const p = getPoint(i, values[i]);
+        const color = categories[categoryOrder[i]].color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#0a0e14';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // Category labels (multi-line for two-word labels)
+    for (let i = 0; i < sides; i++) {
+        const cat = categories[categoryOrder[i]];
+        const angle = startAngle + i * angleStep;
+        const labelR = maxR + 40;
+        const lx = cx + labelR * Math.cos(angle);
+        const ly = cy + labelR * Math.sin(angle);
+
+        ctx.fillStyle = cat.color;
+        ctx.font = 'bold 13px sans-serif';
+
+        if (Math.abs(Math.cos(angle)) < 0.1) {
+            ctx.textAlign = 'center';
+        } else if (Math.cos(angle) > 0) {
+            ctx.textAlign = 'left';
+        } else {
+            ctx.textAlign = 'right';
+        }
+
+        const words = cat.label.split(' ');
+        if (words.length > 1) {
+            const lineH = 16;
+            const startY = ly - ((words.length - 1) * lineH) / 2;
+            words.forEach((word, wi) => {
+                ctx.textBaseline = 'middle';
+                ctx.fillText(word, lx, startY + wi * lineH);
+            });
+        } else {
+            ctx.textBaseline = 'middle';
+            ctx.fillText(cat.label, lx, ly);
+        }
+    }
+}
+
+// Redraw on resize
+window.addEventListener('resize', drawRadarChart);
+
+// ── Save Metrics ──
+async function saveMetrics() {
+    const allSliders = document.querySelectorAll('input[type="range"][data-metric]');
+    const metrics = {};
+    allSliders.forEach(s => { metrics[s.dataset.metric] = parseInt(s.value); });
+
+    try {
+        const res = await fetch('/api/player/{{ player.id }}/metrics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ metrics })
+        });
+        if (res.ok) {
+            toast('Metrics saved successfully!');
+            document.getElementById('saveMetricsWrap').style.display = 'none';
+        } else {
+            toast('Error saving metrics', 'error');
+        }
+    } catch (e) {
+        toast('Network error', 'error');
+    }
+}
+
+// ── Inline Edit: Strengths / Weaknesses ──
+function startEdit(field) {
+    document.getElementById(field + '-display').style.display = 'none';
+    document.getElementById(field + '-edit').style.display = 'block';
+    document.getElementById(field + '-input').focus();
+}
+
+function cancelEdit(field) {
+    document.getElementById(field + '-edit').style.display = 'none';
+    document.getElementById(field + '-display').style.display = '';
+}
+
+async function saveField(field) {
+    const input = document.getElementById(field + '-input');
+    const value = input.value.trim();
+    const btn = input.parentElement.querySelector('.btn-edit-save');
+    btn.textContent = '...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/player/{{ player.id }}', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [field]: value })
+        });
+        if (res.ok) {
+            const textEl = document.querySelector('#' + field + '-display .editable-text');
+            textEl.textContent = value || '—';
+            cancelEdit(field);
+            toast(field.charAt(0).toUpperCase() + field.slice(1) + ' updated!');
+        } else {
+            toast('Error saving', 'error');
+        }
+    } catch (e) {
+        toast('Network error', 'error');
+    } finally {
+        btn.textContent = 'Save';
+        btn.disabled = false;
+    }
+}
+
+// ── Attendance Rate ──
+(async function loadAttendance() {
+    const container = document.getElementById('ppAttendance');
+    try {
+        const res = await fetch('/api/notebook/attendance?player_id={{ player.id }}');
+        const json = await res.json();
+        const data = json.data || {};
+        const stats = data['{{ player.id }}'];
+        if (!stats || !stats.total) {
+            container.innerHTML = '';
+            return;
+        }
+        const pct = Math.round(((stats.present + (stats.late || 0)) / stats.total) * 100);
+        const barColor = pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)';
+        container.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:0.7rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em">Attendance</span>
+                <div style="flex:1;height:4px;background:var(--bg-input);border-radius:2px;overflow:hidden;max-width:100px">
+                    <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px"></div>
+                </div>
+                <span style="font-size:0.75rem;font-weight:700;color:${barColor}">${pct}%</span>
+            </div>`;
+    } catch (e) {
+        container.innerHTML = '';
+    }
+})();
+
+// ── Tab Switching ──
+function switchTab(tab) {
+    document.querySelectorAll('.pp-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pp-tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`.pp-tab[onclick*="${tab}"]`).classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ── Notebook Notes ──
+// Renders matching the /notebook page row style (type dot + label + title + date).
+// Click on a row → /notebook filtered to this player so the coach can expand
+// the entry there. All DOM built via createElement (no innerHTML) — XSS-safe
+// even though entry titles can include arbitrary user text.
+(async function loadNotebookNotes() {
+    const container = document.getElementById('ppNotebookNotes');
+    const countBadge = document.getElementById('ppNotesCount');
+
+    function fmtDate(iso) {
+        if (!iso) return '';
+        try {
+            const d = new Date(iso + 'T00:00:00');
+            const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const w = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            return w[d.getDay()] + ', ' + m[d.getMonth()] + ' ' + d.getDate();
+        } catch (e) { return iso; }
+    }
+
+    const TYPE_LABELS = {
+        practice_plan: 'Practice', game_summary: 'Game', tactical_plan: 'Tactics',
+        player_note: 'Player Note', period_plan: 'Period', attendance: 'Attendance',
+        free_document: 'Note',
+    };
+
+    function setEmpty(text) {
+        while (container.firstChild) container.removeChild(container.firstChild);
+        const empty = document.createElement('div');
+        empty.className = 'pp-notes-empty';
+        empty.textContent = text;
+        container.appendChild(empty);
+    }
+
+    try {
+        const res = await fetch('/api/notebook/player/{{ player.id }}');
+        const json = await res.json();
+        const entries = json.data || [];
+        if (countBadge) countBadge.textContent = entries.length ? '(' + entries.length + ')' : '';
+
+        if (!entries.length) {
+            setEmpty('No notes yet. Add your first note about this player.');
+            return;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'pp-notes-grid';
+        entries.forEach(function (e) {
+            const t = e.entry_type || 'free_document';
+            const a = document.createElement('a');
+            a.className = 'pp-note-row';
+            a.href = '/notebook?player_id={{ player.id }}#entry-' + encodeURIComponent(e.id);
+
+            const dot = document.createElement('span');
+            dot.className = 'pp-note-dot';
+            dot.setAttribute('data-type', t);
+
+            const type = document.createElement('span');
+            type.className = 'pp-note-type';
+            type.setAttribute('data-type', t);
+            type.textContent = TYPE_LABELS[t] || t;
+
+            const title = document.createElement('span');
+            title.className = 'pp-note-title';
+            title.textContent = e.title || 'Untitled';
+
+            const date = document.createElement('span');
+            date.className = 'pp-note-date';
+            date.setAttribute('dir', 'ltr');
+            date.textContent = fmtDate(e.entry_date);
+
+            a.appendChild(dot);
+            a.appendChild(type);
+            a.appendChild(title);
+            a.appendChild(date);
+            list.appendChild(a);
+        });
+
+        while (container.firstChild) container.removeChild(container.firstChild);
+        container.appendChild(list);
+    } catch (err) {
+        console.error('[player notes] load failed', err);
+        setEmpty('Error loading notes');
+    }
+})();
+
+// ── Game Stats ──
+(async function loadGameStats() {
+    const summaryEl = document.getElementById('ppStatsSummary');
+    const tableEl = document.getElementById('ppStatsTable');
+    const countBadge = document.getElementById('ppStatsCount');
+    try {
+        const [statsRes, summaryRes] = await Promise.all([
+            fetch('/api/notebook/game-stats/player/{{ player.id }}'),
+            fetch('/api/notebook/game-stats/player/{{ player.id }}/summary')
+        ]);
+        const statsJson = await statsRes.json();
+        const summaryJson = await summaryRes.json();
+        const games = statsJson.data || [];
+        const avg = summaryJson.data;
+
+        if (countBadge && games.length) countBadge.textContent = '(' + games.length + ')';
+
+        if (!games.length) {
+            summaryEl.innerHTML = '';
+            tableEl.innerHTML = '<div class="pp-notes-empty">No game stats yet. Upload a stat sheet in Chat to get started.</div>';
+            return;
+        }
+
+        // Season averages (percentages from SUM totals for accuracy)
+        if (avg) {
+            const fgPct = avg.sum_fga > 0 ? Math.round((avg.sum_fgm / avg.sum_fga) * 100) : 0;
+            const threePct = avg.sum_three_pa > 0 ? Math.round((avg.sum_three_pm / avg.sum_three_pa) * 100) : 0;
+            const ftPct = avg.sum_fta > 0 ? Math.round((avg.sum_ftm / avg.sum_fta) * 100) : 0;
+            const pm = avg.avg_plus_minus;
+            const boxes = [
+                ['GP', avg.games],
+                ['MIN', avg.avg_minutes],
+                ['PTS', avg.avg_points],
+                ['FG%', fgPct + '%'],
+                ['3P%', threePct + '%'],
+                ['FT%', ftPct + '%'],
+                ['REB', avg.avg_reb],
+                ['AST', avg.avg_ast],
+                ['STL', avg.avg_stl],
+                ['BLK', avg.avg_blk],
+                ['TO', avg.avg_turnovers],
+                ['+/-', pm > 0 ? '+' + pm : pm]
+            ];
+            summaryEl.innerHTML = boxes.map(([label, val]) =>
+                `<div class="pp-avg-box"><div class="pp-avg-label">${label}</div><div class="pp-avg-value">${val}</div></div>`
+            ).join('');
+        }
+
+        // Totals row data
+        const totals = avg ? {
+            min: avg.sum_minutes, pts: avg.sum_points,
+            fgm: avg.sum_fgm, fga: avg.sum_fga,
+            tpm: avg.sum_three_pm, tpa: avg.sum_three_pa,
+            ftm: avg.sum_ftm, fta: avg.sum_fta,
+            reb: avg.sum_reb, ast: avg.sum_ast,
+            stl: avg.sum_stl, blk: avg.sum_blk,
+            to: avg.sum_turnovers, pm: avg.sum_plus_minus
+        } : null;
+
+        // Game log table
+        const fgPctTotal = totals && totals.fga > 0 ? Math.round((totals.fgm / totals.fga) * 100) : 0;
+        const tpPctTotal = totals && totals.tpa > 0 ? Math.round((totals.tpm / totals.tpa) * 100) : 0;
+        const ftPctTotal = totals && totals.fta > 0 ? Math.round((totals.ftm / totals.fta) * 100) : 0;
+
+        tableEl.innerHTML = `<table class="pp-stats-table">
+            <thead><tr>
+                <th>Date</th><th>Opp</th><th>MIN</th><th>PTS</th>
+                <th>FG</th><th>3PT</th><th>FT</th>
+                <th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>+/-</th>
+            </tr></thead>
+            <tbody>${games.map(g => `<tr>
+                <td style="text-align:left;font-size:0.78rem;color:var(--text)">${esc(g.game_date || '')}</td>
+                <td style="text-align:left;font-weight:600">${esc(g.opponent || '')}</td>
+                <td>${g.minutes}</td>
+                <td style="font-weight:700;color:var(--accent)">${g.points}</td>
+                <td>${g.fgm}-${g.fga}</td>
+                <td>${g.three_pm}-${g.three_pa}</td>
+                <td>${g.ftm}-${g.fta}</td>
+                <td>${g.reb}</td>
+                <td>${g.ast}</td>
+                <td>${g.stl}</td>
+                <td>${g.blk}</td>
+                <td>${g.turnovers}</td>
+                <td>${g.plus_minus > 0 ? '+' + g.plus_minus : g.plus_minus}</td>
+            </tr>`).join('')}${totals ? `<tr class="pp-stats-totals">
+                <td style="text-align:left" colspan="2">TOTALS (${avg.games} GP)</td>
+                <td>${totals.min}</td>
+                <td style="font-weight:700;color:var(--accent)">${totals.pts}</td>
+                <td>${totals.fgm}-${totals.fga} <span class="pp-pct">${fgPctTotal}%</span></td>
+                <td>${totals.tpm}-${totals.tpa} <span class="pp-pct">${tpPctTotal}%</span></td>
+                <td>${totals.ftm}-${totals.fta} <span class="pp-pct">${ftPctTotal}%</span></td>
+                <td>${totals.reb}</td>
+                <td>${totals.ast}</td>
+                <td>${totals.stl}</td>
+                <td>${totals.blk}</td>
+                <td>${totals.to}</td>
+                <td>${totals.pm > 0 ? '+' + totals.pm : totals.pm}</td>
+            </tr>` : ''}</tbody>
+        </table>`;
+    } catch (e) {
+        tableEl.innerHTML = '<div class="pp-notes-empty">Error loading game stats</div>';
+    }
+})();
+
+// ── Toast ──
+function toast(msg, type='success') {
+    const div = document.createElement('div');
+    div.className = `toast toast-${type}`;
+    div.textContent = msg;
+    document.body.appendChild(div);
+    requestAnimationFrame(() => div.classList.add('show'));
+    setTimeout(() => { div.classList.remove('show'); setTimeout(() => div.remove(), 300); }, 3000);
+}
+</script>
+{% endblock %}

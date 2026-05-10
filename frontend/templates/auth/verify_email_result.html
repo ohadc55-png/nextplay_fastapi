@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <title>Verifying email — NextPlay</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+</head>
+<body class="auth-page">
+
+<div class="auth-container">
+    <div class="auth-card" style="text-align:center;">
+        <div class="auth-brand">
+            <a href="/main"><img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="80" height="80" style="display:inline-block;"></a>
+            <h1>NEXTPLAY</h1>
+        </div>
+
+        <div id="loadingState">
+            <div style="margin: 40px auto; width:60px; height:60px; border: 4px solid rgba(255,107,53,0.2);
+                        border-top-color:#ff6b35; border-radius:50%; animation: spin 0.9s linear infinite;"></div>
+            <p style="color:var(--text-2,#9ba4b0);">Verifying your email…</p>
+        </div>
+
+        <div id="successState" style="display:none;">
+            <div style="margin: 28px auto 18px; width:72px; height:72px; border-radius:50%;
+                        background:rgba(34,197,94,0.12); display:flex; align-items:center; justify-content:center;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </div>
+            <h2 style="margin:0 0 12px; color:#fff;">Email verified 🎉</h2>
+            <p style="color:var(--text-2,#9ba4b0); margin:0 0 24px;">
+                Your trial just started. Welcome to NextPlay.
+            </p>
+            <a href="/main" class="btn-primary-auth" style="display:inline-block; text-decoration:none; padding:13px 32px;">
+                Continue to NextPlay
+            </a>
+        </div>
+
+        <div id="errorState" style="display:none;">
+            <div style="margin: 28px auto 18px; width:72px; height:72px; border-radius:50%;
+                        background:rgba(239,68,68,0.12); display:flex; align-items:center; justify-content:center;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+            </div>
+            <h2 style="margin:0 0 12px; color:#fff;">Link is invalid or expired</h2>
+            <p id="errorMsg" style="color:var(--text-2,#9ba4b0); margin:0 0 24px;">
+                The verification link may have already been used or is older than 24 hours.
+            </p>
+            <a href="/login" class="btn-primary-auth" style="display:inline-block; text-decoration:none; padding:13px 32px;">
+                Go to sign in
+            </a>
+            <div class="auth-footer" style="margin-top:14px;">
+                Need a new link? <a href="/login">Sign in</a> and we'll send another.
+            </div>
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ g.csp_nonce }}">
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script nonce="{{ g.csp_nonce }}">
+(async function(){
+    const token = {{ token|tojson }};
+    if (!token) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorMsg').textContent = 'No verification token in the URL.';
+        return;
+    }
+    try {
+        const res = await fetch('/api/auth/verify-email', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token: token}),
+        });
+        const data = await res.json();
+        document.getElementById('loadingState').style.display = 'none';
+        if (data.success) {
+            document.getElementById('successState').style.display = 'block';
+        } else {
+            document.getElementById('errorState').style.display = 'block';
+            if (data.error) document.getElementById('errorMsg').textContent = data.error;
+        }
+    } catch (e) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorMsg').textContent = 'Network error. Please try again.';
+    }
+})();
+</script>
+
+</body>
+</html>

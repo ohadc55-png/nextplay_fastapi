@@ -1,0 +1,227 @@
+{% extends "admin/base_admin.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Geography</h2>
+    <p>User distribution across the world</p>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ total_countries }}</div>
+        <div class="stat-label">Countries</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ top_country }}</div>
+        <div class="stat-label">Top Country</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ top_country_count }}</div>
+        <div class="stat-label">Users in {{ top_country }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ total_geolocated }}</div>
+        <div class="stat-label">Geolocated Users</div>
+    </div>
+</div>
+
+{% if countries %}
+<!-- World Map Dots -->
+<div class="card" style="padding:24px;margin-bottom:24px;">
+    <h3 style="color:#fff;margin-bottom:16px;font-size:16px;">User Locations</h3>
+    <div style="position:relative;width:100%;aspect-ratio:2/1;background:#0d1117;border-radius:12px;overflow:hidden;" id="mapContainer">
+        <canvas id="worldMap" style="width:100%;height:100%;"></canvas>
+    </div>
+</div>
+
+<!-- Bar Chart: Top Countries -->
+<div class="card" style="padding:24px;margin-bottom:24px;">
+    <h3 style="color:#fff;margin-bottom:16px;font-size:16px;">Top Countries</h3>
+    <div class="chart-container" style="height:{{ [countries|length * 36, 300]|max }}px;max-height:500px;">
+        <canvas id="countryChart"></canvas>
+    </div>
+</div>
+
+<!-- Country Table -->
+<div class="card" style="padding:24px;">
+    <h3 style="color:#fff;margin-bottom:16px;font-size:16px;">All Countries</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Country</th>
+                <th>Code</th>
+                <th>Users</th>
+                <th>Share</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for name, data in countries %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td style="font-weight:600;color:#fff;">{{ name }}</td>
+                <td><span class="badge-trial" style="font-size:11px;">{{ data.code }}</span></td>
+                <td>{{ data.count }}</td>
+                <td>{{ "%.1f"|format(data.count / total_geolocated * 100) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<div class="card" style="padding:48px;text-align:center;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#5c6370" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;">
+        <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <p style="color:#9ba4b0;font-size:15px;">No geographic data yet.</p>
+    <p style="color:#5c6370;font-size:13px;">User locations will appear here once users log in.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if countries %}
+<script nonce="{{ g.csp_nonce }}">
+const countryData = {{ country_data_json|safe }};
+
+// ── World Map with Dots ──
+(function() {
+    const canvas = document.getElementById('worldMap');
+    const container = document.getElementById('mapContainer');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+        draw();
+    }
+
+    function latLonToXY(lat, lon, w, h) {
+        // Mercator-like projection
+        const x = (lon + 180) / 360 * w;
+        const latRad = lat * Math.PI / 180;
+        const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+        const y = h / 2 - (mercN / Math.PI) * (h / 2) * 0.9;
+        return { x, y: Math.max(10, Math.min(h - 10, y)) };
+    }
+
+    function draw() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw grid lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 12; i++) {
+            ctx.beginPath();
+            ctx.moveTo(w * i / 12, 0);
+            ctx.lineTo(w * i / 12, h);
+            ctx.stroke();
+        }
+        for (let i = 0; i <= 6; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, h * i / 6);
+            ctx.lineTo(w, h * i / 6);
+            ctx.stroke();
+        }
+
+        // Draw equator
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+
+        const maxCount = Math.max(...countryData.map(d => d.count), 1);
+
+        // Draw dots
+        countryData.forEach(d => {
+            if (d.lat == null || d.lon == null) return;
+            const { x, y } = latLonToXY(d.lat, d.lon, w, h);
+            const ratio = d.count / maxCount;
+            const radius = 5 + ratio * 20;
+
+            // Glow
+            const glow = ctx.createRadialGradient(x, y, 0, x, y, radius * 2);
+            glow.addColorStop(0, `rgba(255, 107, 53, ${0.3 + ratio * 0.4})`);
+            glow.addColorStop(1, 'rgba(255, 107, 53, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(x, y, radius * 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Dot
+            ctx.fillStyle = `rgba(255, 107, 53, ${0.7 + ratio * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Label
+            if (radius > 8) {
+                ctx.fillStyle = '#fff';
+                ctx.font = `bold ${Math.max(10, radius * 0.7)}px Inter, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(d.count, x, y);
+            }
+
+            // Country name below
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font = '10px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.name, x, y + radius + 12);
+        });
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+})();
+
+// ── Bar Chart: Top Countries ──
+const barCtx = document.getElementById('countryChart').getContext('2d');
+new Chart(barCtx, {
+    type: 'bar',
+    data: {
+        labels: countryData.slice(0, 15).map(d => d.name),
+        datasets: [{
+            label: 'Users',
+            data: countryData.slice(0, 15).map(d => d.count),
+            backgroundColor: countryData.slice(0, 15).map((_, i) => {
+                const alpha = 1 - i * 0.05;
+                return `rgba(255, 107, 53, ${alpha})`;
+            }),
+            borderColor: 'rgba(255, 107, 53, 0.8)',
+            borderWidth: 1,
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+        },
+        scales: {
+            x: {
+                grid: { color: 'rgba(255,255,255,0.05)' },
+                ticks: { color: '#9ba4b0', font: { size: 11 } },
+            },
+            y: {
+                grid: { display: false },
+                ticks: { color: '#e6edf3', font: { size: 12, weight: '500' } },
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

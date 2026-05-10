@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+{% set active_page = "settings" %}
+
+{% block content %}
+<div class="page-header">
+    <svg class="page-header-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <div>
+        <h1>Coach Settings</h1>
+        <p>Customize how the AI coaching staff works for you</p>
+    </div>
+</div>
+
+<form onsubmit="saveSettings(event)">
+    <!-- Response Style -->
+    <div class="card mb-24">
+        <div class="card-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Response Style
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px;">
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Preferred Language</label>
+                <select class="form-input" id="prefLanguage" aria-label="Preferred language">
+                    <option value="en" {{ 'selected' if prefs.preferred_language == 'en' or not prefs }}>English</option>
+                    <option value="he" {{ 'selected' if prefs.preferred_language == 'he' }}>Hebrew</option>
+                    <option value="es" {{ 'selected' if prefs.preferred_language == 'es' }}>Spanish</option>
+                    <option value="fr" {{ 'selected' if prefs.preferred_language == 'fr' }}>French</option>
+                </select>
+                <small class="form-hint">The language the AI staff will respond in</small>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Detail Level</label>
+                <div class="detail-level-selector">
+                    <label class="detail-option">
+                        <input type="radio" name="detail_level" value="brief"
+                               {{ 'checked' if prefs.detail_level == 'brief' }}>
+                        <div class="detail-card">
+                            <strong>Brief</strong>
+                            <span>Short, to the point answers</span>
+                        </div>
+                    </label>
+                    <label class="detail-option">
+                        <input type="radio" name="detail_level" value="medium"
+                               {{ 'checked' if prefs.detail_level == 'medium' or not prefs }}>
+                        <div class="detail-card">
+                            <strong>Medium</strong>
+                            <span>Balanced detail</span>
+                        </div>
+                    </label>
+                    <label class="detail-option">
+                        <input type="radio" name="detail_level" value="detailed"
+                               {{ 'checked' if prefs.detail_level == 'detailed' }}>
+                        <div class="detail-card">
+                            <strong>Detailed</strong>
+                            <span>Comprehensive, in-depth analysis</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coaching Preferences -->
+    <div class="card mb-24">
+        <div class="card-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            Coaching Focus
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px;">
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Focus Areas</label>
+                <textarea class="form-textarea" id="focusAreas" rows="3" aria-label="Focus areas"
+                    placeholder="e.g., Defense fundamentals, youth development, transition offense, 3-point shooting...">{{ prefs.focus_areas or '' }}</textarea>
+                <small class="form-hint">Areas you want the AI to emphasize in advice and plans</small>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Topics to Avoid</label>
+                <textarea class="form-textarea" id="avoidTopics" rows="3" aria-label="Topics to avoid"
+                    placeholder="e.g., No running drills (injured player), avoid zone defense, don't suggest trades...">{{ prefs.avoid_topics or '' }}</textarea>
+                <small class="form-hint">Things you don't want the AI to suggest or discuss</small>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Coaching Style</label>
+                <input type="text" class="form-input" id="coachingStyle" aria-label="Coaching style"
+                    value="{{ prefs.coaching_style or '' }}"
+                    placeholder="e.g., Player development focused, analytics-driven, old school fundamentals...">
+                <small class="form-hint">Your coaching philosophy — the AI will adapt its suggestions accordingly</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Practice Preferences -->
+    <div class="card mb-24">
+        <div class="card-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+            Practice Defaults
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px;">
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Default Practice Duration (minutes)</label>
+                <input type="number" class="form-input" id="practiceDuration" aria-label="Default practice duration in minutes"
+                    value="{{ prefs.practice_duration or 90 }}"
+                    min="30" max="180" step="5" style="max-width:200px;">
+                <small class="form-hint">Standard is 90 min. The training agent will use this as default</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Notes -->
+    <div class="card mb-24">
+        <div class="card-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Custom Instructions
+        </div>
+        <div style="padding:20px;">
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Additional Notes for the AI</label>
+                <textarea class="form-textarea" id="customNotes" rows="4" aria-label="Custom instructions for AI"
+                    placeholder="Any specific instructions for the AI coaching staff. For example:&#10;- Always mention conditioning in practice plans&#10;- Our gym is small, adapt drills accordingly&#10;- We play 4x8 minute quarters (not NBA rules)">{{ prefs.custom_notes or '' }}</textarea>
+                <small class="form-hint">Free-form instructions that will be included in every AI interaction</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save button -->
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:32px;">
+        <button type="submit" class="btn btn-primary" id="saveBtn" aria-label="Save settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save Settings
+        </button>
+    </div>
+</form>
+
+<!-- ─── Push Notifications ───
+     Outside the main form because it has its own action buttons that
+     subscribe / unsubscribe inline; nothing to "save" via the form submit. -->
+<div class="card mb-24">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Push Notifications
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:18px;">
+        <p style="margin:0;color:var(--text-3);font-size:0.85rem;line-height:1.6;">
+            Get notified when a scout report finishes, when your roster needs attention, or when you've been away for a while.
+            Maximum 1 push per day. Quiet hours respected. Opt out any time.
+        </p>
+
+        <div id="pushStatusBox" style="padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.02);font-size:0.88rem;color:var(--text-3);">
+            Loading push status…
+        </div>
+
+        <div id="pushControls" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <button type="button" class="btn btn-primary" id="pushEnableBtn" style="display:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                Enable push notifications
+            </button>
+            <button type="button" class="btn" id="pushTestBtn" style="display:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Send test push
+            </button>
+            <button type="button" class="btn" id="pushDisableBtn" style="display:none;">
+                Disable
+            </button>
+        </div>
+
+        <details id="pushAdvanced" style="display:none;">
+            <summary style="cursor:pointer;color:var(--text-2);font-size:0.85rem;font-weight:600;padding:8px 0;">Quiet hours &amp; timezone</summary>
+            <div style="padding:14px 0 0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                <div>
+                    <label class="form-label" style="font-size:0.78rem;">Quiet from</label>
+                    <select id="pushQuietStart" class="form-input">
+                        {% for h in range(0, 24) %}<option value="{{ h }}">{{ '%02d:00' % h }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size:0.78rem;">Quiet to</label>
+                    <select id="pushQuietEnd" class="form-input">
+                        {% for h in range(0, 24) %}<option value="{{ h }}">{{ '%02d:00' % h }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size:0.78rem;">Timezone</label>
+                    <input type="text" id="pushTimezone" class="form-input" readonly>
+                </div>
+                <div style="grid-column:1/-1;display:flex;justify-content:flex-end;">
+                    <button type="button" class="btn btn-primary" id="pushSavePrefsBtn">Save quiet hours</button>
+                </div>
+            </div>
+        </details>
+    </div>
+</div>
+
+<!-- Feedback History -->
+<div class="card">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        Your Feedback History
+        <span class="badge badge-orange" style="margin-inline-start:8px;">{{ feedback|length }}</span>
+    </div>
+    {% if feedback %}
+    <div class="feedback-list">
+        {% for fb in feedback %}
+        <div class="feedback-item">
+            <div class="feedback-rating {{ 'positive' if fb.rating == 1 else 'negative' }}">
+                {% if fb.rating == 1 %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                {% else %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                {% endif %}
+            </div>
+            <div class="feedback-content">
+                <div class="feedback-agent">{{ fb.agent_key }}</div>
+                {% if fb.comment %}
+                <div class="feedback-comment" dir="auto">{{ fb.comment }}</div>
+                {% endif %}
+                <div class="feedback-date">{{ (fb.created_at|string)[:16] if fb.created_at else '' }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:32px;">
+        <p style="color:var(--text-3);">No feedback yet. Use the thumbs up/down buttons in chat to rate responses.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Legal & Account -->
+<div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
+        Legal & Account
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+        <a href="/privacy" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.88rem;font-weight:600;transition:border-color 0.15s;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Privacy Policy
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" style="margin-inline-start:auto"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+        <a href="/terms" target="_blank" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.88rem;font-weight:600;transition:border-color 0.15s;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Terms of Service
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" style="margin-inline-start:auto"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+        <button onclick="deleteAccount()" class="btn btn-danger" style="margin-top:8px;" aria-label="Delete my account">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Delete My Account
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+async function saveSettings(e) {
+    e.preventDefault();
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const data = {
+        preferred_language: document.getElementById('prefLanguage').value,
+        detail_level: document.querySelector('input[name="detail_level"]:checked')?.value || 'medium',
+        focus_areas: document.getElementById('focusAreas').value.trim(),
+        avoid_topics: document.getElementById('avoidTopics').value.trim(),
+        coaching_style: document.getElementById('coachingStyle').value.trim(),
+        practice_duration: parseInt(document.getElementById('practiceDuration').value) || 90,
+        custom_notes: document.getElementById('customNotes').value.trim()
+    };
+
+    try {
+        const res = await fetch('/api/coach/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            btn.textContent = 'Saved!';
+            btn.style.background = 'var(--green)';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Settings';
+                btn.style.background = '';
+            }, 2000);
+        }
+    } catch (err) {
+        btn.textContent = 'Error!';
+        btn.style.background = 'var(--red)';
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = 'Save Settings';
+            btn.style.background = '';
+        }, 2000);
+    }
+}
+</script>
+
+<style>
+.detail-level-selector {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.detail-option input { display: none; }
+.detail-card {
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.detail-card strong {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+.detail-card span {
+    font-size: 0.75rem;
+    color: var(--text-3);
+}
+.detail-option input:checked + .detail-card {
+    border-color: var(--accent);
+    background: rgba(255,107,53,0.08);
+}
+.detail-option:hover .detail-card {
+    border-color: rgba(255,107,53,0.3);
+}
+.form-hint {
+    color: var(--text-3);
+    font-size: 0.75rem;
+    margin-top: 4px;
+    display: block;
+}
+.feedback-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.feedback-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+}
+.feedback-item:last-child { border-bottom: none; }
+.feedback-rating {
+    min-width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.feedback-rating.positive {
+    background: rgba(74,222,128,0.1);
+    color: #4ade80;
+}
+.feedback-rating.negative {
+    background: rgba(248,113,113,0.1);
+    color: #f87171;
+}
+.feedback-agent {
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.feedback-comment {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-top: 2px;
+}
+.feedback-date {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    margin-top: 4px;
+}
+@media (max-width: 600px) {
+    .detail-level-selector {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script nonce="{{ g.csp_nonce }}">
+/* ── Push notifications: render status + wire buttons ──
+   NextPlayPush is exposed by /static/js/push-subscribe.js (loaded in base.html).
+   It may not be ready immediately — wait for it. */
+async function _waitForPush(maxMs) {
+    var t0 = Date.now();
+    while (!window.NextPlayPush && Date.now() - t0 < (maxMs || 3000)) {
+        await new Promise(function (r) { setTimeout(r, 60); });
+    }
+    return !!window.NextPlayPush;
+}
+
+// All status messages built via DOM API (no innerHTML) so user-controllable
+// error strings can never be interpreted as HTML.
+function _setStatusBox(parts, borderColor) {
+    var box = document.getElementById('pushStatusBox');
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    parts.forEach(function (p) {
+        if (p == null) return;
+        if (typeof p === 'string') {
+            box.appendChild(document.createTextNode(p));
+            return;
+        }
+        var el = document.createElement(p.tag || 'span');
+        if (p.color) el.style.color = p.color;
+        el.textContent = p.text || '';
+        box.appendChild(el);
+    });
+    box.style.borderColor = borderColor || 'var(--border)';
+}
+
+async function _renderPushStatus() {
+    var ready = await _waitForPush(3000);
+    if (!ready) {
+        _setStatusBox([{ tag: 'strong', text: 'Loading… ' }, 'Service worker still initializing.']);
+        return;
+    }
+    var s = await NextPlayPush.status();
+    var enableBtn = document.getElementById('pushEnableBtn');
+    var disableBtn = document.getElementById('pushDisableBtn');
+    var testBtn = document.getElementById('pushTestBtn');
+    var advanced = document.getElementById('pushAdvanced');
+
+    if (!s.supported) {
+        _setStatusBox([
+            { tag: 'strong', text: 'Not supported ' },
+            'on this browser/device. Try Chrome on Android, Edge/Chrome on desktop, or Safari 16.4+ on iOS.'
+        ]);
+        return;
+    }
+    if (!s.configured) {
+        _setStatusBox([
+            { tag: 'strong', text: 'Push not yet configured ' },
+            'by NEXTPLAY. We\'ll let you know when it\'s live.'
+        ]);
+        return;
+    }
+    if (s.permission === 'denied') {
+        _setStatusBox([
+            { tag: 'strong', text: 'Permission denied ', color: '#f87171' },
+            'in your browser. Open browser settings → Site settings → Notifications, allow NEXTPLAY, then come back.'
+        ], '#f87171');
+        return;
+    }
+    if (s.subscribed) {
+        _setStatusBox([
+            { tag: 'strong', text: '✓ Push enabled ', color: '#4ade80' },
+            'on this device. You\'ll get one notification per day at most.'
+        ], '#4ade8033');
+        if (disableBtn) disableBtn.style.display = '';
+        if (testBtn) testBtn.style.display = '';
+        if (enableBtn) enableBtn.style.display = 'none';
+        if (advanced) advanced.style.display = '';
+        var prefs = await NextPlayPush.loadPreferences();
+        if (prefs) {
+            var qs = document.getElementById('pushQuietStart');
+            var qe = document.getElementById('pushQuietEnd');
+            var tz = document.getElementById('pushTimezone');
+            if (qs) qs.value = String(prefs.quiet_start || 22);
+            if (qe) qe.value = String(prefs.quiet_end || 7);
+            if (tz) tz.value = prefs.timezone || '';
+        }
+        return;
+    }
+    _setStatusBox([
+        'Click ',
+        { tag: 'strong', text: 'Enable' },
+        ' below — your browser will ask once for permission.'
+    ]);
+    if (enableBtn) enableBtn.style.display = '';
+    if (disableBtn) disableBtn.style.display = 'none';
+    if (testBtn) testBtn.style.display = 'none';
+    if (advanced) advanced.style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    _renderPushStatus();
+    var enableBtn = document.getElementById('pushEnableBtn');
+    var disableBtn = document.getElementById('pushDisableBtn');
+    var testBtn = document.getElementById('pushTestBtn');
+    var saveBtn = document.getElementById('pushSavePrefsBtn');
+
+    if (enableBtn) enableBtn.addEventListener('click', async function () {
+        enableBtn.disabled = true;
+        var r = await NextPlayPush.subscribe();
+        enableBtn.disabled = false;
+        if (!r.ok) {
+            _setStatusBox([
+                { tag: 'strong', text: 'Failed: ', color: '#f87171' },
+                String(r.error || 'unknown error')
+            ], '#f87171');
+            return;
+        }
+        await _renderPushStatus();
+    });
+
+    if (disableBtn) disableBtn.addEventListener('click', async function () {
+        disableBtn.disabled = true;
+        await NextPlayPush.unsubscribe();
+        disableBtn.disabled = false;
+        await _renderPushStatus();
+    });
+
+    if (testBtn) testBtn.addEventListener('click', async function () {
+        testBtn.disabled = true;
+        var r = await NextPlayPush.sendTestPush();
+        testBtn.disabled = false;
+        if (r && r.status === 'sent') {
+            _setStatusBox([
+                { tag: 'strong', text: 'Test push sent! ', color: '#4ade80' },
+                'Check your notifications. (' + (r.sent_count || 0) + ' device(s))'
+            ], '#4ade8033');
+        } else {
+            _setStatusBox([
+                { tag: 'strong', text: 'Test failed: ', color: '#f87171' },
+                String((r && (r.reason || r.error)) || 'unknown')
+            ], '#f87171');
+        }
+    });
+
+    if (saveBtn) saveBtn.addEventListener('click', async function () {
+        saveBtn.disabled = true;
+        var r = await NextPlayPush.savePreferences({
+            quiet_start: parseInt(document.getElementById('pushQuietStart').value, 10),
+            quiet_end: parseInt(document.getElementById('pushQuietEnd').value, 10),
+        });
+        saveBtn.disabled = false;
+        if (r && r.ok) {
+            saveBtn.textContent = 'Saved!';
+            setTimeout(function () { saveBtn.textContent = 'Save quiet hours'; }, 1500);
+        }
+    });
+});
+
+async function deleteAccount() {
+    const ok = await NpDialog.confirm(
+        'Are you sure you want to delete your account? This action cannot be undone. All your data (teams, players, conversations, uploads) will be permanently removed.',
+        { danger: true, ok: 'Delete Account', cancel: 'Cancel' }
+    );
+    if (!ok) return;
+
+    // Ask for confirmation
+    const confirm = await NpDialog.prompt('Type DELETE MY ACCOUNT to confirm:', {
+        title: 'Confirm Deletion',
+        icon: 'warning',
+        ok: 'Delete',
+        cancel: 'Cancel'
+    });
+    if (!confirm) return;
+
+    try {
+        const res = await fetch('/api/auth/delete-account', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm: confirm, password: confirm })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            await NpDialog.alert('Your account has been deleted.', { title: 'Account Deleted', icon: 'check_circle' });
+            window.location.href = '/login';
+        } else {
+            NpDialog.alert(data.error || 'Failed to delete account', { title: 'Error', icon: 'error' });
+        }
+    } catch (e) {
+        NpDialog.alert('Error deleting account', { title: 'Error', icon: 'error' });
+    }
+}
+</script>
+{% endblock %}

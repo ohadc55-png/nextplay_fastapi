@@ -166,13 +166,13 @@ class CompileCardsRepository(BaseRepository[CompileCard]):
 
 
 __all__ = [
-    "ScoutingVideosRepository",
-    "VideoClipsRepository",
-    "VideoAnnotationsRepository",
     "ClipPlaylistsRepository",
-    "PlaylistItemsRepository",
     "ClipSharesRepository",
-    "StorageQuotaRepository",
-    "ScoutingPlayersRepository",
     "CompileCardsRepository",
+    "PlaylistItemsRepository",
+    "ScoutingPlayersRepository",
+    "ScoutingVideosRepository",
+    "StorageQuotaRepository",
+    "VideoAnnotationsRepository",
+    "VideoClipsRepository",
 ]

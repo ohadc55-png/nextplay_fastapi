@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from src.crew.llm import calc_cost, log_api_usage, log_response, MODEL_PRICING
+from src.crew.llm import MODEL_PRICING, calc_cost, log_api_usage, log_response
 from src.models.analytics import ApiUsageLog
 
 

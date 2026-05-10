@@ -55,4 +55,4 @@ class ClubMemberSummary(ORMModel):
     last_login_at: str | None = None
 
 
-__all__ = ["UserUpdate", "UserResponse", "UserMeResponse", "ClubMemberSummary"]
+__all__ = ["ClubMemberSummary", "UserMeResponse", "UserResponse", "UserUpdate"]

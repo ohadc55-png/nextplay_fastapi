@@ -61,11 +61,11 @@ class SubscriptionError(ForbiddenError):
 
 __all__ = [
     "AppError",
-    "ValidationError",
-    "NotFoundError",
-    "ForbiddenError",
-    "UnauthorizedError",
     "ConflictError",
+    "ForbiddenError",
+    "NotFoundError",
     "RateLimitError",
     "SubscriptionError",
+    "UnauthorizedError",
+    "ValidationError",
 ]

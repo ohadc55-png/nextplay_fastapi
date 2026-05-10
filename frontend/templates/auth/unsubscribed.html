@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <title>Unsubscribed — NextPlay</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+</head>
+<body class="auth-page">
+
+<div class="auth-container">
+    <div class="auth-card" style="text-align:center;">
+        <div class="auth-brand">
+            <a href="/main"><img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="80" height="80" style="display:inline-block;"></a>
+            <h1>NEXTPLAY</h1>
+        </div>
+
+        <div style="margin: 28px auto 18px; width:72px; height:72px; border-radius:50%;
+                    background:rgba(155,164,176,0.12); display:flex; align-items:center; justify-content:center;">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ba4b0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <line x1="9" y1="10" x2="15" y2="10"/>
+            </svg>
+        </div>
+
+        <h2 style="margin:0 0 12px; color:#fff;">You're unsubscribed</h2>
+        <p style="color:var(--text-2,#9ba4b0); margin:0 0 8px; line-height:1.55;">
+            You'll stop receiving marketing emails from NextPlay.
+        </p>
+        <p style="color:var(--text-2,#9ba4b0); margin:0 0 28px; font-size:0.9rem; line-height:1.55;">
+            We'll still send you essential account messages — verification, password resets,
+            payment receipts, and security alerts. There's no opt-out for those.
+        </p>
+
+        <a href="/login" class="btn-primary-auth" style="display:inline-block; text-decoration:none; padding:13px 32px;">
+            Go to NextPlay
+        </a>
+
+        <div class="auth-footer" style="margin-top:18px;">
+            Changed your mind? <a href="/settings">Re-subscribe in settings</a>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

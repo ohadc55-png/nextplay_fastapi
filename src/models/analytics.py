@@ -111,4 +111,4 @@ class ResearchUrlLog(Base):
     )
 
 
-__all__ = ["PageView", "OnboardingEvent", "ApiUsageLog", "ResearchUrlLog"]
+__all__ = ["ApiUsageLog", "OnboardingEvent", "PageView", "ResearchUrlLog"]

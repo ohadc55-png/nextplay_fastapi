@@ -9,14 +9,14 @@ here.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.jwt_service import create_access_token
 from src.auth.password_service import hash_password
 from src.auth.refresh_token_service import generate_refresh_token, hash_refresh_token
-from src.core.exceptions import ForbiddenError, NotFoundError, UnauthorizedError, ValidationError
+from src.core.exceptions import ForbiddenError, UnauthorizedError, ValidationError
 from src.models.auth import RefreshToken
 from src.models.users import User
 from src.repositories.auth_repo import RefreshTokenRepository
@@ -80,7 +80,7 @@ async def register_user(
                 "This invite code is locked to a different email", code="email_mismatch"
             )
 
-    trial_ends = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+    trial_ends = (datetime.now(UTC) + timedelta(days=14)).isoformat()
     user = User(
         email=email,
         password_hash=hash_password(password),
@@ -108,7 +108,7 @@ async def register_user(
     # Verification email (audit-trail row + log line; Resend dispatch in Phase 7).
     try:
         await send_verification_email(session, user_id=user.id, email=user.email)
-    except Exception as e:  # noqa: BLE001 — email failure must not block signup
+    except Exception as e:
         logger.warning("[register] verification email enqueue failed: %s", e)
 
     return user
@@ -165,8 +165,8 @@ async def rotate_refresh(
     except (ValueError, TypeError):
         raise UnauthorizedError("Refresh token malformed") from None
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) > expires_at:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    if datetime.now(UTC) > expires_at:
         raise UnauthorizedError("Refresh token expired")
 
     users_repo = UsersRepository(session)
@@ -231,11 +231,11 @@ async def delete_account(
 
 
 __all__ = [
-    "issue_token_pair",
-    "register_user",
     "authenticate",
-    "rotate_refresh",
-    "revoke_refresh",
     "change_password",
     "delete_account",
+    "issue_token_pair",
+    "register_user",
+    "revoke_refresh",
+    "rotate_refresh",
 ]

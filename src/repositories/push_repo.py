@@ -67,4 +67,4 @@ class PushLogRepository(BaseRepository[PushLog]):
         return (await self.session.execute(stmt)).scalar_one_or_none() is not None
 
 
-__all__ = ["PushSubscriptionsRepository", "PushLogRepository"]
+__all__ = ["PushLogRepository", "PushSubscriptionsRepository"]

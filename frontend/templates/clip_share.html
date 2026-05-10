@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ clip.title if clip else 'Shared Clip' }} — NextPlay</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f1923;
+      color: #e2e8f0;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .share-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      background: rgba(15,25,35,0.95);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .share-logo { height: 40px; border-radius: 8px; }
+    .share-brand { font-size: 1.1rem; font-weight: 700; color: #f48c25; }
+    .share-badge {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .share-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      max-width: 960px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .share-player-wrap {
+      width: 100%;
+      position: relative;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 200px;
+    }
+    .share-player-wrap iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: none;
+    }
+    .share-player-wrap .share-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      width: 100%; height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .share-controls {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      background: rgba(15,25,35,0.95);
+      border-radius: 0 0 12px 12px;
+      margin-top: -12px;
+    }
+    .share-ctrl-btn {
+      background: none; border: none; color: #94a3b8; cursor: pointer;
+      padding: 6px; border-radius: 6px; display: flex; align-items: center;
+    }
+    .share-ctrl-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .share-ctrl-btn .material-symbols-outlined { font-size: 22px; }
+    .share-ctrl-play .material-symbols-outlined { font-size: 28px; color: #f48c25; }
+    .share-progress-wrap {
+      flex: 1; display: flex; align-items: center; gap: 10px; margin-left: 6px;
+    }
+    .share-progress-bar {
+      flex: 1; height: 4px; background: rgba(255,255,255,0.1);
+      border-radius: 2px; cursor: pointer; position: relative;
+    }
+    .share-progress-fill {
+      height: 100%; background: #f48c25; border-radius: 2px; width: 0%;
+      transition: width 0.3s linear;
+    }
+    .share-progress-time {
+      font-size: 0.75rem; color: #64748b; white-space: nowrap; min-width: 80px;
+    }
+    .share-clip-info {
+      width: 100%;
+      margin-top: 20px;
+      padding: 20px 24px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+    }
+    .share-clip-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .share-clip-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+    .share-clip-meta .material-symbols-outlined { font-size: 1.1rem; vertical-align: -2px; }
+    .share-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(244,140,37,0.15);
+      color: #f48c25;
+    }
+    .share-rating-pos { color: #22c55e; }
+    .share-rating-neg { color: #ef4444; }
+    .share-notes {
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+    .share-cta {
+      width: 100%;
+      margin-top: 24px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(244,140,37,0.1), rgba(244,140,37,0.05));
+      border: 1px solid rgba(244,140,37,0.2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .share-cta-text { font-size: 0.95rem; color: #cbd5e1; }
+    .share-cta-text strong { color: #f48c25; }
+    .share-cta-btn {
+      padding: 10px 24px;
+      background: #f48c25;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .share-cta-btn:hover { background: #e07b1a; }
+    .share-error {
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .share-error .material-symbols-outlined { font-size: 64px; color: #475569; display: block; margin-bottom: 16px; }
+    .share-error h2 { color: #94a3b8; font-size: 1.3rem; margin-bottom: 8px; }
+    .share-error p { color: #64748b; }
+    .share-loop-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 3;
+      background: rgba(0,0,0,0.7);
+      color: #f48c25;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    @media (max-width: 640px) {
+      .share-main { padding: 12px 8px; }
+      .share-clip-info { padding: 14px 16px; }
+      .share-cta { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="share-header">
+    <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" class="share-logo">
+    <span class="share-brand">NextPlay</span>
+    <span class="share-badge">
+      <span class="material-symbols-outlined">share</span> Shared Clip
+    </span>
+  </header>
+
+  <main class="share-main">
+    {% if error %}
+    <div class="share-error">
+      <span class="material-symbols-outlined">link_off</span>
+      <h2>Clip not found</h2>
+      <p>This share link is invalid or has been removed.</p>
+    </div>
+    {% else %}
+
+    <div class="share-player-wrap" id="playerWrap">
+      <div id="ytPlayer"></div>
+      <video id="html5Player" style="width:100%;height:100%;display:none;" playsinline crossorigin="anonymous"></video>
+      <canvas class="share-canvas" id="shareCanvas"></canvas>
+      <div class="share-loop-badge" id="loopBadge" style="display:none;">
+        <span class="material-symbols-outlined" style="font-size:14px;">loop</span>
+        <span id="loopText">Looping clip</span>
+      </div>
+      <div id="clipActionOverlay" style="position:absolute;top:12px;left:12px;z-index:10;
+        background:rgba(0,0,0,0.65);color:#fff;padding:5px 14px;border-radius:20px;
+        font-size:0.82rem;font-weight:600;text-transform:capitalize;display:none;"></div>
+    </div>
+    <!-- Custom controls for shared timeline -->
+    <div class="share-controls" id="shareControls" style="display:none;">
+      <button class="share-ctrl-btn" onclick="shareSkip(-5)" title="Back 5s">
+        <span class="material-symbols-outlined">replay_5</span>
+      </button>
+      <button class="share-ctrl-btn" onclick="sharePrevItem()" title="Previous">
+        <span class="material-symbols-outlined">skip_previous</span>
+      </button>
+      <button class="share-ctrl-btn share-ctrl-play" id="sharePlayBtn" onclick="shareTogglePlay()">
+        <span class="material-symbols-outlined" id="sharePlayIcon">pause</span>
+      </button>
+      <button class="share-ctrl-btn" onclick="shareNextItem()" title="Next">
+        <span class="material-symbols-outlined">skip_next</span>
+      </button>
+      <button class="share-ctrl-btn" onclick="shareSkip(5)" title="Forward 5s">
+        <span class="material-symbols-outlined">forward_5</span>
+      </button>
+      <div class="share-progress-wrap">
+        <div class="share-progress-bar" id="shareProgressBar">
+          <div class="share-progress-fill" id="shareProgressFill"></div>
+        </div>
+        <span class="share-progress-time" id="shareProgressTime">0:00 / 0:00</span>
+      </div>
+    </div>
+
+    <div class="share-clip-info">
+      <div class="share-clip-title" id="currentClipTitle">{{ video.title }}</div>
+      <div class="share-clip-meta" id="currentClipMeta"></div>
+      <div class="share-notes" id="currentClipNotes" style="display:none;"></div>
+      {% if clips and clips|length > 1 %}
+      <div style="margin-top:12px; display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#94a3b8;">
+        <span class="material-symbols-outlined" style="font-size:16px;">playlist_play</span>
+        <span>Playlist: <strong style="color:#e2e8f0;">{{ clips|length }} clips</strong> — playing continuously</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="share-cta">
+      <div class="share-cta-text"><strong>NextPlay</strong> — AI Basketball Coaching Platform</div>
+      <a href="/login" class="share-cta-btn">Try NextPlay</a>
+    </div>
+
+    {% endif %}
+  </main>
+
+  {% if not error %}
+  <script src="https://www.youtube.com/iframe_api" nonce="{{ g.csp_nonce }}"></script>
+  <script nonce="{{ g.csp_nonce }}">
+    const VIDEO = {{ video | tojson }};
+    const SHARE = {{ share | tojson }};
+    const CLIPS = {{ clips | tojson if clips else '[]' }};
+    const ANNOTATIONS = {{ annotations | tojson }};
+    const TIMELINE = {{ timeline | tojson if timeline else 'null' }};
+
+    let player = null;       // unified player interface
+    let loopInterval = null;
+    let canvas, ctx;
+    let currentClipIdx = 0;
+    let isYouTube = false;
+
+    function getYTId(url) {
+      if (!url) return null;
+      const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+      return m ? m[1] : null;
+    }
+
+    function fmtTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m + ':' + sec.toString().padStart(2, '0');
+    }
+
+    function updateClipUI() {
+      const clip = CLIPS[currentClipIdx];
+      if (!clip) return;
+      const action = (clip.action_type || 'other').replace(/_/g, ' ');
+      var overlay = document.getElementById('clipActionOverlay');
+      if (overlay) { overlay.textContent = action; overlay.style.display = ''; }
+      const rating = clip.rating === 'positive' ? '<span style="color:#22c55e"><span class="material-symbols-outlined">thumb_up</span></span>' :
+                     clip.rating === 'negative' ? '<span style="color:#ef4444"><span class="material-symbols-outlined">thumb_down</span></span>' : '';
+      document.getElementById('currentClipTitle').textContent = clip.title || action;
+      document.getElementById('currentClipMeta').innerHTML =
+        `<span class="share-tag">${action}</span> ${rating}
+         <span><span class="material-symbols-outlined">schedule</span> ${fmtTime(clip.start_time)} — ${fmtTime(clip.end_time)}</span>
+         <span><span class="material-symbols-outlined">timer</span> ${(clip.end_time - clip.start_time).toFixed(1)}s</span>` +
+        (CLIPS.length > 1 ? ` <span style="color:#f48c25;font-weight:600;">Clip ${currentClipIdx + 1}/${CLIPS.length}</span>` : '');
+      const notesEl = document.getElementById('currentClipNotes');
+      if (clip.notes) { notesEl.textContent = clip.notes; notesEl.style.display = ''; }
+      else { notesEl.style.display = 'none'; }
+      document.getElementById('loopText').textContent = CLIPS.length > 1
+        ? `Clip ${currentClipIdx + 1} of ${CLIPS.length}`
+        : 'Looping clip';
+    }
+
+    // ── Detect video type and initialize ──
+    const ytId = getYTId(VIDEO.external_url || '');
+    isYouTube = !!ytId;
+
+    if (!isYouTube) {
+      // S3 or direct URL — use HTML5 video
+      const videoEl = document.getElementById('html5Player');
+      var src = VIDEO.s3_url || VIDEO.external_url || '';
+      if (VIDEO.source_type === 'external' && VIDEO.external_url && SHARE && SHARE.share_token) {
+        src = '/api/scouting/share/' + SHARE.share_token + '/video';
+      }
+      if (src) {
+        videoEl.src = src;
+        videoEl.style.display = '';
+        videoEl.controls = true;
+        document.getElementById('ytPlayer').style.display = 'none';
+
+        // Unified player interface
+        player = {
+          getCurrentTime: () => videoEl.currentTime,
+          seekTo: (t) => { videoEl.currentTime = t; },
+          playVideo: () => videoEl.play(),
+        };
+
+        videoEl.addEventListener('loadedmetadata', () => {
+          if (TIMELINE) return; // timeline mode handles init separately
+          if (CLIPS.length) {
+            videoEl.currentTime = CLIPS[0].start_time;
+            updateClipUI();
+          }
+          initCanvas();
+          startAnnotationLoop();
+          document.getElementById('loopBadge').style.display = CLIPS.length ? 'flex' : 'none';
+        });
+
+        videoEl.addEventListener('timeupdate', () => {
+          if (TIMELINE) return; // timeline mode handles its own transitions
+          if (!CLIPS.length) return;
+          const clip = CLIPS[currentClipIdx];
+          if (!clip) return;
+          if (videoEl.currentTime >= clip.end_time + 0.5) {
+            currentClipIdx = (currentClipIdx + 1) % CLIPS.length;
+            const next = CLIPS[currentClipIdx];
+            videoEl.currentTime = next.start_time;
+            updateClipUI();
+          }
+        });
+      }
+    }
+
+    // ── YouTube path ──
+    function onYouTubeIframeAPIReady() {
+      if (!isYouTube) return;
+      const firstClip = CLIPS[0];
+
+      const ytPlayer = new YT.Player('ytPlayer', {
+        videoId: ytId,
+        playerVars: {
+          start: firstClip ? Math.floor(firstClip.start_time) : 0,
+          modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1,
+        },
+        events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange },
+      });
+
+      player = {
+        getCurrentTime: () => ytPlayer.getCurrentTime(),
+        seekTo: (t, a) => ytPlayer.seekTo(t, a),
+        playVideo: () => ytPlayer.playVideo(),
+      };
+    }
+
+    function onPlayerReady() {
+      if (CLIPS.length) {
+        player.seekTo(CLIPS[0].start_time, true);
+        updateClipUI();
+      }
+      initCanvas();
+      startAnnotationLoop();
+      document.getElementById('loopBadge').style.display = CLIPS.length ? 'flex' : 'none';
+    }
+
+    function onPlayerStateChange(e) {
+      if (e.data === YT.PlayerState.PLAYING && CLIPS.length) {
+        if (loopInterval) clearInterval(loopInterval);
+        loopInterval = setInterval(() => {
+          const clip = CLIPS[currentClipIdx];
+          if (!clip) return;
+          const t = player.getCurrentTime();
+          // +0.5s buffer to match compile timing
+          if (t >= clip.end_time + 0.5) {
+            currentClipIdx = (currentClipIdx + 1) % CLIPS.length;
+            const next = CLIPS[currentClipIdx];
+            player.seekTo(next.start_time, true);
+            updateClipUI();
+          }
+        }, 200);
+      }
+      if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+        if (loopInterval) { clearInterval(loopInterval); loopInterval = null; }
+      }
+    }
+
+    // --- Canvas annotations (read-only) ---
+    function initCanvas() {
+      canvas = document.getElementById('shareCanvas');
+      ctx = canvas.getContext('2d');
+      const wrap = document.getElementById('playerWrap');
+      canvas.width = wrap.clientWidth;
+      canvas.height = wrap.clientHeight;
+      new ResizeObserver(() => {
+        canvas.width = wrap.clientWidth;
+        canvas.height = wrap.clientHeight;
+      }).observe(wrap);
+    }
+
+    function startAnnotationLoop() {
+      if (!ANNOTATIONS || !ANNOTATIONS.length) return;
+      function tick() {
+        if (!player || !player.getCurrentTime) { requestAnimationFrame(tick); return; }
+        const t = player.getCurrentTime();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const ann of ANNOTATIONS) {
+          const start = ann.timestamp;
+          const end = start + (ann.duration || 3);
+          if (t >= start && t <= end) {
+            drawAnnotation(ann);
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function drawAnnotation(ann) {
+      const sd = ann.stroke_data;
+      if (!sd) return;
+      ctx.strokeStyle = ann.color || '#FF0000';
+      ctx.lineWidth = (ann.stroke_width || 3) * (canvas.width / 1280);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (ann.annotation_type === 'freehand' && sd.points && sd.points.length > 1) {
+        ctx.beginPath();
+        const p0 = toPixel(sd.points[0]);
+        ctx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < sd.points.length; i++) {
+          const p = toPixel(sd.points[i]);
+          ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+      } else if (ann.annotation_type === 'text' && ann.text_content) {
+        const pos = toPixel({ x: sd.x || 50, y: sd.y || 50 });
+        const fontSize = Math.round((sd.fontSize || 24) * canvas.width / 1280);
+        ctx.font = `${sd.bold ? 'bold ' : ''}${fontSize}px "Space Grotesk", sans-serif`;
+        ctx.fillStyle = ann.color || '#FF0000';
+        ctx.textAlign = 'left';
+        ctx.fillText(ann.text_content, pos.x, pos.y);
+      }
+    }
+
+    function toPixel(pct) {
+      return { x: (pct.x || pct[0] || 0) / 100 * canvas.width, y: (pct.y || pct[1] || 0) / 100 * canvas.height };
+    }
+
+    // ══════════ Timeline Playback (cards + clips in sequence) ══════════
+    if (TIMELINE && TIMELINE.length) {
+      var _tlIdx = 0;
+      var _tlPlaying = false;
+      var _tlPaused = false;
+      var _arenaBg = null;
+      (function() {
+        var img = new Image();
+        img.onload = function() { _arenaBg = img; };
+        img.src = '/static/img/arena_bg.jpg';
+      })();
+
+      function _loadImg(dataUrl) {
+        if (!dataUrl) return Promise.resolve(null);
+        return new Promise(function(resolve) {
+          var done = false;
+          var img = new Image();
+          img.onload = function() { if (!done) { done = true; resolve(img); } };
+          img.onerror = function() { if (!done) { done = true; resolve(null); } };
+          img.src = dataUrl;
+          setTimeout(function() { if (!done) { done = true; resolve(null); } }, 3000);
+        });
+      }
+
+      function _roundRect(c, x, y, w, h, r) {
+        c.beginPath();
+        c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+        c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+        c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+        c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+      }
+
+      function _renderIntroFrame(c, w, h, cfg) {
+        var tintColor = cfg.tint_color || cfg.bg_color || '#1a237e';
+        var tintOp = (cfg.tint_opacity != null ? cfg.tint_opacity : 35) / 100;
+        c.fillStyle = '#0a0a12'; c.fillRect(0,0,w,h);
+        if (_arenaBg) { c.save(); c.globalAlpha=0.35;
+          var ir=_arenaBg.width/_arenaBg.height, cr=w/h, sx=0,sy=0,sw=_arenaBg.width,sh=_arenaBg.height;
+          if(ir>cr){sw=_arenaBg.height*cr;sx=(_arenaBg.width-sw)/2;}else{sh=_arenaBg.width/cr;sy=(_arenaBg.height-sh)/2;}
+          c.drawImage(_arenaBg,sx,sy,sw,sh,0,0,w,h); c.restore();
+        }
+        c.save(); c.fillStyle=tintColor; c.globalAlpha=tintOp; c.fillRect(0,0,w,h); c.restore();
+        var grad=c.createLinearGradient(0,0,0,h);
+        grad.addColorStop(0,'rgba(255,255,255,0.08)'); grad.addColorStop(0.3,'rgba(255,255,255,0.02)');
+        grad.addColorStop(0.7,'rgba(0,0,0,0.05)'); grad.addColorStop(1,'rgba(0,0,0,0.15)');
+        c.fillStyle=grad; c.fillRect(0,0,w,h);
+      }
+
+      async function _renderGameIntro(c, w, h, cfg, dur) {
+        var teamLogo = await _loadImg(cfg.team_logo_data);
+        var oppLogo = await _loadImg(cfg.opponent_logo_data);
+        var teamName = cfg.team_name||'Team', oppName = cfg.opponent_name||'Opponent';
+        var league = cfg.league||'', gameDate = cfg.game_date||'';
+        var notes = cfg.coach_notes||'';
+        var logoSize=Math.round(h*0.32), centerY=h*0.34;
+
+        return new Promise(function(resolve) {
+          var fps=30, total=fps*dur, frame=0;
+          function draw() {
+            if(_tlPaused){setTimeout(draw,100);return;}
+            if(frame>=total){resolve();return;}
+            _renderIntroFrame(c,w,h,cfg);
+            var alpha=frame<15?frame/15:1;
+            c.save(); c.globalAlpha=alpha;
+            function logo(img,cx,cy){
+              c.save();c.shadowColor='rgba(0,0,0,0.5)';c.shadowBlur=18;
+              c.fillStyle='rgba(255,255,255,0.06)';c.beginPath();c.arc(cx,cy,logoSize/2+4,0,Math.PI*2);c.fill();c.restore();
+              if(img){c.save();c.beginPath();c.arc(cx,cy,logoSize/2,0,Math.PI*2);c.clip();
+                c.drawImage(img,cx-logoSize/2,cy-logoSize/2,logoSize,logoSize);c.restore();
+              }else{c.fillStyle='rgba(255,255,255,0.1)';c.beginPath();c.arc(cx,cy,logoSize/2,0,Math.PI*2);c.fill();}
+              c.strokeStyle='rgba(255,255,255,0.25)';c.lineWidth=2;c.beginPath();c.arc(cx,cy,logoSize/2,0,Math.PI*2);c.stroke();
+            }
+            logo(teamLogo,w*0.25,centerY); logo(oppLogo,w*0.75,centerY);
+            c.save();c.shadowColor='rgba(0,0,0,0.6)';c.shadowBlur=12;c.fillStyle='#fff';
+            c.font='bold '+Math.round(h*0.16)+'px "Space Grotesk",sans-serif';c.textAlign='center';c.textBaseline='middle';
+            c.fillText('VS',w/2,centerY);c.restore();
+            c.save();c.shadowColor='rgba(0,0,0,0.5)';c.shadowBlur=6;
+            c.font='bold '+Math.round(h*0.065)+'px "Space Grotesk",sans-serif';c.fillStyle='#fff';c.textAlign='center';c.textBaseline='middle';
+            c.fillText(teamName,w*0.25,centerY+logoSize/2+h*0.08);c.fillText(oppName,w*0.75,centerY+logoSize/2+h*0.08);c.restore();
+            if(notes.trim()){
+              c.save();c.shadowColor='rgba(0,0,0,0.5)';c.shadowBlur=4;
+              var fs=Math.round(h*0.038);c.font='500 '+fs+'px "Space Grotesk",sans-serif';
+              c.fillStyle='rgba(255,255,255,0.85)';c.textAlign='center';c.textBaseline='middle';
+              var ny=h*0.72,mw=w*0.75,lines=[],words=notes.split(' '),cur='';
+              words.forEach(function(wd){var t=cur?cur+' '+wd:wd;if(c.measureText(t).width>mw){if(cur)lines.push(cur);cur=wd;}else cur=t;});
+              if(cur)lines.push(cur);
+              var lh=fs*1.35,sy2=ny-((lines.length-1)*lh)/2;
+              c.fillStyle='rgba(0,0,0,0.25)';_roundRect(c,(w-mw-24)/2,sy2-lh/2-5,mw+24,lines.length*lh+10,8);c.fill();
+              c.fillStyle='rgba(255,255,255,0.85)';
+              lines.forEach(function(l,i){c.fillText(l,w/2,sy2+i*lh);});c.restore();
+            }
+            c.save();c.fillStyle='rgba(0,0,0,0.35)';c.fillRect(0,h*0.88,w,h*0.12);
+            c.font='600 '+Math.round(h*0.042)+'px "Space Grotesk",sans-serif';c.fillStyle='rgba(255,255,255,0.7)';
+            c.textAlign='center';c.textBaseline='middle';
+            c.fillText([league,gameDate].filter(Boolean).join('  \u2022  '),w/2,h*0.94);c.restore();
+            c.restore();
+            frame++;setTimeout(draw,1000/fps);
+          }
+          draw();
+        });
+      }
+
+      async function _renderPlayerCard(c, w, h, cfg, dur) {
+        var playerPhoto = await _loadImg(cfg.photo_data);
+        var teamLogo = await _loadImg(cfg.logo_data);
+        var teamColor = cfg.team_color || '#c62828';
+        var splitX = Math.round(w * 0.4);
+        var slashOffset = Math.round(w * 0.04);
+
+        return new Promise(function(resolve) {
+          var fps=30, total=fps*dur, frame=0;
+          function draw() {
+            if(_tlPaused){setTimeout(draw,100);return;}
+            if(frame>=total){resolve();return;}
+            c.clearRect(0,0,w,h);
+            var progress = frame<20 ? frame/20 : 1;
+            var slideOff = Math.round((1-progress)*40);
+
+            // Left: team color with diagonal
+            c.save();
+            c.beginPath();c.moveTo(0,0);c.lineTo(splitX+slashOffset-slideOff,0);
+            c.lineTo(splitX-slashOffset-slideOff,h);c.lineTo(0,h);c.closePath();
+            c.fillStyle=teamColor;c.fill();
+            var grad=c.createLinearGradient(0,0,splitX,h);
+            grad.addColorStop(0,'rgba(0,0,0,0)');grad.addColorStop(1,'rgba(0,0,0,0.35)');
+            c.fillStyle=grad;c.fill();
+
+            if(playerPhoto){
+              c.save();c.beginPath();c.moveTo(0,0);c.lineTo(splitX+slashOffset,0);
+              c.lineTo(splitX-slashOffset,h);c.lineTo(0,h);c.closePath();c.clip();
+              var mxH=h*0.72,mxW=splitX*0.72,pa=playerPhoto.width/playerPhoto.height;
+              var tH=mxH,tW=tH*pa;if(tW>mxW){tW=mxW;tH=tW/pa;}
+              c.drawImage(playerPhoto,(splitX-tW)/2-slideOff*0.3,(h-tH)/2,tW,tH);
+              c.restore();
+            }
+            c.restore();
+
+            // Right: dark background
+            c.save();c.beginPath();c.moveTo(splitX+slashOffset,0);c.lineTo(w,0);
+            c.lineTo(w,h);c.lineTo(splitX-slashOffset,h);c.closePath();
+            c.fillStyle='#0d1117';c.fill();c.restore();
+
+            var infoX=splitX+Math.round(w*0.05), infoW=w-infoX-16;
+
+            // Giant faded number
+            if(cfg.number){c.save();c.font='bold '+Math.round(h*0.6)+'px "Space Grotesk",sans-serif';
+              c.fillStyle='rgba(255,255,255,0.04)';c.textAlign='right';c.textBaseline='middle';
+              c.fillText(cfg.number,w-12,h*0.45);c.restore();}
+
+            c.save();c.globalAlpha=Math.min(1,progress*1.5);
+            var nFS=Math.round(h*0.095);
+            c.font='bold '+nFS+'px "Space Grotesk",sans-serif';c.fillStyle='#fff';
+            c.textAlign='left';c.textBaseline='top';
+            var nameY=h*0.1;c.fillText(cfg.name||'Player',infoX,nameY);
+
+            var ulY=nameY+Math.round(h*0.13);
+            c.fillStyle=teamColor;c.fillRect(infoX,ulY,Math.round(infoW*0.5),4);
+
+            var dFS=Math.round(h*0.048),dY=ulY+Math.round(h*0.06);
+            c.font='600 '+dFS+'px "Space Grotesk",sans-serif';c.fillStyle='rgba(255,255,255,0.7)';
+            c.fillText('POSITION \u2014 '+(cfg.position||'PG'),infoX,dY);
+            c.fillText('HAND \u2014 '+(cfg.hand==='L'?'LEFT':'RIGHT'),infoX,dY+Math.round(h*0.07));
+
+            var divY=dY+Math.round(h*0.16);
+            c.fillStyle='rgba(255,255,255,0.1)';c.fillRect(infoX,divY,infoW,1);
+
+            var notesLines=(cfg.notes||'').split('\n').filter(function(l){return l.trim();});
+            var noteY2=divY+Math.round(h*0.04),nfS=Math.round(h*0.04);
+            c.font='400 '+nfS+'px "Space Grotesk",sans-serif';
+            for(var ni=0;ni<Math.min(notesLines.length,5);ni++){
+              c.fillStyle=teamColor;c.fillText('\u25CF',infoX,noteY2);
+              c.fillStyle='rgba(255,255,255,0.85)';c.fillText(notesLines[ni].trim(),infoX+18,noteY2);
+              noteY2+=Math.round(nfS*1.7);
+            }
+            c.restore();
+
+            c.fillStyle=teamColor;c.fillRect(0,h-4,w,4);
+            if(teamLogo){c.save();c.globalAlpha=0.65;var ls2=Math.round(h*0.16);
+              c.drawImage(teamLogo,14,14,ls2,ls2);c.restore();}
+
+            frame++;setTimeout(draw,1000/fps);
+          }
+          draw();
+        });
+      }
+
+      async function playTimelineItem(idx) {
+        if (idx >= TIMELINE.length) { idx = 0; }
+        _tlIdx = idx;
+        var item = TIMELINE[idx];
+        var videoEl = document.getElementById('html5Player');
+        var loopEl = document.getElementById('loopText');
+        if (loopEl) loopEl.textContent = 'Item ' + (idx+1) + ' of ' + TIMELINE.length;
+
+        if (item.type === 'clip') {
+          var clip = CLIPS.find(function(c) { return c.id === item.clip_id; });
+          if (!clip) { playTimelineItem(idx+1); return; }
+          currentClipIdx = CLIPS.indexOf(clip);
+          canvas.style.zIndex = '2';
+          canvas.style.pointerEvents = 'none';
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          updateClipUI();
+          _tlPlaying = true;
+
+          function startClipPlayback() {
+            videoEl.currentTime = clip.start_time;
+            videoEl.play();
+            function onTU() {
+              if (!_tlPlaying) return;
+              if (videoEl.currentTime >= clip.end_time + 0.3) {
+                videoEl.removeEventListener('timeupdate', onTU);
+                videoEl.pause();
+                playTimelineItem(idx + 1);
+              }
+            }
+            videoEl.addEventListener('timeupdate', onTU);
+          }
+
+          if (videoEl.readyState >= 2) {
+            startClipPlayback();
+          } else {
+            videoEl.addEventListener('loadeddata', function _ld() {
+              videoEl.removeEventListener('loadeddata', _ld);
+              startClipPlayback();
+            });
+          }
+
+        } else {
+          videoEl.pause();
+          canvas.style.zIndex = '5';
+          canvas.style.pointerEvents = 'auto';
+          var wrap = document.getElementById('playerWrap');
+          canvas.width = wrap.clientWidth;
+          canvas.height = wrap.clientHeight;
+          var cw = canvas.width, ch = canvas.height;
+          var overlay = document.getElementById('clipActionOverlay');
+          if (overlay) overlay.style.display = 'none';
+          var cardTitle = item.type === 'game_intro'
+            ? (item.config.team_name || 'Team') + ' vs ' + (item.config.opponent_name || 'Opponent')
+            : (item.config && item.config.name ? item.config.name : 'Player Card');
+          document.getElementById('currentClipTitle').textContent = cardTitle;
+          var metaEl = document.getElementById('currentClipMeta');
+          metaEl.textContent = (item.type === 'game_intro' ? 'Game Intro' : 'Player Card') + ' \u2022 Item ' + (idx+1) + '/' + TIMELINE.length;
+
+          if (item.type === 'game_intro') {
+            await _renderGameIntro(ctx, cw, ch, item.config, 5);
+          } else if (item.type === 'player_card') {
+            await _renderPlayerCard(ctx, cw, ch, item.config, 5);
+          }
+          playTimelineItem(idx + 1);
+        }
+      }
+
+      // Calculate total timeline duration
+      var _tlTotalDur = TIMELINE.reduce(function(s, item) {
+        if (item.type === 'clip') {
+          var cl = CLIPS.find(function(c) { return c.id === item.clip_id; });
+          return s + (cl ? cl.end_time - cl.start_time : 0);
+        }
+        return s + 5;
+      }, 0);
+
+      // Hide native video controls, show custom ones
+      var _videoEl = document.getElementById('html5Player');
+      if (_videoEl) _videoEl.controls = false;
+      document.getElementById('shareControls').style.display = 'flex';
+
+      function _calcElapsed() {
+        var elapsed = 0;
+        for (var i = 0; i < _tlIdx; i++) {
+          var it = TIMELINE[i];
+          if (it.type === 'clip') {
+            var cl = CLIPS.find(function(c) { return c.id === it.clip_id; });
+            elapsed += cl ? cl.end_time - cl.start_time : 0;
+          } else { elapsed += 5; }
+        }
+        var cur = TIMELINE[_tlIdx];
+        if (cur && cur.type === 'clip' && _videoEl) {
+          var curClip = CLIPS.find(function(c) { return c.id === cur.clip_id; });
+          if (curClip) elapsed += Math.max(0, _videoEl.currentTime - curClip.start_time);
+        }
+        return elapsed;
+      }
+
+      function _updateProgress() {
+        var el = _calcElapsed();
+        var pct = _tlTotalDur > 0 ? Math.min(100, (el / _tlTotalDur) * 100) : 0;
+        document.getElementById('shareProgressFill').style.width = pct + '%';
+        function fmt(s) { var m=Math.floor(s/60); return m+':'+Math.floor(s%60).toString().padStart(2,'0'); }
+        document.getElementById('shareProgressTime').textContent = fmt(el) + ' / ' + fmt(_tlTotalDur);
+        if (!_tlPaused) requestAnimationFrame(_updateProgress);
+      }
+
+      function shareSkip(sec) {
+        if (!_videoEl || !TIMELINE[_tlIdx] || TIMELINE[_tlIdx].type !== 'clip') return;
+        var clip = CLIPS.find(function(c) { return c.id === TIMELINE[_tlIdx].clip_id; });
+        if (!clip) return;
+        var newT = Math.max(clip.start_time, Math.min(clip.end_time, _videoEl.currentTime + sec));
+        _videoEl.currentTime = newT;
+      }
+
+      function shareNextItem() {
+        _tlPlaying = false;
+        playTimelineItem(_tlIdx + 1);
+      }
+
+      function sharePrevItem() {
+        _tlPlaying = false;
+        playTimelineItem(Math.max(0, _tlIdx - 1));
+      }
+
+      function shareTogglePlay() {
+        _tlPaused = !_tlPaused;
+        document.getElementById('sharePlayIcon').textContent = _tlPaused ? 'play_arrow' : 'pause';
+        if (_tlPaused) {
+          if (_videoEl && !_videoEl.paused) _videoEl.pause();
+        } else {
+          if (TIMELINE[_tlIdx] && TIMELINE[_tlIdx].type === 'clip') {
+            _videoEl.play();
+          }
+          _updateProgress();
+        }
+      }
+
+      // Expose to global scope for onclick handlers
+      window.shareSkip = shareSkip;
+      window.shareNextItem = shareNextItem;
+      window.sharePrevItem = sharePrevItem;
+      window.shareTogglePlay = shareTogglePlay;
+
+      // Start timeline playback immediately
+      setTimeout(function() {
+        initCanvas();
+        document.getElementById('loopBadge').style.display = 'flex';
+        _updateProgress();
+        playTimelineItem(0);
+      }, 200);
+    }
+  </script>
+  {% endif %}
+</body>
+</html>

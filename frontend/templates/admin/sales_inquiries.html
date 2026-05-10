@@ -1,0 +1,261 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Sales Inquiries{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Sales Inquiries</h2>
+    <p>{{ total }} total inquiries</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Inquiries</div>
+        <div class="stat-value">{{ total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">New (Unread)</div>
+        <div class="stat-value accent">{{ new_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">This Week</div>
+        <div class="stat-value blue">{{ this_week }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Academy 10</div>
+        <div class="stat-value">{{ academy_count }}</div>
+        <div class="stat-sub">{{ enterprise_count }} enterprise</div>
+    </div>
+</div>
+
+{% if not inquiries %}
+<div class="admin-card" style="text-align:center;padding:48px 24px;color:var(--admin-muted);">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;opacity:0.4;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    <p style="font-size:0.95rem;">No inquiries yet</p>
+    <p style="font-size:0.82rem;margin-top:4px;">Inquiries from the Contact Sales page will appear here.</p>
+</div>
+{% else %}
+
+<div class="inq-list">
+    {% for inq in inquiries %}
+    <div class="inq-card {{ 'inq-new' if inq.status == 'new' else '' }}">
+        <div class="inq-card-top">
+            <div class="inq-card-left">
+                <div class="inq-avatar">{{ inq.full_name[0]|upper if inq.full_name else '?' }}</div>
+                <div class="inq-identity">
+                    <div class="inq-name">{{ inq.full_name }}</div>
+                    <a class="inq-email" href="mailto:{{ inq.email }}">{{ inq.email }}</a>
+                </div>
+            </div>
+            <div class="inq-card-right">
+                <span class="inq-plan-badge {{ inq.plan }}">{{ 'Academy 10' if inq.plan == 'academy10' else 'Enterprise' }}</span>
+                <span class="inq-status-badge {{ inq.status }}">{{ inq.status }}</span>
+            </div>
+        </div>
+
+        <div class="inq-details">
+            <div class="inq-detail">
+                <span class="inq-detail-label">Organization</span>
+                <span class="inq-detail-value">{{ inq.organization }}</span>
+            </div>
+            <div class="inq-detail">
+                <span class="inq-detail-label">Country</span>
+                <span class="inq-detail-value">{{ inq.country or '---' }}</span>
+            </div>
+            <div class="inq-detail">
+                <span class="inq-detail-label">Coaches</span>
+                <span class="inq-detail-value">{{ inq.num_coaches or '---' }}</span>
+            </div>
+            <div class="inq-detail">
+                <span class="inq-detail-label">Teams</span>
+                <span class="inq-detail-value">{{ inq.num_teams or '---' }}</span>
+            </div>
+        </div>
+
+        {% if inq.current_tools %}
+        <div class="inq-extra">
+            <span class="inq-extra-label">Current Tools</span>
+            <span>{{ inq.current_tools }}</span>
+        </div>
+        {% endif %}
+
+        {% if inq.notes %}
+        <div class="inq-extra inq-notes-box">
+            <span class="inq-extra-label">Notes</span>
+            <span>{{ inq.notes }}</span>
+        </div>
+        {% endif %}
+
+        <div class="inq-card-footer">
+            <span class="inq-date">{{ (inq.created_at|string)[:16] if inq.created_at else '' }}</span>
+            <a href="mailto:{{ inq.email }}?subject=NextPlay%20{{ 'Academy 10' if inq.plan == 'academy10' else 'Enterprise' }}%20—%20Follow%20Up" class="inq-reply-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                Reply
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<style>
+.inq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.inq-card {
+    background: var(--admin-surface);
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    padding: 0;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.inq-card:hover {
+    border-color: var(--admin-border-2);
+}
+.inq-card.inq-new {
+    border-left: 3px solid #f48c25;
+}
+.inq-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--admin-border);
+    background: rgba(255,255,255,0.015);
+}
+.inq-card-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.inq-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(244,140,37,0.2), rgba(244,140,37,0.08));
+    color: #f48c25;
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.inq-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.inq-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--admin-text);
+}
+.inq-email {
+    font-size: 0.78rem;
+    color: #f48c25;
+    text-decoration: none;
+}
+.inq-email:hover { text-decoration: underline; }
+.inq-card-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.inq-plan-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.inq-plan-badge.academy10 { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.inq-plan-badge.enterprise { background: rgba(168,85,247,0.12); color: #c084fc; }
+.inq-status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+.inq-status-badge.new { background: rgba(244,140,37,0.12); color: #f48c25; }
+.inq-status-badge.contacted { background: rgba(34,197,94,0.12); color: #22c55e; }
+.inq-status-badge.closed { background: rgba(100,116,139,0.12); color: #94a3b8; }
+.inq-details {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--admin-border);
+}
+.inq-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.inq-detail-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--admin-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.inq-detail-value {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--admin-text);
+}
+.inq-extra {
+    padding: 10px 20px;
+    font-size: 0.82rem;
+    color: var(--admin-text-2);
+    border-bottom: 1px solid var(--admin-border);
+    display: flex;
+    gap: 8px;
+}
+.inq-extra-label {
+    font-weight: 600;
+    color: var(--admin-muted);
+    flex-shrink: 0;
+    min-width: 90px;
+}
+.inq-notes-box {
+    background: rgba(255,255,255,0.02);
+    font-style: italic;
+}
+.inq-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+}
+.inq-date {
+    font-size: 0.75rem;
+    color: var(--admin-muted);
+}
+.inq-reply-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 14px;
+    border-radius: 6px;
+    background: rgba(244,140,37,0.1);
+    color: #f48c25;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+.inq-reply-btn:hover {
+    background: rgba(244,140,37,0.2);
+}
+
+@media (max-width: 640px) {
+    .inq-card-top { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .inq-details { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+}
+</style>
+{% endblock %}

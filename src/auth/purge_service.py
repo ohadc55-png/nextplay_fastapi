@@ -25,7 +25,7 @@ Two state transitions live here:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, text, update
 from sqlalchemy.exc import SQLAlchemyError
@@ -108,7 +108,7 @@ async def flip_to_expired_and_schedule_purge(
     `data_purge_at = NOW + 30 days`. Idempotent — `COALESCE` keeps the
     original purge date if one is already set, so re-checking doesn't
     push the purge further out."""
-    purge_at = datetime.now(timezone.utc) + timedelta(days=30)
+    purge_at = datetime.now(UTC) + timedelta(days=30)
     stmt = (
         update(User)
         .where(User.id == user_id)
@@ -204,8 +204,8 @@ def should_purge(user: User) -> bool:
         return False
     purge_due = user.data_purge_at
     if purge_due.tzinfo is None:
-        purge_due = purge_due.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) >= purge_due
+        purge_due = purge_due.replace(tzinfo=UTC)
+    return datetime.now(UTC) >= purge_due
 
 
 async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
@@ -226,8 +226,8 @@ async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
     except (ValueError, TypeError):
         return False
     if ends.tzinfo is None:
-        ends = ends.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) <= ends:
+        ends = ends.replace(tzinfo=UTC)
+    if datetime.now(UTC) <= ends:
         return False
 
     await flip_to_expired_and_schedule_purge(session, user.id)
@@ -237,7 +237,7 @@ async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
 
 __all__ = [
     "flip_to_expired_and_schedule_purge",
+    "maybe_flip_expired",
     "purge_user_data",
     "should_purge",
-    "maybe_flip_expired",
 ]

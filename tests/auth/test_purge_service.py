@@ -10,7 +10,7 @@ Critical regression tests:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +63,7 @@ class TestShouldPurge:
             db_session, "club@x.com",
             club_id=club.id,
             subscription_plan="expired",
-            data_purge_at=datetime.now(timezone.utc) - timedelta(days=1),  # past!
+            data_purge_at=datetime.now(UTC) - timedelta(days=1),  # past!
         )
         assert should_purge(u) is False
 
@@ -72,7 +72,7 @@ class TestShouldPurge:
         assert should_purge(u) is False
 
     async def test_expired_within_grace_is_not_purged(self, db_session: AsyncSession):
-        future = datetime.now(timezone.utc) + timedelta(days=10)
+        future = datetime.now(UTC) + timedelta(days=10)
         u = await _user(
             db_session, "grace@x.com",
             subscription_plan="expired",
@@ -81,7 +81,7 @@ class TestShouldPurge:
         assert should_purge(u) is False
 
     async def test_expired_past_grace_is_purged(self, db_session: AsyncSession):
-        past = datetime.now(timezone.utc) - timedelta(days=1)
+        past = datetime.now(UTC) - timedelta(days=1)
         u = await _user(
             db_session, "purge-me@x.com",
             subscription_plan="expired",
@@ -130,7 +130,7 @@ class TestPurgeUserData:
         u = await _user(
             db_session, "clear@x.com",
             subscription_plan="expired",
-            data_purge_at=datetime.now(timezone.utc) - timedelta(days=1),
+            data_purge_at=datetime.now(UTC) - timedelta(days=1),
         )
         await purge_user_data(db_session, u.id)
 
@@ -169,7 +169,7 @@ class TestPurgeUserData:
 
 class TestMaybeFlipExpired:
     async def test_flips_trial_past_user(self, db_session: AsyncSession):
-        past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         u = await _user(
             db_session, "trial-done@x.com",
             subscription_plan="trial",
@@ -184,7 +184,7 @@ class TestMaybeFlipExpired:
         assert u.data_purge_at is not None  # purge scheduled
 
     async def test_does_not_flip_active_trial(self, db_session: AsyncSession):
-        future = (datetime.now(timezone.utc) + timedelta(days=10)).isoformat()
+        future = (datetime.now(UTC) + timedelta(days=10)).isoformat()
         u = await _user(
             db_session, "still-trial@x.com",
             subscription_plan="trial",
@@ -202,7 +202,7 @@ class TestMaybeFlipExpired:
         club = Club(name="Acme")
         db_session.add(club)
         await db_session.flush()
-        past = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        past = (datetime.now(UTC) - timedelta(days=10)).isoformat()
         u = await _user(
             db_session, "club-trial@x.com",
             club_id=club.id,

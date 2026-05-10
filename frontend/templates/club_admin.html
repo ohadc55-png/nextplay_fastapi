@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .club-admin {
+        max-width: 860px;
+        margin: 48px auto;
+        padding: 0 24px;
+    }
+
+    /* ── Header ── */
+    .club-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 36px;
+    }
+    .club-header-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: rgba(244, 140, 37, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .club-header-icon svg {
+        color: var(--accent, #f48c25);
+    }
+    .club-header-text h2 {
+        color: #fff;
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: -0.02em;
+        line-height: 1.3;
+    }
+    .club-header-text .plan-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: 20px;
+        background: rgba(244, 140, 37, 0.12);
+        color: var(--accent, #f48c25);
+        margin-top: 4px;
+    }
+
+    /* ── Stat cards row ── */
+    .stat-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 32px;
+    }
+    .stat-card {
+        background: var(--surface, #161d28);
+        border: 1px solid var(--border, rgba(255,255,255,0.06));
+        border-radius: 16px;
+        padding: 24px;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .stat-card:hover {
+        border-color: rgba(255,255,255,0.1);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .stat-card .stat-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #9ba4b0;
+        margin-bottom: 8px;
+    }
+    .stat-card .stat-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 14px;
+        letter-spacing: -0.02em;
+    }
+    .stat-card .stat-value span {
+        font-size: 14px;
+        font-weight: 400;
+        color: #5c6370;
+    }
+    .progress-track {
+        width: 100%;
+        height: 6px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: var(--accent, #f48c25);
+        transition: width 0.6s ease;
+        min-width: 2%;
+    }
+    .progress-fill.warning {
+        background: #f59e0b;
+    }
+    .progress-fill.danger {
+        background: #ef4444;
+    }
+
+    /* ── Section card (invite + table) ── */
+    .section-card {
+        background: var(--surface, #161d28);
+        border: 1px solid var(--border, rgba(255,255,255,0.06));
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 24px;
+    }
+    .section-card h3 {
+        color: #fff;
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0 0 6px 0;
+    }
+    .section-card .section-desc {
+        color: #9ba4b0;
+        font-size: 14px;
+        margin: 0 0 20px 0;
+    }
+
+    /* ── Invite form ── */
+    .invite-form {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    .invite-form .form-input {
+        flex: 1;
+        min-width: 0;
+        padding: 11px 16px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        color: #fff;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .invite-form .form-input::placeholder {
+        color: #5c6370;
+    }
+    .invite-form .form-input:focus {
+        border-color: var(--accent, #f48c25);
+        box-shadow: 0 0 0 3px rgba(244, 140, 37, 0.12);
+    }
+    .invite-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 11px 22px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        background: var(--accent, #f48c25);
+        color: #fff;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        letter-spacing: 0.01em;
+    }
+    .invite-btn:hover:not(:disabled) {
+        filter: brightness(1.1);
+        box-shadow: 0 4px 16px rgba(244, 140, 37, 0.3);
+    }
+    .invite-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .invite-msg {
+        font-size: 13px;
+        margin-top: 10px;
+        display: none;
+    }
+    .invite-msg.success { color: #22c55e; }
+    .invite-msg.error { color: #ef4444; }
+
+    /* ── Members table ── */
+    .members-table-wrap {
+        overflow-x: auto;
+        margin-top: 4px;
+    }
+    .members-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .members-table th {
+        text-align: start;
+        font-size: 12px;
+        font-weight: 500;
+        color: #5c6370;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0 12px 12px;
+        border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
+    }
+    .members-table td {
+        padding: 14px 12px;
+        font-size: 14px;
+        color: #c8cdd4;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+        vertical-align: middle;
+    }
+    .members-table tr:last-child td {
+        border-bottom: none;
+    }
+    .members-table tr:hover td {
+        background: rgba(255,255,255,0.02);
+    }
+    .member-name {
+        color: #fff;
+        font-weight: 500;
+    }
+    .member-email {
+        color: #9ba4b0;
+    }
+    .role-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 9px;
+        border-radius: 20px;
+        background: rgba(244, 140, 37, 0.12);
+        color: var(--accent, #f48c25);
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        margin-inline-start: 8px;
+        vertical-align: middle;
+    }
+    .remove-btn {
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.08);
+        color: #ef4444;
+        transition: all 0.2s ease;
+    }
+    .remove-btn:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.5);
+    }
+    .remove-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    /* ── Skeleton loading ── */
+    .skeleton {
+        background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease infinite;
+        border-radius: 6px;
+    }
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    .skeleton-text {
+        height: 16px;
+        width: 120px;
+    }
+    .skeleton-text.wide {
+        width: 200px;
+    }
+    .skeleton-bar {
+        height: 6px;
+        width: 100%;
+        margin-top: 14px;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #5c6370;
+    }
+    .empty-state svg {
+        margin-bottom: 12px;
+        opacity: 0.4;
+    }
+    .empty-state p {
+        font-size: 14px;
+        margin: 0;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+        .club-admin {
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+        .stat-cards {
+            grid-template-columns: 1fr;
+        }
+        .section-card {
+            padding: 20px;
+        }
+        .invite-form {
+            flex-direction: column;
+        }
+        .invite-btn {
+            width: 100%;
+            justify-content: center;
+            min-height: 48px;
+        }
+        .invite-form .form-input {
+            min-height: 48px;
+            font-size: 16px;
+        }
+        .members-table th:nth-child(3),
+        .members-table td:nth-child(3) {
+            display: none;
+        }
+    }
+    @media (max-width: 480px) {
+        .club-header-text h2 {
+            font-size: 20px;
+        }
+        .stat-card .stat-value {
+            font-size: 18px;
+        }
+        .section-card h3 {
+            font-size: 15px;
+        }
+    }
+</style>
+
+<div class="club-admin">
+
+    <!-- Header -->
+    <div class="club-header">
+        <div class="club-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+        </div>
+        <div class="club-header-text">
+            <h2 id="clubName"><span class="skeleton skeleton-text wide">&nbsp;</span></h2>
+            <div id="planBadge"></div>
+        </div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-cards">
+        <!-- Seat Usage -->
+        <div class="stat-card">
+            <div class="stat-label">Seat Usage</div>
+            <div class="stat-value" id="seatValue"><span class="skeleton skeleton-text">&nbsp;</span></div>
+            <div class="progress-track">
+                <div class="progress-fill" id="seatBar" style="width: 0%;"></div>
+            </div>
+        </div>
+        <!-- Pooled Storage -->
+        <div class="stat-card">
+            <div class="stat-label">Pooled Storage</div>
+            <div class="stat-value" id="storageValue"><span class="skeleton skeleton-text">&nbsp;</span></div>
+            <div class="progress-track">
+                <div class="progress-fill" id="storageBar" style="width: 0%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invite Section -->
+    <div class="section-card">
+        <h3>Invite a Coach</h3>
+        <p class="section-desc">Send an invitation email to add a new coach to your club.</p>
+        <form class="invite-form" id="inviteForm" onsubmit="return inviteCoach(event)">
+            <input type="email" class="form-input" id="inviteEmail" placeholder="coach@example.com" required autocomplete="off">
+            <button type="submit" class="invite-btn" id="inviteBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Invite Coach
+            </button>
+        </form>
+        <div class="invite-msg" id="inviteMsg"></div>
+    </div>
+
+    <!-- Members Table -->
+    <div class="section-card">
+        <h3>Club Members</h3>
+        <p class="section-desc" id="memberCount"></p>
+        <div class="members-table-wrap">
+            <div id="membersContent">
+                <!-- Skeleton rows while loading -->
+                <table class="members-table">
+                    <thead>
+                        <tr><th>Name</th><th>Email</th><th>Joined</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="skeleton skeleton-text">&nbsp;</span></td><td><span class="skeleton skeleton-text wide">&nbsp;</span></td><td><span class="skeleton skeleton-text">&nbsp;</span></td><td></td></tr>
+                        <tr><td><span class="skeleton skeleton-text">&nbsp;</span></td><td><span class="skeleton skeleton-text wide">&nbsp;</span></td><td><span class="skeleton skeleton-text">&nbsp;</span></td><td></td></tr>
+                        <tr><td><span class="skeleton skeleton-text">&nbsp;</span></td><td><span class="skeleton skeleton-text wide">&nbsp;</span></td><td><span class="skeleton skeleton-text">&nbsp;</span></td><td></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+/* ── Club Admin Dashboard ── */
+let clubData = null;
+
+async function loadClubInfo() {
+    try {
+        const res = await fetch('/api/club/info');
+        if (!res.ok) throw new Error('Failed to load club info');
+        clubData = await res.json();
+        renderHeader(clubData);
+        renderSeats(clubData);
+        renderMembers(clubData);
+    } catch (e) {
+        document.getElementById('clubName').textContent = 'Club Dashboard';
+        document.getElementById('membersContent').innerHTML =
+            '<div class="empty-state">' +
+            '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>' +
+            '<p>Could not load club data. Please try again.</p></div>';
+    }
+}
+
+async function loadStorage() {
+    try {
+        const res = await fetch('/api/scouting/quota');
+        if (!res.ok) throw new Error('Failed to load storage');
+        const data = await res.json();
+        const usedGb = data.used_gb || 0;
+        const totalGb = data.total_gb || 100;
+        const pct = Math.min(100, Math.round((usedGb / totalGb) * 100));
+
+        document.getElementById('storageValue').innerHTML =
+            '<span dir="ltr">' + usedGb + ' GB</span> <span>/ ' + totalGb + ' GB</span>';
+
+        const bar = document.getElementById('storageBar');
+        bar.style.width = pct + '%';
+        if (pct >= 90) bar.classList.add('danger');
+        else if (pct >= 70) bar.classList.add('warning');
+    } catch (e) {
+        document.getElementById('storageValue').innerHTML = '<span style="color:#5c6370;">Unavailable</span>';
+    }
+}
+
+function renderHeader(data) {
+    const name = data.club_name || 'My Club';
+    document.getElementById('clubName').textContent = name;
+
+    const plan = data.plan || 'academy_10';
+    const planLabel = plan === 'enterprise' ? 'Enterprise' : 'Academy 10';
+    document.getElementById('planBadge').innerHTML =
+        '<span class="plan-badge">' + escHtml(planLabel) + '</span>';
+}
+
+function renderSeats(data) {
+    const used = data.members ? data.members.length : 0;
+    const total = data.max_seats || 10;
+    const pct = Math.min(100, Math.round((used / total) * 100));
+
+    document.getElementById('seatValue').innerHTML =
+        '<span dir="ltr">' + used + '/' + total + '</span> <span>Seats Used</span>';
+
+    const bar = document.getElementById('seatBar');
+    bar.style.width = pct + '%';
+    if (pct >= 90) bar.classList.add('danger');
+    else if (pct >= 70) bar.classList.add('warning');
+}
+
+function renderMembers(data) {
+    const members = data.members || [];
+    const container = document.getElementById('membersContent');
+    const countEl = document.getElementById('memberCount');
+
+    countEl.textContent = members.length + ' member' + (members.length !== 1 ? 's' : '') + ' in your club';
+
+    if (members.length === 0) {
+        container.innerHTML =
+            '<div class="empty-state">' +
+            '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' +
+            '<p>No members yet. Invite your first coach above.</p></div>';
+        return;
+    }
+
+    let rows = '';
+    members.forEach(function(m) {
+        const isAdmin = m.role === 'admin';
+        const badgeHtml = isAdmin ? '<span class="role-badge">Admin</span>' : '';
+        const actionHtml = isAdmin ? '' :
+            '<button class="remove-btn" onclick="removeMember(' + m.id + ', this)" title="Remove member">Remove</button>';
+        const joinedDate = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
+        rows +=
+            '<tr>' +
+            '<td><span class="member-name">' + escHtml(m.name || m.display_name || '—') + '</span>' + badgeHtml + '</td>' +
+            '<td class="member-email">' + escHtml(m.email || '') + '</td>' +
+            '<td><span dir="ltr">' + joinedDate + '</span></td>' +
+            '<td style="text-align:end;">' + actionHtml + '</td>' +
+            '</tr>';
+    });
+
+    container.innerHTML =
+        '<table class="members-table">' +
+        '<thead><tr><th>Name</th><th>Email</th><th>Joined</th><th></th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table>';
+}
+
+/* ── Invite Coach ── */
+async function inviteCoach(e) {
+    e.preventDefault();
+    const email = document.getElementById('inviteEmail').value.trim();
+    if (!email) return false;
+
+    const btn = document.getElementById('inviteBtn');
+    const msg = document.getElementById('inviteMsg');
+    btn.disabled = true;
+    btn.innerHTML = 'Sending\u2026';
+    msg.style.display = 'none';
+    msg.className = 'invite-msg';
+
+    try {
+        const res = await fetch('/api/club/invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        });
+        const data = await res.json();
+        if (res.ok && data.success !== false) {
+            msg.textContent = 'Invitation sent to ' + email;
+            msg.classList.add('success');
+            msg.style.display = 'block';
+            document.getElementById('inviteEmail').value = '';
+        } else {
+            msg.textContent = data.error || data.message || 'Could not send invitation';
+            msg.classList.add('error');
+            msg.style.display = 'block';
+        }
+    } catch (err) {
+        msg.textContent = 'Something went wrong. Please try again.';
+        msg.classList.add('error');
+        msg.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Invite Coach';
+    return false;
+}
+
+/* ── Remove Member ── */
+async function removeMember(memberId, btnEl) {
+    if (!await NpDialog.confirm('Remove this member from the club?', { title: 'Remove Member', icon: 'person_remove', danger: true, okText: 'Remove' })) return;
+
+    btnEl.disabled = true;
+    btnEl.textContent = '...';
+
+    try {
+        const res = await fetch('/api/club/members/' + memberId, { method: 'DELETE' });
+        if (res.ok) {
+            /* Reload member list */
+            const infoRes = await fetch('/api/club/info');
+            if (infoRes.ok) {
+                clubData = await infoRes.json();
+                renderSeats(clubData);
+                renderMembers(clubData);
+            }
+        } else {
+            const data = await res.json().catch(function() { return {}; });
+            NpDialog.alert(data.error || 'Could not remove member', { title: 'Error', icon: 'error' });
+            btnEl.disabled = false;
+            btnEl.textContent = 'Remove';
+        }
+    } catch (err) {
+        NpDialog.alert('Something went wrong', { title: 'Error', icon: 'error' });
+        btnEl.disabled = false;
+        btnEl.textContent = 'Remove';
+    }
+}
+
+/* ── Helpers ── */
+function escHtml(str) {
+    if (!str) return '';
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+/* ── Init ── */
+loadClubInfo();
+loadStorage();
+</script>
+{% endblock %}

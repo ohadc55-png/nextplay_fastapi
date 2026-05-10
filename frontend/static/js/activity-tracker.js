@@ -1,0 +1,113 @@
+/**
+ * Activity Tracker — tracks page views and time spent per section.
+ * Sends heartbeats every 30s and exit event on page unload.
+ */
+(function () {
+    var HEARTBEAT_MS = 30000;
+
+    var SECTION_MAP = {
+        '/': 'home',
+        '/chat': 'chat',
+        '/team-setup': 'team-setup',
+        '/data-upload': 'data-upload',
+        '/history': 'history',
+        '/profile': 'profile',
+        '/settings': 'settings',
+        '/upgrade': 'upgrade',
+        '/club-admin': 'club-admin',
+        '/court-preview': 'court-preview',
+        '/privacy': 'privacy',
+        '/terms': 'terms'
+    };
+
+    function getSection(path) {
+        if (SECTION_MAP[path]) return SECTION_MAP[path];
+        if (path.indexOf('/player/') === 0) return 'player';
+        if (path.indexOf('/scouting') === 0) return 'scouting';
+        if (path.indexOf('/plays') === 0) return 'play-creator';
+        return 'other';
+    }
+
+    // Skip admin pages
+    if (window.location.pathname.indexOf('/admin') === 0) return;
+    // Skip auth pages
+    if (window.location.pathname.indexOf('/login') === 0 ||
+        window.location.pathname.indexOf('/signup') === 0) return;
+
+    var sessionId = sessionStorage.getItem('np_activity_session');
+    if (!sessionId) {
+        sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        sessionStorage.setItem('np_activity_session', sessionId);
+    }
+
+    var pagePath = window.location.pathname;
+    var pageSection = getSection(pagePath);
+    var startTime = Date.now();
+    var activeTime = 0;
+    var isVisible = true;
+    var token = null;
+
+    // Get auth token from cookie
+    var cookies = document.cookie.split(';');
+    for (var i = 0; i < cookies.length; i++) {
+        var c = cookies[i].trim();
+        if (c.indexOf('access_token=') === 0) {
+            token = c.substring('access_token='.length);
+            break;
+        }
+    }
+
+    function send(action) {
+        if (isVisible) {
+            activeTime += Date.now() - startTime;
+            startTime = Date.now();
+        }
+        var duration = Math.round(activeTime / 1000);
+        var payload = JSON.stringify({
+            session_id: sessionId,
+            page_path: pagePath,
+            page_section: pageSection,
+            duration_seconds: duration,
+            action: action
+        });
+
+        var headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        if (action === 'exit') {
+            navigator.sendBeacon('/api/track/pageview',
+                new Blob([payload], { type: 'application/json' }));
+        } else {
+            fetch('/api/track/pageview', {
+                method: 'POST',
+                headers: headers,
+                body: payload,
+                credentials: 'same-origin'
+            }).catch(function () { });
+        }
+    }
+
+    // Track visibility for accurate active time
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+            activeTime += Date.now() - startTime;
+            isVisible = false;
+        } else {
+            startTime = Date.now();
+            isVisible = true;
+        }
+    });
+
+    // Heartbeat every 30s
+    setInterval(function () {
+        send('heartbeat');
+    }, HEARTBEAT_MS);
+
+    // Enter
+    send('enter');
+
+    // Exit on page unload
+    window.addEventListener('beforeunload', function () {
+        send('exit');
+    });
+})();

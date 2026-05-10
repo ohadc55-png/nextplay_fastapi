@@ -1,0 +1,925 @@
+{% extends "base.html" %}
+{% set active_page = "team-setup" %}
+
+{% block content %}
+<div class="page-header">
+    <svg class="page-header-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="M5 5q7 7 0 14"/><path d="M19 5q-7 7 0 14"/></svg>
+    <div>
+        <h1>Team Setup</h1>
+        <p>Configure your team profile and manage your roster.</p>
+    </div>
+</div>
+
+{% if profile and profile.team_name %}
+<!-- ═══ COMPACT VIEW (profile exists) ═══ -->
+
+<!-- Team Identity Bar -->
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:10px">
+            <h2 style="font-size:1.3rem;font-weight:800;margin:0;color:var(--text)">{{ profile.team_name }}</h2>
+            <span style="color:var(--text-2);font-size:0.82rem">{{ profile.league or '' }}{{ ' | ' + profile.division if profile.division else '' }}</span>
+        </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="openModal('profileModal')" style="font-size:0.78rem" aria-label="Edit team profile">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit Profile
+    </button>
+</div>
+
+<!-- Team Stats -->
+<div id="teamStatsCard" style="display:none;margin-bottom:20px">
+    <div id="teamStatsContent"></div>
+</div>
+
+<!-- ═══ EMPTY-ROSTER GUIDANCE (one-time) ═══ -->
+{% if players|length == 0 %}
+<div class="setup-guidance-card" id="setupGuidanceCard" hidden>
+    <div class="guidance-icon" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h4"/>
+        </svg>
+    </div>
+    <h3 class="guidance-title">Build your roster</h3>
+    <p class="guidance-sub">Add players one by one, or download a CSV/XLSX template, fill it in, and upload back. Both work great.</p>
+    <div class="guidance-actions">
+        <button class="btn btn-primary btn-sm" onclick="openModal('playerModal')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            Add Players
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('csvModal')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download / Upload CSV
+        </button>
+    </div>
+    <button class="guidance-dismiss" onclick="dismissSetupGuidance()" aria-label="Dismiss guidance">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+</div>
+{% endif %}
+
+<!-- ═══ "TALK TO BRAD" CTA (when roster has un-profiled players) ═══ -->
+<div class="brad-cta-banner" id="bradCtaBanner" hidden>
+    <img src="{{ url_for('static', filename='img/agents/brad_binn.png') }}" alt="Brad Binn" class="brad-cta-avatar">
+    <div class="brad-cta-text">
+        <div class="brad-cta-title">Now build their scouting profiles</div>
+        <div class="brad-cta-sub">Describe each player to Brad in your own words. He'll fill in all the skill metrics for you — much faster than sliders.</div>
+    </div>
+    <div class="brad-cta-actions">
+        <a href="/chat?agent=gm&onboarding=scouting" class="btn btn-primary btn-sm">Start with Brad</a>
+        <button class="btn-link" onclick="dismissBradCta()">I'll fill manually</button>
+    </div>
+</div>
+
+<!-- Roster Card -->
+<div class="card">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Roster
+        <span class="badge badge-orange" style="margin-inline-start:8px;"><span dir="ltr">{{ players|length }}</span></span>
+        <button class="btn btn-ghost btn-sm" style="margin-inline-start:auto;" onclick="openModal('playerModal')" aria-label="Add player">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            Add Player
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('csvModal')" title="Import CSV" aria-label="Import CSV roster">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            CSV
+        </button>
+    </div>
+    <div id="rosterList">
+    {% if players %}
+        {% for p in players %}
+        <div class="player-row player-row-link" id="player-{{ p.id }}" onclick="window.location='/player/{{ p.id }}'" style="cursor:pointer;">
+            <div class="player-number">#<span dir="ltr">{{ p.number or '?' }}</span></div>
+            <div class="player-info">
+                <span class="player-name">{{ p.name }}</span>
+                <div class="player-details">
+                    <div class="player-meta">
+                        {% if p.position %}<span class="badge badge-blue">{{ p.position }}</span>{% endif %}
+                        {% if p.dominant_hand %}<span class="badge" style="background:rgba(255,255,255,0.06);color:var(--text-2);">{{ p.dominant_hand }}</span>{% endif %}
+                        {% if p.height %}<span>{{ p.height }}</span>{% endif %}
+                        {% if p.weight %}<span>{{ p.weight }}</span>{% endif %}
+                        {% if p.age %}<span>Age <span dir="ltr">{{ p.age }}</span></span>{% endif %}
+                    </div>
+                    {% if p.strengths %}<div class="strength-tag" dir="auto" style="margin-top:4px;"><span style="color:var(--green);font-weight:700;">+</span> {{ p.strengths }}</div>{% endif %}
+                    {% if p.weaknesses %}<div class="weakness-tag" dir="auto" style="margin-top:2px;"><span style="color:var(--red);font-weight:700;">-</span> {{ p.weaknesses }}</div>{% endif %}
+                </div>
+            </div>
+            <a href="/player/{{ p.id }}" class="player-mini-radar" title="{{ 'View profile' if player_metrics.get(p.id, {}) else 'Add metrics →' }}">
+                <canvas id="miniRadar-{{ p.id }}" width="130" height="130" data-metrics='{{ player_metrics.get(p.id, {})|tojson }}'></canvas>
+            </a>
+            <div class="player-actions">
+                <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deletePlayer({{ p.id }})">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <p>No players on your roster yet.<br>Add them manually or upload a CSV file.</p>
+        </div>
+    {% endif %}
+    </div>
+</div>
+
+<!-- ═══ EDIT PROFILE MODAL ═══ -->
+<div class="modal-overlay" id="profileModal" onclick="if(event.target===this)closeModal('profileModal')" style="overflow-y:auto;padding:24px 16px;" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+  <div class="modal" style="max-width:600px;max-height:90vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <h2 id="profileModalTitle">Edit Team Profile</h2>
+      <button class="modal-close" onclick="closeModal('profileModal')" aria-label="Close modal"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <form id="teamProfileForm" style="display:flex;flex-direction:column;overflow:hidden;flex:1">
+      <div class="modal-body" style="overflow-y:auto;flex:1">
+        <div class="form-group">
+            <label>Team Name *</label>
+            <input class="form-input" name="team_name" value="{{ profile.team_name or '' }}" required>
+        </div>
+        <div style="display:flex;gap:12px;">
+            <div class="form-group" style="flex:1;">
+                <label>League</label>
+                <input class="form-input" name="league" value="{{ profile.league or '' }}">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Division</label>
+                <input class="form-input" name="division" value="{{ profile.division or '' }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Play Style</label>
+            <textarea class="form-textarea" dir="auto" name="play_style" rows="3" placeholder="Each line = separate point">{{ profile.play_style or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label><span style="color:var(--green);">+</span> Strengths</label>
+            <textarea class="form-textarea" dir="auto" name="strengths" rows="3" placeholder="Each line = separate point">{{ profile.strengths or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label><span style="color:var(--red);">-</span> Weaknesses</label>
+            <textarea class="form-textarea" dir="auto" name="weaknesses" rows="3" placeholder="Each line = separate point">{{ profile.weaknesses or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea class="form-textarea" dir="auto" name="notes" rows="2">{{ profile.notes or '' }}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('profileModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="saveProfileBtn">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ ADD PLAYER MODAL ═══ -->
+<div class="modal-overlay" id="playerModal" onclick="if(event.target===this)closeModal('playerModal')" role="dialog" aria-modal="true" aria-labelledby="playerModalTitle">
+  <div class="modal" style="max-width:550px;">
+    <div class="modal-header">
+      <h2 id="playerModalTitle">Add Player</h2>
+      <button class="modal-close" onclick="closeModal('playerModal')" aria-label="Close modal"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <form id="addPlayerForm">
+      <div class="modal-body">
+        <div style="display:flex;gap:12px;">
+            <div class="form-group" style="flex:2;">
+                <label>Name *</label>
+                <input class="form-input" name="name" required placeholder="Full name">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Number</label>
+                <input class="form-input" name="number" type="number" min="0" max="99" value="0">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Position</label>
+                <select class="form-select" name="position">
+                    <option value="">--</option>
+                    <option>PG</option><option>SG</option><option>SF</option>
+                    <option>PF</option><option>C</option><option>G</option><option>F</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;">
+            <div class="form-group" style="flex:1;">
+                <label>Height</label>
+                <input class="form-input" name="height" placeholder="e.g., 1.85m">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Weight</label>
+                <input class="form-input" name="weight" placeholder="e.g., 82kg">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Age</label>
+                <input class="form-input" name="age" type="number" min="0" max="60" value="0">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Hand</label>
+                <select class="form-select" name="dominant_hand">
+                    <option value="">--</option>
+                    <option value="R">Right</option>
+                    <option value="L">Left</option>
+                    <option value="B">Both</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;">
+            <div class="form-group" style="flex:1;">
+                <label><span style="color:var(--green);">+</span> Strengths</label>
+                <textarea class="form-textarea" dir="auto" name="strengths" rows="2" placeholder="e.g., Elite shooter, great court vision..."></textarea>
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label><span style="color:var(--red);">-</span> Weaknesses</label>
+                <textarea class="form-textarea" dir="auto" name="weaknesses" rows="2" placeholder="e.g., Slow lateral movement..."></textarea>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('playerModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="addPlayerBtn">Add Player</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ CSV / XLSX IMPORT MODAL ═══ -->
+<div class="modal-overlay" id="csvModal" onclick="if(event.target===this)closeModal('csvModal')" role="dialog" aria-modal="true" aria-labelledby="csvModalTitle">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h2 id="csvModalTitle">Import Roster</h2>
+      <button class="modal-close" onclick="closeModal('csvModal')" aria-label="Close modal"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <!-- Step 1: Download template -->
+      <div class="template-download-row">
+          <div class="template-download-text">
+              <div class="template-step-label">Step 1</div>
+              <div class="template-step-title">Download a template</div>
+              <div class="template-step-sub">Fill in your roster and save the file.</div>
+          </div>
+          <div class="template-download-btns">
+              <a href="/api/players/template.csv" class="btn btn-ghost btn-sm" download aria-label="Download CSV template">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  CSV
+              </a>
+              <a href="/api/players/template.xlsx" class="btn btn-ghost btn-sm" download aria-label="Download XLSX template">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  XLSX
+              </a>
+          </div>
+      </div>
+
+      <!-- Step 2: Upload -->
+      <div class="template-step-label" style="margin-bottom:6px;">Step 2</div>
+      <div class="template-step-title" style="margin-bottom:10px;">Upload your filled file</div>
+
+      <!-- Default upload zone — visible until user picks a file -->
+      <div class="upload-zone" id="csvUploadZone" onclick="document.getElementById('csvFile').click()">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Click to upload CSV or XLSX</p>
+      </div>
+
+      <!-- Progress panel — shown while the import runs.
+           Replaces the upload zone in-place so the user sees clear feedback. -->
+      <div class="csv-progress" id="csvProgress" hidden>
+          <div class="csv-progress-spinner" aria-hidden="true"></div>
+          <div class="csv-progress-status" id="csvProgressStatus">Preparing…</div>
+          <div class="csv-progress-bar"><div class="csv-progress-fill" id="csvProgressFill"></div></div>
+          <div class="csv-progress-detail" id="csvProgressDetail">Reading your file</div>
+      </div>
+
+      <!-- Result panel — shown briefly after success/error -->
+      <div class="csv-result" id="csvResult" hidden>
+          <div class="csv-result-icon" id="csvResultIcon">✓</div>
+          <div class="csv-result-msg" id="csvResultMsg">Imported X players</div>
+      </div>
+
+      <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleCSV(this)">
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- ═══ FIRST-TIME SETUP (no profile yet) ═══ -->
+<div class="card mb-24">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Team Profile
+    </div>
+    <form id="teamProfileForm">
+        <div class="form-row">
+            <div>
+                <div class="form-group">
+                    <label>Team Name *</label>
+                    <input class="form-input" name="team_name" required placeholder="Enter team name">
+                </div>
+                <div class="form-group">
+                    <label>League</label>
+                    <input class="form-input" name="league" placeholder="e.g., Israeli Basketball League">
+                </div>
+                <div class="form-group">
+                    <label>Division</label>
+                    <input class="form-input" name="division" placeholder="e.g., Division A">
+                </div>
+            </div>
+            <div>
+                <div class="form-group">
+                    <label>Play Style</label>
+                    <textarea class="form-textarea" dir="auto" name="play_style" placeholder="Each line = separate point"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Strengths</label>
+                    <textarea class="form-textarea" dir="auto" name="strengths" placeholder="Each line = separate point"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Weaknesses</label>
+                    <textarea class="form-textarea" dir="auto" name="weaknesses" placeholder="Each line = separate point"></textarea>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" id="saveProfileBtn" aria-label="Save team profile">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+            Save Team Profile
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<style nonce="{{ g.csp_nonce }}">
+/* CSV import progress UI — replaces the upload-zone in-place during import. */
+.csv-progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 32px 24px;
+    background: rgba(255, 107, 53, 0.04);
+    border: 1px solid rgba(255, 107, 53, 0.22);
+    border-radius: 12px;
+    text-align: center;
+}
+.csv-progress-spinner {
+    width: 44px;
+    height: 44px;
+    border: 4px solid rgba(255, 107, 53, 0.18);
+    border-top-color: var(--accent, #ff6b35);
+    border-radius: 50%;
+    animation: csvSpin 0.9s linear infinite;
+}
+@keyframes csvSpin { to { transform: rotate(360deg); } }
+.csv-progress-status {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text, #f0f3f6);
+}
+.csv-progress-bar {
+    width: 100%;
+    max-width: 280px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.csv-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b35, #ff8c5a);
+    width: 0%;
+    transition: width 0.4s cubic-bezier(.4, 0, .2, 1);
+    border-radius: 4px;
+}
+.csv-progress-detail {
+    font-size: 0.85rem;
+    color: var(--text-2, #9ba4b0);
+    line-height: 1.4;
+}
+
+/* Result panel */
+.csv-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px 24px;
+    text-align: center;
+    border-radius: 12px;
+    border: 1px solid rgba(34, 197, 94, 0.32);
+    background: rgba(34, 197, 94, 0.08);
+}
+.csv-result.error {
+    border-color: rgba(239, 68, 68, 0.42);
+    background: rgba(239, 68, 68, 0.08);
+}
+.csv-result-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    font-weight: 800;
+    background: rgba(34, 197, 94, 0.18);
+    color: #22c55e;
+}
+.csv-result.error .csv-result-icon {
+    background: rgba(239, 68, 68, 0.18);
+    color: #ef4444;
+}
+.csv-result-msg {
+    font-size: 0.95rem;
+    color: var(--text, #f0f3f6);
+    font-weight: 600;
+}
+</style>
+<script nonce="{{ g.csp_nonce }}">
+// CSV-import progress helpers — toggle between upload zone / progress / result.
+function csvShow(state) {
+    // state: 'idle' | 'progress' | 'result'
+    const zone = document.getElementById('csvUploadZone');
+    const prog = document.getElementById('csvProgress');
+    const res  = document.getElementById('csvResult');
+    if (zone) zone.hidden = (state !== 'idle');
+    if (prog) prog.hidden = (state !== 'progress');
+    if (res)  res.hidden  = (state !== 'result');
+}
+function csvSetProgress(percent, status, detail) {
+    const fill   = document.getElementById('csvProgressFill');
+    const stat   = document.getElementById('csvProgressStatus');
+    const det    = document.getElementById('csvProgressDetail');
+    if (fill && typeof percent === 'number') fill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    if (stat && status) stat.textContent = status;
+    if (det && detail !== undefined) det.textContent = detail;
+}
+function csvShowResult(success, message) {
+    const res  = document.getElementById('csvResult');
+    const icon = document.getElementById('csvResultIcon');
+    const msg  = document.getElementById('csvResultMsg');
+    if (res) res.classList.toggle('error', !success);
+    if (icon) icon.textContent = success ? '✓' : '✕';
+    if (msg) msg.textContent = message;
+    csvShow('result');
+}
+function csvReset() {
+    csvShow('idle');
+    csvSetProgress(0, 'Preparing…', 'Reading your file');
+    const input = document.getElementById('csvFile');
+    if (input) input.value = '';  // allow re-upload of same filename
+}
+
+function toast(msg, type='success') {
+    const div = document.createElement('div');
+    div.className = `toast toast-${type}`;
+    div.textContent = msg;
+    document.body.appendChild(div);
+    requestAnimationFrame(() => div.classList.add('show'));
+    setTimeout(() => { div.classList.remove('show'); setTimeout(() => div.remove(), 300); }, 3000);
+}
+
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('active'); document.body.style.overflow = 'hidden'; }
+    // CSV modal: always reset to idle when re-opened (so a previous error
+    // panel doesn't linger after closing+reopening the modal).
+    if (id === 'csvModal' && typeof csvReset === 'function') csvReset();
+}
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('active'); document.body.style.overflow = ''; }
+}
+
+document.getElementById('teamProfileForm')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('saveProfileBtn');
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    const res = await fetch('/api/team-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+    if (res.ok) { toast('Team profile saved!'); setTimeout(() => location.reload(), 800); }
+    else toast('Error saving profile', 'error');
+});
+
+document.getElementById('addPlayerForm')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('addPlayerBtn');
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+    const fd = new FormData(e.target);
+    const data = Object.fromEntries(fd.entries());
+    data.number = parseInt(data.number) || 0;
+    data.age = parseInt(data.age) || 0;
+    const res = await fetch('/api/player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+    if (res.ok) { toast('Player added!'); closeModal('playerModal'); setTimeout(() => location.reload(), 800); }
+    else toast('Error adding player', 'error');
+});
+
+async function deletePlayer(id) {
+    if (!await NpDialog.confirm('Remove this player?', { title: 'Remove Player', icon: 'person_remove', danger: true, okText: 'Remove' })) return;
+    const row = document.getElementById(`player-${id}`);
+    row.style.opacity = '0.5';
+    row.style.pointerEvents = 'none';
+    const res = await fetch(`/api/player/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+        row.style.transition = 'all 0.3s ease';
+        row.style.transform = 'translateX(-20px)';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
+        toast('Player removed');
+    } else {
+        row.style.opacity = '1';
+        row.style.pointerEvents = '';
+    }
+}
+
+async function handleCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+
+    // Show progress UI immediately so the user sees feedback even before
+    // the file finishes reading.
+    csvShow('progress');
+    csvSetProgress(10, 'Reading your file…', file.name);
+
+    // XLSX → send as FormData; backend parses (pandas/openpyxl already available)
+    if (ext === 'xlsx' || ext === 'xls') {
+        try {
+            csvSetProgress(30, 'Uploading to NextPlay…', 'Sending file to server');
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch('/api/players/bulk-file', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: fd,
+            });
+            csvSetProgress(75, 'Processing players…', 'Reading rows from your spreadsheet');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Upload failed');
+            csvSetProgress(100, 'Done!', `Imported ${data.count} players`);
+            csvShowResult(true, `Imported ${data.count} players! Refreshing your roster…`);
+            setTimeout(() => location.reload(), 1200);
+        } catch (e) {
+            csvShowResult(false, 'Failed to import file. Please check the format and try again.');
+            setTimeout(csvReset, 4000);
+        }
+        return;
+    }
+
+    // CSV — parse client-side as before
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            csvSetProgress(35, 'Parsing CSV…', 'Reading rows from your file');
+            const lines = e.target.result.split(/\r?\n/);
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+            const players = [];
+            for (let i = 1; i < lines.length; i++) {
+                const vals = lines[i].split(',');
+                if (vals.length < 2) continue;
+                const player = {};
+                headers.forEach((h, idx) => { player[h] = (vals[idx] || '').trim().replace(/^["']|["']$/g, ''); });
+                if (!player.name) continue;
+                player.number = parseInt(player.number) || 0;
+                player.age = parseInt(player.age) || 0;
+                players.push(player);
+            }
+            if (players.length === 0) {
+                csvShowResult(false, 'No valid players found in the file. Make sure each row has at least a name.');
+                setTimeout(csvReset, 4000);
+                return;
+            }
+            csvSetProgress(65, `Uploading ${players.length} player${players.length === 1 ? '' : 's'}…`, 'Sending to NextPlay');
+            const res = await fetch('/api/players/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ players })
+            });
+            csvSetProgress(90, 'Saving to your roster…', 'Final touches');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Import failed');
+            csvSetProgress(100, 'Done!', `Imported ${data.count} players`);
+            csvShowResult(true, `Imported ${data.count} players! Refreshing your roster…`);
+            setTimeout(() => location.reload(), 1200);
+        } catch (e) {
+            csvShowResult(false, 'Failed to import. Please check the file format and try again.');
+            setTimeout(csvReset, 4000);
+        }
+    };
+    reader.onerror = function() {
+        csvShowResult(false, 'Could not read the file. Please try again.');
+        setTimeout(csvReset, 4000);
+    };
+    reader.readAsText(file);
+}
+
+// ── Mini Radar Charts ──
+const CATS = {
+    offense: { metrics: ['shooting','ball_handling','passing','driving','offensive_iq'], color: '#ff6b35' },
+    defense: { metrics: ['on_ball_defense','help_defense','defensive_iq','rebounding'], color: '#4da6ff' },
+    bball_iq: { metrics: ['court_vision','decision_making','coachability'], color: '#bc8ff3' },
+    character: { metrics: ['competitiveness','teamwork','composure'], color: '#3fb950' },
+    tactical: { metrics: ['system_execution','transition_play','spacing_movement'], color: '#f0b429' },
+    physical: { metrics: ['speed_agility','strength_toughness','stamina'], color: '#f85149' },
+};
+const CAT_ORDER = ['offense','defense','bball_iq','character','tactical','physical'];
+
+function drawMiniRadar(canvas) {
+    const metricsData = JSON.parse(canvas.dataset.metrics || '{}');
+    const dpr = window.devicePixelRatio || 1;
+    const size = 130;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2, cy = size / 2, maxR = size / 2 - 18;
+    const n = 6, step = (2 * Math.PI) / n, start = -Math.PI / 2;
+
+    // Check if any metrics exist
+    const hasData = Object.keys(metricsData).length > 0;
+
+    // Calculate category averages
+    const avgs = CAT_ORDER.map(catKey => {
+        const cat = CATS[catKey];
+        if (!hasData) return 5;
+        let sum = 0, count = 0;
+        cat.metrics.forEach(m => { sum += (metricsData[m] || 5); count++; });
+        return sum / count;
+    });
+
+    // Grid hexagon
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+        const a = start + (i % n) * step;
+        const x = cx + maxR * Math.cos(a), y = cy + maxR * Math.sin(a);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Data polygon
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+        const idx = i % n;
+        const r = (avgs[idx] / 10) * maxR;
+        const a = start + idx * step;
+        const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = hasData ? 'rgba(255, 107, 53, 0.2)' : 'rgba(255,255,255,0.03)';
+    ctx.fill();
+    ctx.strokeStyle = hasData ? '#ff6b35' : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Data dots
+    if (hasData) {
+        for (let i = 0; i < n; i++) {
+            const r = (avgs[i] / 10) * maxR;
+            const a = start + i * step;
+            ctx.beginPath();
+            ctx.arc(cx + r * Math.cos(a), cy + r * Math.sin(a), 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = CATS[CAT_ORDER[i]].color;
+            ctx.fill();
+        }
+    }
+
+    // Tiny category labels at vertices
+    const shortLabels = ['OFF', 'DEF', 'IQ', 'CHR', 'TAC', 'PHY'];
+    ctx.font = '7px sans-serif';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < n; i++) {
+        const a = start + i * step;
+        const lr = maxR + 7;
+        const lx = cx + lr * Math.cos(a);
+        const ly = cy + lr * Math.sin(a);
+        ctx.fillStyle = CATS[CAT_ORDER[i]].color;
+        ctx.textAlign = Math.abs(Math.cos(a)) < 0.1 ? 'center' : (Math.cos(a) > 0 ? 'left' : 'right');
+        ctx.fillText(shortLabels[i], lx, ly);
+    }
+}
+
+// Draw all mini radars on page load
+document.querySelectorAll('canvas[id^="miniRadar-"]').forEach(drawMiniRadar);
+
+// ── Team Stats + Leaders ──
+(async function loadTeamStats() {
+    try {
+        const [statsRes, leadersRes] = await Promise.all([
+            fetch('/api/notebook/team-stats'),
+            fetch('/api/notebook/team-leaders')
+        ]);
+        const statsJson = await statsRes.json();
+        const leadersJson = await leadersRes.json();
+        const s = statsJson.data;
+        const leaders = leadersJson.data || {};
+
+        if (!s || !s.games) return;
+        document.getElementById('teamStatsCard').style.display = '';
+
+        const fgPct = s.sum_fga > 0 ? Math.round((s.sum_fgm / s.sum_fga) * 100) : 0;
+        const tpPct = s.sum_three_pa > 0 ? Math.round((s.sum_three_pm / s.sum_three_pa) * 100) : 0;
+        const ftPct = s.sum_fta > 0 ? Math.round((s.sum_ftm / s.sum_fta) * 100) : 0;
+
+        function statBox(label, val) {
+            return `<div style="text-align:center;min-width:50px"><div style="font-size:0.65rem;font-weight:700;color:#fff;opacity:0.7;text-transform:uppercase;letter-spacing:0.04em">${label}</div><div style="font-size:0.88rem;font-weight:700;color:#fff">${val}</div></div>`;
+        }
+        function totalBox(label, val) {
+            return `<div style="text-align:center;min-width:50px"><div style="font-size:0.65rem;font-weight:700;color:#fff;opacity:0.7;text-transform:uppercase;letter-spacing:0.04em">${label}</div><div style="font-size:0.88rem;font-weight:700;color:#fff">${val}</div></div>`;
+        }
+
+        // Leaders HTML
+        function leaderRow(title, emoji, list, stat) {
+            if (!list || !list.length) return '';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0">
+                <span style="font-size:0.75rem;font-weight:700;color:#fff;min-width:70px">${emoji} ${title}</span>
+                ${list.map((p, i) => `<span style="font-size:0.8rem;color:${i===0?'var(--accent)':'var(--text-2)'};font-weight:${i===0?'700':'500'}">${esc(p.name || '')} <span style="font-family:Orbitron,monospace;font-weight:800">${p.avg_val}</span></span>`).join('<span style="color:var(--border-2);margin:0 2px">|</span>')}
+            </div>`;
+        }
+
+        const cols = ['PTS','FG','3PT','FT','REB','AST','STL','BLK','TO'];
+        const avgVals = [s.avg_points, fgPct+'%', tpPct+'%', ftPct+'%', s.avg_reb, s.avg_ast, s.avg_stl, s.avg_blk, s.avg_turnovers];
+        const totVals = [s.sum_points, s.sum_fgm+'-'+s.sum_fga, s.sum_three_pm+'-'+s.sum_three_pa, s.sum_ftm+'-'+s.sum_fta, s.sum_reb, s.sum_ast, s.sum_stl, s.sum_blk, s.sum_turnovers];
+
+        const isMobile = window.innerWidth <= 768;
+        const scrollRow = 'display:flex;gap:0;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;padding-bottom:4px';
+        const gridStyle = isMobile ? scrollRow
+            : 'display:grid;grid-template-columns:100px repeat(9, 1fr);align-items:center;gap:0';
+        const cellStyle = isMobile ? 'text-align:center;min-width:56px;padding:6px 6px;flex-shrink:0' : 'text-align:center;padding:8px 4px';
+        const labelStyle = 'font-size:0.62rem;font-weight:700;color:#fff;opacity:0.6;text-transform:uppercase;letter-spacing:0.04em';
+        const valStyle = 'font-size:0.88rem;font-weight:700;color:#fff';
+        const titleStyle = 'font-size:0.75rem;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.06em;padding:4px 4px 6px';
+
+        // Build stats using DOM methods
+        var container = document.getElementById('teamStatsContent');
+        container.textContent = '';
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px';
+
+        function buildStatSection(title, valsArr, addBorder) {
+            var section = document.createElement('div');
+            section.style.cssText = addBorder ? 'padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px' : 'padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px';
+            if (isMobile) {
+                var h = document.createElement('div');
+                h.style.cssText = titleStyle;
+                h.textContent = title;
+                section.appendChild(h);
+                var row = document.createElement('div');
+                row.style.cssText = scrollRow;
+                cols.forEach(function(c, i) {
+                    var cell = document.createElement('div');
+                    cell.style.cssText = cellStyle;
+                    var lbl = document.createElement('div');
+                    lbl.style.cssText = labelStyle;
+                    lbl.textContent = c;
+                    var val = document.createElement('div');
+                    val.style.cssText = valStyle;
+                    val.textContent = valsArr[i];
+                    cell.appendChild(lbl);
+                    cell.appendChild(val);
+                    row.appendChild(cell);
+                });
+                section.appendChild(row);
+            } else {
+                var grid = document.createElement('div');
+                grid.style.cssText = gridStyle;
+                var label = document.createElement('div');
+                label.style.cssText = titleStyle;
+                label.textContent = title;
+                grid.appendChild(label);
+                cols.forEach(function(c, i) {
+                    var cell = document.createElement('div');
+                    cell.style.cssText = cellStyle;
+                    var lbl = document.createElement('div');
+                    lbl.style.cssText = labelStyle;
+                    lbl.textContent = c;
+                    var val = document.createElement('div');
+                    val.style.cssText = valStyle;
+                    val.textContent = valsArr[i];
+                    cell.appendChild(lbl);
+                    cell.appendChild(val);
+                    grid.appendChild(cell);
+                });
+                section.appendChild(grid);
+            }
+            return section;
+        }
+
+        wrap.appendChild(buildStatSection('Totals (' + s.games + ' GP)', totVals, true));
+        wrap.appendChild(buildStatSection('Per Game', avgVals, true));
+
+        // Leaders section
+        var leadersDiv = document.createElement('div');
+        leadersDiv.style.cssText = 'padding-top:10px';
+        function addLeader(title, list, stat) {
+            if (!list || !list.length) return;
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;flex-wrap:wrap';
+            var label = document.createElement('span');
+            label.style.cssText = 'font-size:0.75rem;font-weight:700;color:#fff;min-width:70px';
+            label.textContent = title;
+            row.appendChild(label);
+            list.forEach(function(p, i) {
+                if (i > 0) {
+                    var sep = document.createElement('span');
+                    sep.style.cssText = 'color:var(--border-2);margin:0 2px';
+                    sep.textContent = '|';
+                    row.appendChild(sep);
+                }
+                var sp = document.createElement('span');
+                sp.style.cssText = 'font-size:0.8rem;color:' + (i === 0 ? 'var(--accent)' : 'var(--text-2)') + ';font-weight:' + (i === 0 ? '700' : '500');
+                sp.textContent = (p.name || '') + ' ' + p.avg_val;
+                row.appendChild(sp);
+            });
+            leadersDiv.appendChild(row);
+        }
+        addLeader('Scoring', leaders.scoring || [], 'points');
+        addLeader('Rebounds', leaders.rebounds || [], 'reb');
+        addLeader('Assists', leaders.assists || [], 'ast');
+        wrap.appendChild(leadersDiv);
+
+        container.appendChild(wrap);
+    } catch (e) {
+        console.error('Failed to load team stats:', e);
+    }
+})();
+
+// ═══ Onboarding guidance + Brad CTA ═══════════════════════════
+(function () {
+    // Empty-roster guidance card — show once until dismissed
+    var guidance = document.getElementById('setupGuidanceCard');
+    if (guidance && !localStorage.getItem('np_team_setup_intro_dismissed')) {
+        guidance.hidden = false;
+    }
+
+    // Brad CTA banner — onboarding helper. Visibility rules:
+    //  - "I'll fill manually" hides it for THIS visit only (returns next time)
+    //  - Once the roster is complete (>=8 active players AND zero pending
+    //    profiles), the banner is dismissed permanently via the
+    //    np_scout_with_brad_complete flag and never shows again.
+    var bradBanner = document.getElementById('bradCtaBanner');
+    if (bradBanner && !localStorage.getItem('np_scout_with_brad_complete')) {
+        fetch('/api/onboarding/players-status', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data) return;
+                var pending = (data.pending || []).length;
+                var profiled = (data.profiled || []).length;
+                var total = pending + profiled;
+
+                // Roster fully built — set permanent flag and stop showing forever.
+                if (total >= 8 && pending === 0) {
+                    try { localStorage.setItem('np_scout_with_brad_complete', '1'); } catch (e) {}
+                    return;
+                }
+
+                // Otherwise show only if there's still work to do for Brad.
+                if (pending > 0) {
+                    bradBanner.hidden = false;
+                }
+            })
+            .catch(function () { /* silent */ });
+    }
+})();
+
+function dismissSetupGuidance() {
+    var el = document.getElementById('setupGuidanceCard');
+    if (el) el.hidden = true;
+    try { localStorage.setItem('np_team_setup_intro_dismissed', '1'); } catch (e) {}
+}
+
+function dismissBradCta() {
+    // Session-only dismissal — banner returns next time team-setup opens.
+    // Permanent dismissal is handled automatically once the roster is
+    // complete (>=8 players, all profiled) by the load-time check above.
+    var el = document.getElementById('bradCtaBanner');
+    if (el) el.hidden = true;
+}
+</script>
+{% endblock %}

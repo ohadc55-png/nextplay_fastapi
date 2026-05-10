@@ -227,7 +227,7 @@ async def _llm_classify(message: str, team_ctx: str) -> str:
     except (json.JSONDecodeError, KeyError) as e:
         logger.warning("[router] malformed JSON, defaulting to gm: %s", e)
         agent = "gm"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("[router] LLM call failed, defaulting to gm: %s", e)
         agent = "gm"
 
@@ -260,4 +260,4 @@ def _reset_cache_for_tests() -> None:
         _llm_classify._results.clear()
 
 
-__all__ = ["route_query", "_reset_cache_for_tests"]
+__all__ = ["_reset_cache_for_tests", "route_query"]

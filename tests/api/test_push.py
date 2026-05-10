@@ -16,7 +16,6 @@ from src.core.config import settings
 from src.models.push import PushSubscription
 from src.models.users import User
 
-
 SUB_BODY = {
     "endpoint": "https://fcm.googleapis.com/fcm/send/test-1",
     "keys": {"p256dh": "p256-key", "auth": "auth-key"},
@@ -203,18 +202,105 @@ class TestPreferences:
 
 
 # ---------------------------------------------------------------------------
-# /api/push/test (delivery stub until Phase 7)
+# /api/push/test — real delivery via pywebpush (mocked) + console fallback
 # ---------------------------------------------------------------------------
 
 class TestSelfTestPush:
-    async def test_authed_user_can_fire_a_test_push(self, authed_client: AsyncClient):
+    async def test_user_with_no_subscription_gets_skipped(
+        self, authed_client: AsyncClient
+    ):
+        """The fresh test user has no push_subscriptions row → gate 2
+        rejects with reason=no_subscription. Even with force=True we
+        still need at least one subscription to push to."""
         r = await authed_client.post("/api/push/test", json={})
         assert r.status_code == 200
         body = r.json()
-        assert body["ok"] is True
-        # Stub flag confirms Phase 7 wiring is still pending — drop this when
-        # pywebpush actually delivers.
-        assert body.get("stub") is True
+        assert body["status"] == "skipped"
+        assert body["reason"] == "no_subscription"
+
+    async def test_test_push_in_console_mode_succeeds(
+        self, authed_client: AsyncClient, api_session_factory
+    ):
+        """With a subscription on file AND no VAPID keys (console mode),
+        the test push 'succeeds' to console and writes a push_log row."""
+        from src.models.push import PushSubscription
+
+        # Seed a subscription for the authed user (id=1)
+        async with api_session_factory() as s:
+            s.add(PushSubscription(
+                user_id=1,
+                endpoint="https://fcm.googleapis.com/fcm/send/test-endpoint",
+                p256dh="fake-p256dh", auth="fake-auth",
+            ))
+            await s.commit()
+
+        with patch.object(settings, "VAPID_PRIVATE_KEY", ""), \
+             patch.object(settings, "VAPID_PUBLIC_KEY", ""):
+            r = await authed_client.post("/api/push/test", json={})
+        body = r.json()
+        assert body["status"] == "sent"
+        assert body["reason"] == "console_mode"
+        assert body["sent_count"] == 1
+
+    async def test_test_push_with_vapid_keys_calls_pywebpush(
+        self, authed_client: AsyncClient, api_session_factory
+    ):
+        """Real send path — pywebpush is mocked to capture the call."""
+        from src.models.push import PushSubscription
+        from src.services import push_service
+
+        async with api_session_factory() as s:
+            s.add(PushSubscription(
+                user_id=1,
+                endpoint="https://fcm.googleapis.com/fcm/send/x",
+                p256dh="p", auth="a",
+            ))
+            await s.commit()
+
+        with patch.object(settings, "VAPID_PRIVATE_KEY", "fake-priv-key"), \
+             patch.object(settings, "VAPID_PUBLIC_KEY", "fake-pub-key"), \
+             patch.object(
+                 push_service, "_send_via_pywebpush_sync",
+                 return_value=(True, 201, None),
+             ) as mock_send:
+            r = await authed_client.post("/api/push/test", json={})
+        body = r.json()
+        assert body["status"] == "sent"
+        assert body["sent_count"] == 1
+        # pywebpush was called with the right subscription info
+        mock_send.assert_called_once()
+        call_kwargs = mock_send.call_args.kwargs
+        assert call_kwargs["subscription"]["endpoint"] == "https://fcm.googleapis.com/fcm/send/x"
+
+    async def test_dead_subscription_410_is_swept(
+        self, authed_client: AsyncClient, api_session_factory
+    ):
+        """When pywebpush returns 410 (Gone), the subscription row is
+        deleted so we don't keep retrying dead endpoints."""
+        from sqlalchemy import select
+
+        from src.models.push import PushSubscription
+        from src.services import push_service
+
+        async with api_session_factory() as s:
+            s.add(PushSubscription(
+                user_id=1,
+                endpoint="https://fcm.googleapis.com/fcm/send/dead",
+                p256dh="p", auth="a",
+            ))
+            await s.commit()
+
+        with patch.object(settings, "VAPID_PRIVATE_KEY", "fake-priv"), \
+             patch.object(settings, "VAPID_PUBLIC_KEY", "fake-pub"), \
+             patch.object(
+                 push_service, "_send_via_pywebpush_sync",
+                 return_value=(False, 410, "WebPushException: gone"),
+             ):
+            await authed_client.post("/api/push/test", json={})
+
+        async with api_session_factory() as s:
+            rows = list((await s.execute(select(PushSubscription))).scalars().all())
+            assert rows == []  # dead subscription was swept
 
 
 # ---------------------------------------------------------------------------
@@ -243,3 +329,5 @@ class TestCronEntry:
             )
         assert r.status_code == 200
         assert r.json()["ok"] is True
+        # Empty DB → no inactive coaches → 0 jobs run
+        assert r.json()["stats"]["jobs_run"] == 0

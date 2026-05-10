@@ -1,0 +1,12 @@
+{# PWA <head> tags — included from standalone templates that don't extend
+   base.html (welcome.html, login.html, register.html). Keeps the manifest +
+   apple-touch-icon + meta tags in one place. base.html sets these inline. #}
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}?v={{ config.get('CSS_VERSION', '2') }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/icons/apple-touch-icon-180.png') }}">
+<meta name="theme-color" content="#0a0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXTPLAY">
+<meta name="mobile-web-app-capable" content="yes">
+<script src="{{ url_for('static', filename='js/pwa-register.js') }}?v={{ config.get('CSS_VERSION', '2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pwa-install-banner.js') }}?v={{ config.get('CSS_VERSION', '2') }}" defer></script>

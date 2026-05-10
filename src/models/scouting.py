@@ -210,13 +210,13 @@ class CompileCard(Base):
 
 
 __all__ = [
-    "ScoutingVideo",
-    "VideoClip",
-    "VideoAnnotation",
     "ClipPlaylist",
-    "PlaylistItem",
     "ClipShare",
-    "StorageQuota",
-    "ScoutingPlayer",
     "CompileCard",
+    "PlaylistItem",
+    "ScoutingPlayer",
+    "ScoutingVideo",
+    "StorageQuota",
+    "VideoAnnotation",
+    "VideoClip",
 ]

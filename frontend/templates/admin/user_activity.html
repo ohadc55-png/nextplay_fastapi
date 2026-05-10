@@ -1,0 +1,302 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}User Activity{% endblock %}
+
+{% macro fmt_time(seconds) -%}
+{%- set s = seconds | int -%}
+{%- if s >= 3600 -%}
+    {{ (s // 3600) }}h {{ ((s % 3600) // 60) }}m
+{%- elif s >= 60 -%}
+    {{ (s // 60) }}m {{ (s % 60) }}s
+{%- else -%}
+    {{ s }}s
+{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-header">
+    <h2>User Activity</h2>
+    <p>Time spent by users across application sections</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Tracked Time</div>
+        <div class="stat-value accent">{{ fmt_time(total_time) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active Users Today</div>
+        <div class="stat-value blue">{{ active_today }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Avg Session Duration</div>
+        <div class="stat-value green">{{ fmt_time(avg_session) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Top Section</div>
+        <div class="stat-value" style="color: #bc8ff3; font-size: 1.4em;">{{ top_section }}</div>
+    </div>
+</div>
+
+{% if not has_table %}
+<div class="admin-card">
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <h4>Activity Tracking Not Set Up</h4>
+        <p>The page_views table has not been created yet. Run the migration to start tracking user activity.</p>
+    </div>
+</div>
+{% else %}
+
+<!-- Charts Row -->
+<div class="admin-grid-2">
+    <!-- Section Heatmap -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Time by Section</h3>
+        </div>
+        {% if sections %}
+        <div class="chart-container" style="min-height: {{ [sections|length * 36, 200] | max }}px">
+            <canvas id="sectionChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h4>No data yet</h4>
+            <p>Section data will appear after users browse the app.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section Table -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Section Breakdown</h3>
+        </div>
+        {% if sections %}
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Section</th>
+                        <th class="text-right">Time</th>
+                        <th class="text-right">Views</th>
+                        <th class="text-right">Users</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sections %}
+                    <tr>
+                        <td>
+                            <span class="section-badge">{{ s.page_section }}</span>
+                        </td>
+                        <td class="text-right mono">{{ fmt_time(s.total_seconds) }}</td>
+                        <td class="text-right mono">{{ '{:,}'.format(s.views | int) }}</td>
+                        <td class="text-right mono">{{ s.unique_users }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h4>No data yet</h4>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Per-User Drill Down (if selected) -->
+{% if detail_user and user_detail %}
+<div class="admin-card" id="user-detail">
+    <div class="admin-card-header">
+        <h3>{{ detail_user.display_name or detail_user.email }} — Section Breakdown</h3>
+        <a href="{{ url_for('admin.user_activity') }}" class="btn-close-detail">&times; Close</a>
+    </div>
+    <div class="admin-grid-2">
+        <div class="chart-container" style="min-height: 250px">
+            <canvas id="userDetailChart"></canvas>
+        </div>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Section</th>
+                        <th class="text-right">Time</th>
+                        <th class="text-right">Views</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in user_detail %}
+                    <tr>
+                        <td><span class="section-badge">{{ d.page_section }}</span></td>
+                        <td class="text-right mono">{{ fmt_time(d.total_seconds) }}</td>
+                        <td class="text-right mono">{{ '{:,}'.format(d.views | int) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Users Table -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Users by Time Spent</h3>
+    </div>
+    {% if users %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th class="text-right">Total Time</th>
+                    <th class="text-right">Last Active</th>
+                    <th class="text-right">Sessions</th>
+                    <th class="text-center">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="text-muted">{{ loop.index }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.display_name or '---' }}</td>
+                    <td class="text-right mono accent">{{ fmt_time(u.total_seconds) }}</td>
+                    <td class="text-right mono" style="font-size:0.85em">{{ u.last_active[:16] if u.last_active else '---' }}</td>
+                    <td class="text-right mono">{{ u.session_count }}</td>
+                    <td class="text-center">
+                        <a href="{{ url_for('admin.user_activity', user_id=u.id) }}#user-detail" class="detail-link">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h4>No activity data yet</h4>
+        <p>User activity will appear once users start browsing the app.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_table %}
+<style>
+.section-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    color: #e6edf3;
+}
+.detail-link {
+    color: #4da6ff;
+    text-decoration: none;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.detail-link:hover { text-decoration: underline; }
+.btn-close-detail {
+    color: #9ba4b0;
+    text-decoration: none;
+    font-size: 1.2em;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.btn-close-detail:hover { background: rgba(255,255,255,0.06); color: #e6edf3; }
+</style>
+<script nonce="{{ g.csp_nonce }}">
+Chart.defaults.color = '#9ba4b0';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+
+var sectionColors = [
+    '#ff6b35', '#4da6ff', '#3fb950', '#f0b429', '#bc8ff3',
+    '#f85149', '#e6edf3', '#79c0ff', '#d2a8ff', '#7ee787'
+];
+
+// Section Heatmap Bar Chart
+var sectionData = {{ sections | tojson }};
+if (sectionData.length > 0 && document.getElementById('sectionChart')) {
+    new Chart(document.getElementById('sectionChart'), {
+        type: 'bar',
+        data: {
+            labels: sectionData.map(function(d) { return d.page_section; }),
+            datasets: [{
+                label: 'Time (min)',
+                data: sectionData.map(function(d) { return Math.round(d.total_seconds / 60 * 10) / 10; }),
+                backgroundColor: sectionData.map(function(d, i) { return sectionColors[i % sectionColors.length] + '99'; }),
+                borderColor: sectionData.map(function(d, i) { return sectionColors[i % sectionColors.length]; }),
+                borderWidth: 1,
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { callback: function(v) { return v + 'm'; } }
+                },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+// Per-User Detail Pie Chart
+{% if user_detail %}
+var userDetailData = {{ user_detail | tojson }};
+if (userDetailData.length > 0 && document.getElementById('userDetailChart')) {
+    new Chart(document.getElementById('userDetailChart'), {
+        type: 'doughnut',
+        data: {
+            labels: userDetailData.map(function(d) { return d.page_section; }),
+            datasets: [{
+                data: userDetailData.map(function(d) { return d.total_seconds; }),
+                backgroundColor: userDetailData.map(function(d, i) { return sectionColors[i % sectionColors.length]; }),
+                borderColor: '#161d28',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 12, usePointStyle: true, pointStyleWidth: 8 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            var secs = ctx.raw;
+                            if (secs >= 3600) return ctx.label + ': ' + Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+                            if (secs >= 60) return ctx.label + ': ' + Math.floor(secs/60) + 'm ' + (secs%60) + 's';
+                            return ctx.label + ': ' + secs + 's';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+{% endif %}
+</script>
+{% endif %}
+{% endblock %}

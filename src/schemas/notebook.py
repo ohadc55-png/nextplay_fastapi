@@ -64,10 +64,10 @@ class NotebookFormatForSaveRequest(BaseModel):
 
 
 __all__ = [
-    "NotebookEntryCreate",
-    "NotebookEntryUpdate",
-    "NotebookEntryResponse",
     "NotebookAttendanceCreate",
     "NotebookAttendanceResponse",
+    "NotebookEntryCreate",
+    "NotebookEntryResponse",
+    "NotebookEntryUpdate",
     "NotebookFormatForSaveRequest",
 ]

@@ -101,7 +101,7 @@ async def log_api_usage(
             endpoint=endpoint,
         ))
         await db.flush()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("[llm] Failed to log API usage: %s", e)
 
 
@@ -133,9 +133,9 @@ async def log_response(
 
 __all__ = [
     "MODEL_PRICING",
-    "get_client",
-    "reset_client",
     "calc_cost",
+    "get_client",
     "log_api_usage",
     "log_response",
+    "reset_client",
 ]

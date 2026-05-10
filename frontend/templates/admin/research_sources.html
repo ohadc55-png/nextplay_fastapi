@@ -1,0 +1,191 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Research Sources{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Research Sources</h2>
+    <p>Open-search observability — last 30 days</p>
+</div>
+
+{% if not has_table %}
+<div class="admin-card" style="text-align:center;padding:48px 24px;color:var(--admin-muted);">
+    <p style="font-size:0.95rem;">No data yet — research_url_log table not created.</p>
+    <p style="font-size:0.82rem;margin-top:4px;">Restart Flask to run the migration, then ask Scout a research question.</p>
+</div>
+{% else %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Extracts (30d)</div>
+        <div class="stat-value">{{ total_extracts }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Unique Domains (30d)</div>
+        <div class="stat-value blue">{{ unique_domains }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Promotion Candidates</div>
+        <div class="stat-value accent">{{ promote_candidates|length }}</div>
+        <div class="stat-sub">Tier-4 with findings</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Blacklist Candidates</div>
+        <div class="stat-value" style="color:#ff6b6b;">{{ blacklist_candidates|length }}</div>
+        <div class="stat-sub">3+ uses, 0 findings</div>
+    </div>
+</div>
+
+<!-- Tier breakdown -->
+<div class="admin-card" style="margin-top:24px;">
+    <h3 style="margin:0 0 16px 0;font-size:1rem;">Extracts by Tier (30d)</h3>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Tier</th>
+                <th style="text-align:right;">Uses</th>
+                <th style="text-align:right;">Total Findings</th>
+                <th style="text-align:right;">Avg / use</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in by_tier %}
+            <tr>
+                <td>
+                    {% if r.tier == 1 %}<span style="color:#3fb68b;font-weight:600;">Tier 1 — trusted</span>
+                    {% elif r.tier == 2 %}<span style="color:#5fa8d3;font-weight:600;">Tier 2 — solid</span>
+                    {% elif r.tier == 3 %}<span style="color:#d4a14a;font-weight:600;">Tier 3 — weak</span>
+                    {% elif r.tier == 4 %}<span style="color:#a08fb5;font-weight:600;">Tier 4 — unknown</span>
+                    {% else %}Tier {{ r.tier }}{% endif %}
+                </td>
+                <td style="text-align:right;">{{ r.uses }}</td>
+                <td style="text-align:right;">{{ r.total_findings or 0 }}</td>
+                <td style="text-align:right;">
+                    {% if r.uses %}{{ "%.1f"|format((r.total_findings or 0) / r.uses) }}{% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Promotion candidates -->
+<div class="admin-card" style="margin-top:24px;">
+    <h3 style="margin:0 0 6px 0;font-size:1rem;">⬆ Promotion Candidates</h3>
+    <p style="margin:0 0 16px 0;font-size:0.82rem;color:var(--admin-muted);">
+        Tier-4 (unknown) domains that consistently produced findings.
+        Consider adding them to <code>TIER_1</code> or <code>TIER_2</code> in
+        <code>backend/research/source_authority.py</code>.
+    </p>
+    {% if promote_candidates %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th style="text-align:right;">Uses</th>
+                <th style="text-align:right;">Total Findings</th>
+                <th style="text-align:right;">Avg / use</th>
+                <th style="text-align:right;">Last Used</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in promote_candidates %}
+            <tr>
+                <td><strong>{{ r.domain }}</strong></td>
+                <td style="text-align:right;">{{ r.uses }}</td>
+                <td style="text-align:right;">{{ r.total_findings or 0 }}</td>
+                <td style="text-align:right;">{{ "%.1f"|format(r.avg_findings or 0) }}</td>
+                <td style="text-align:right;font-size:0.82rem;color:var(--admin-muted);">
+                    {{ (r.last_used|string)[:16] }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--admin-muted);font-size:0.88rem;">No tier-4 domains have produced findings yet.</p>
+    {% endif %}
+</div>
+
+<!-- Blacklist candidates -->
+<div class="admin-card" style="margin-top:24px;">
+    <h3 style="margin:0 0 6px 0;font-size:1rem;">⛔ Blacklist Candidates</h3>
+    <p style="margin:0 0 16px 0;font-size:0.82rem;color:var(--admin-muted);">
+        Domains used 3+ times that produced ZERO findings every time.
+        Consider adding them to <code>BLACKLIST</code> in
+        <code>backend/research/source_authority.py</code>.
+    </p>
+    {% if blacklist_candidates %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th style="text-align:right;">Uses (0 findings each)</th>
+                <th style="text-align:right;">Tier</th>
+                <th style="text-align:right;">Last Used</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in blacklist_candidates %}
+            <tr>
+                <td><strong>{{ r.domain }}</strong></td>
+                <td style="text-align:right;">{{ r.uses }}</td>
+                <td style="text-align:right;">{{ r.tier }}</td>
+                <td style="text-align:right;font-size:0.82rem;color:var(--admin-muted);">
+                    {{ (r.last_used|string)[:16] }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--admin-muted);font-size:0.88rem;">No domains have been junk-tagged yet.</p>
+    {% endif %}
+</div>
+
+<!-- Recent log -->
+<div class="admin-card" style="margin-top:24px;">
+    <h3 style="margin:0 0 16px 0;font-size:1rem;">Recent Extracts (last 50)</h3>
+    {% if recent %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Tier</th>
+                <th>Domain</th>
+                <th style="text-align:right;">Findings</th>
+                <th>URL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in recent %}
+            <tr>
+                <td style="font-size:0.78rem;color:var(--admin-muted);white-space:nowrap;">
+                    {{ (r.used_at|string)[:16] }}
+                </td>
+                <td>
+                    {% if r.tier == 1 %}<span style="color:#3fb68b;">1</span>
+                    {% elif r.tier == 2 %}<span style="color:#5fa8d3;">2</span>
+                    {% elif r.tier == 3 %}<span style="color:#d4a14a;">3</span>
+                    {% elif r.tier == 4 %}<span style="color:#a08fb5;">4</span>
+                    {% else %}{{ r.tier }}{% endif %}
+                </td>
+                <td>{{ r.domain }}</td>
+                <td style="text-align:right;{% if r.findings_count == 0 %}color:#ff6b6b;{% endif %}">
+                    {{ r.findings_count }}
+                </td>
+                <td style="font-size:0.78rem;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <a href="{{ r.url }}" target="_blank" rel="noopener" style="color:var(--admin-muted);">
+                        {{ r.url[:80] }}{% if r.url|length > 80 %}…{% endif %}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--admin-muted);font-size:0.88rem;">No extracts logged yet.</p>
+    {% endif %}
+</div>
+
+{% endif %}
+{% endblock %}

@@ -7,8 +7,8 @@ file each one lives in.
 
 from src.repositories.admin_repo import (
     AdminTaskCommentsRepository,
-    AdminTaskSubtasksRepository,
     AdminTasksRepository,
+    AdminTaskSubtasksRepository,
 )
 from src.repositories.analytics_repo import (
     ApiUsageLogsRepository,
@@ -23,6 +23,7 @@ from src.repositories.auth_repo import (
     SocialAccountRepository,
 )
 from src.repositories.base_repository import BaseRepository, TeamScopedRepository
+from src.repositories.branches_repo import BranchesRepository
 from src.repositories.cache_repo import IpGeoCacheRepository
 from src.repositories.clubs_repo import ClubsRepository, InviteCodesRepository
 from src.repositories.coach_repo import CoachPreferencesRepository, FeedbackRepository
@@ -44,6 +45,10 @@ from src.repositories.notebook_repo import (
     NotebookEntriesRepository,
     NotebookEntryPlayersRepository,
 )
+from src.repositories.org_audit_repo import OrgAuditRepository
+from src.repositories.org_invites_repo import OrgInvitesRepository
+from src.repositories.org_scoped_repository import OrgScopedRepository
+from src.repositories.organizations_repo import OrganizationsRepository
 from src.repositories.players_repo import (
     PlayerGameStatsRepository,
     PlayerMetricsRepository,
@@ -51,6 +56,7 @@ from src.repositories.players_repo import (
 )
 from src.repositories.plays_repo import PlaySharesRepository, PlaysRepository
 from src.repositories.push_repo import PushLogRepository, PushSubscriptionsRepository
+from src.repositories.regions_repo import RegionsRepository
 from src.repositories.scouting_repo import (
     ClipPlaylistsRepository,
     ClipSharesRepository,
@@ -64,12 +70,14 @@ from src.repositories.scouting_repo import (
 )
 from src.repositories.teams_repo import TeamsRepository
 from src.repositories.uploads_repo import UploadsRepository
+from src.repositories.user_organizations_repo import UserOrganizationsRepository
 from src.repositories.users_repo import UsersRepository
 
 __all__ = [
     # Base
     "BaseRepository",
     "TeamScopedRepository",
+    "OrgScopedRepository",
     # Identity / auth / B2B
     "UsersRepository",
     "RefreshTokenRepository",
@@ -78,6 +86,13 @@ __all__ = [
     "AuditLogRepository",
     "ClubsRepository",
     "InviteCodesRepository",
+    # Multi-org Enterprise (Phase 0)
+    "OrganizationsRepository",
+    "RegionsRepository",
+    "BranchesRepository",
+    "UserOrganizationsRepository",
+    "OrgInvitesRepository",
+    "OrgAuditRepository",
     # Tenant data
     "TeamsRepository",
     "PlayersRepository",

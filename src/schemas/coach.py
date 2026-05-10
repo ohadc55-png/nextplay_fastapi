@@ -52,8 +52,8 @@ class FeedbackResponse(ORMModel):
 
 
 __all__ = [
-    "CoachPreferenceUpdate",
     "CoachPreferenceResponse",
+    "CoachPreferenceUpdate",
     "FeedbackCreate",
     "FeedbackResponse",
 ]

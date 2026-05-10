@@ -61,7 +61,7 @@ class Player(Base):
 
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())
 
-    metrics: Mapped["PlayerMetric | None"] = relationship(
+    metrics: Mapped[PlayerMetric | None] = relationship(
         "PlayerMetric", back_populates="player", uselist=False, lazy="raise", cascade="all, delete-orphan"
     )
 
@@ -86,7 +86,7 @@ class PlayerMetric(Base):
     metrics_json: Mapped[dict] = mapped_column(JSONText, nullable=False, server_default="'{}'")
     updated_at: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    player: Mapped["Player"] = relationship("Player", back_populates="metrics", lazy="raise")
+    player: Mapped[Player] = relationship("Player", back_populates="metrics", lazy="raise")
 
     __table_args__ = (
         Index("idx_player_metrics_user_id", "user_id"),
@@ -141,4 +141,4 @@ class PlayerGameStat(Base):
     )
 
 
-__all__ = ["Player", "PlayerMetric", "PlayerGameStat"]
+__all__ = ["Player", "PlayerGameStat", "PlayerMetric"]

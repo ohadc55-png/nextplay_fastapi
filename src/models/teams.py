@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -39,8 +39,21 @@ class TeamProfile(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now())
     extra_storage_gb: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
 
-    owner: Mapped["User | None"] = relationship(
+    # Multi-org Enterprise (Phase 0). NULL = private coach team.
+    organization_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    branch_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True
+    )
+
+    owner: Mapped[User | None] = relationship(
         "User", back_populates="teams", lazy="raise", foreign_keys=[user_id]
+    )
+
+    __table_args__ = (
+        Index("idx_team_profile_org", "organization_id"),
+        Index("idx_team_profile_branch", "branch_id"),
     )
 
     def __repr__(self) -> str:  # pragma: no cover

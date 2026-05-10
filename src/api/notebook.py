@@ -82,7 +82,7 @@ def _serialize_entry(
 async def list_entries(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    type: str | None = None,  # noqa: A002 — matches v1 query param name
+    type: str | None = None,
     player_id: int | None = None,
     search: str | None = None,
     offset: int = Query(0, ge=0),

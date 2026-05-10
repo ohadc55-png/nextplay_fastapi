@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          # Cache pip downloads — requirements.txt has 30+ deps including
+          # chromadb / crewai / aioboto3 that take a minute fresh.
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff bandit
+
+      # ── Lint ────────────────────────────────────────────────────
+      # Same selection set as pyproject.toml so local + CI agree.
+      - name: Lint (ruff)
+        run: ruff check src/ tests/ scripts/
+
+      # ── Security scan ───────────────────────────────────────────
+      # B101 (assert)         — used deliberately in tests
+      # B608 (string-based SQL) — false-positive: our SQL templates
+      #   interpolate from a server-side allowlist (_STAT_COLS) and
+      #   bind user input via :u/:t/:p named parameters.
+      # B113 (request without timeout) — false-positive: we set
+      #   `timeout=int(timeout)` dynamically; bandit doesn't trace it.
+      - name: Security scan (bandit)
+        run: bandit -r src/ -ll --skip B101,B608,B113
+
+      # ── Alembic migrations apply cleanly ────────────────────────
+      # `alembic upgrade head` against a fresh aiosqlite DB confirms
+      # migrations are syntactically valid and apply in order. We skip
+      # `alembic check` because SQLAlchemy reports text('') ≠ '' as
+      # drift — a known false-positive class. Real drift detection
+      # is a manual local step before merging schema PRs.
+      - name: Alembic upgrade smoke
+        env:
+          DATABASE_URL: ""  # empty → aiosqlite local file (default)
+          JWT_SECRET_KEY: ci-test-secret-32-chars-or-more-aaaa
+          SESSION_SECRET_KEY: ci-test-session-secret-32-chars-or-more
+        run: alembic upgrade head
+
+      # ── Tests ───────────────────────────────────────────────────
+      - name: Run tests
+        env:
+          JWT_SECRET_KEY: ci-test-secret-32-chars-or-more-aaaa
+          SESSION_SECRET_KEY: ci-test-session-secret-32-chars-or-more
+          # Email + push must stay in console mode — no real Resend / VAPID
+          # calls during CI.
+          EMAIL_MODE: console
+          # Disable Sentry in CI so no spurious errors get reported
+          SENTRY_DSN: ""
+        run: pytest tests/ -q --tb=short
+
+      # ── Asset build smoke ───────────────────────────────────────
+      # Just verifies the script runs against frontend/static/ without
+      # blowing up. Output isn't shipped from CI.
+      - name: Asset build smoke
+        run: python scripts/build.py

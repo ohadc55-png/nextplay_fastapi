@@ -26,6 +26,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +38,7 @@ from src.auth.admin_auth import (
     verify_admin_password,
 )
 from src.core.database import get_db
+from src.frontend import page_context, templates
 
 logger = logging.getLogger(__name__)
 
@@ -52,26 +54,85 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 
+def _render_login_with_error(request: Request, error: str, status_code: int = 401):
+    """Re-render the login template with an inline error so the browser
+    keeps the URL on /admin/login (instead of dumping a JSON response)."""
+    ctx = page_context(request, user=None, extra={
+        "active_tab": "login",
+        "admin_email": None,
+        "error": error,
+    })
+    return templates.TemplateResponse(
+        "admin/login.html", ctx, status_code=status_code,
+    )
+
+
+def _wants_html(request: Request) -> bool:
+    """True when the caller looks like a browser submitting a form (no
+    JSON body, no `Accept: application/json` from a fetch). Used to
+    pick between 303→/admin/dashboard and a JSON 200 response."""
+    ct = (request.headers.get("content-type") or "").lower()
+    accept = (request.headers.get("accept") or "").lower()
+    if "application/json" in ct:
+        return False
+    if "application/json" in accept and "text/html" not in accept:
+        return False
+    return True
+
+
 @router.post("/login")
-async def admin_login(body: AdminLoginRequest, request: Request) -> dict:
+async def admin_login(request: Request):
     """Log in as admin. Validates: (1) email is in ADMIN_EMAILS, (2)
     ADMIN_PASSWORD_HASH is configured (else fail-closed), (3) bcrypt
     password match. On success writes `admin_email` to the Starlette
-    session — subsequent requests carry the signed session cookie."""
+    session — subsequent requests carry the signed session cookie.
+
+    Dual-shape:
+      - HTML form submit (Content-Type: application/x-www-form-urlencoded
+        or multipart/form-data) → 303 redirect to /admin/dashboard on
+        success, 401 with re-rendered template on failure.
+      - JSON request → 200 {"ok": true, "email": ...} on success, 401
+        JSON on failure. Preserves the contract used by tests + any
+        future API client."""
+    # Read whichever shape the caller sent.
+    ct = (request.headers.get("content-type") or "").lower()
+    if "application/json" in ct:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        email = (body.get("email") or "").strip()
+        password = body.get("password") or ""
+    else:
+        form = await request.form()
+        email = (form.get("email") or "").strip()
+        password = form.get("password") or ""
+
+    html_response = _wants_html(request)
+
     if not is_admin_auth_configured():
+        if html_response:
+            return _render_login_with_error(
+                request,
+                "Admin auth not configured (ADMIN_PASSWORD_HASH unset)",
+                status_code=503,
+            )
         raise HTTPException(
             status_code=503,
             detail="Admin auth not configured (ADMIN_PASSWORD_HASH unset)",
         )
 
-    email = body.email.strip().lower()
-    if not is_admin_email(email):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not verify_admin_password(body.password):
+    normalized = email.lower()
+    if not is_admin_email(normalized) or not verify_admin_password(password):
+        if html_response:
+            return _render_login_with_error(request, "Invalid email or password")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    request.session[ADMIN_SESSION_KEY] = email
-    return {"ok": True, "email": email}
+    request.session[ADMIN_SESSION_KEY] = normalized
+    if html_response:
+        # 303 → forces the browser to GET /admin/dashboard (POST→GET handoff)
+        return RedirectResponse(url="/admin/dashboard", status_code=303)
+    return {"ok": True, "email": normalized}
 
 
 @router.post("/logout")

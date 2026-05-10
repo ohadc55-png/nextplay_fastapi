@@ -60,9 +60,9 @@ class VapidKeyResponse(BaseModel):
 
 __all__ = [
     "PushKeysSchema",
-    "PushSubscribeRequest",
-    "PushUnsubscribeRequest",
     "PushPreferencesUpdate",
+    "PushSubscribeRequest",
     "PushTestRequest",
+    "PushUnsubscribeRequest",
     "VapidKeyResponse",
 ]

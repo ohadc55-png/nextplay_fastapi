@@ -58,8 +58,18 @@ async def e2e_client(e2e_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
 
     app.dependency_overrides[get_db] = _override_get_db
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            yield c
+        # Phase 7 added a per-IP rate limiter that bites on /api/auth/login
+        # at 5 attempts/min. e2e tests legitimately make many login calls;
+        # disable the limiter for the fixture's lifetime so we test auth
+        # logic, not rate-limit behavior. Dedicated rate-limit tests
+        # turn it back on locally.
+        from unittest.mock import patch
+
+        from src.core.config import settings
+
+        with patch.object(settings, "RATE_LIMIT_ENABLED", False):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                yield c
     finally:
         app.dependency_overrides.pop(get_db, None)
 

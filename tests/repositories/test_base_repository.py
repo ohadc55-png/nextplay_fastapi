@@ -7,14 +7,12 @@ Uses the `User` and `Player` models as concrete subjects:
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.players import Player
 from src.models.teams import TeamProfile
 from src.models.users import User
 from src.repositories.base_repository import BaseRepository, TeamScopedRepository
-
 
 # ---------------------------------------------------------------------------
 # Concrete repos used only in this test file

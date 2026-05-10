@@ -125,4 +125,4 @@ class SessionSummary(Base):
     )
 
 
-__all__ = ["Memory", "Entity", "EntityObservation", "SessionSummary"]
+__all__ = ["Entity", "EntityObservation", "Memory", "SessionSummary"]

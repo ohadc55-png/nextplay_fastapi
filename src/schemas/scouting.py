@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from src.schemas.common import ORMModel
 
-
 # ---------------------------------------------------------------------------
 # Scouting videos
 # ---------------------------------------------------------------------------
@@ -183,23 +182,23 @@ class CompileCardResponse(CompileCardCreate, ORMModel):
 
 
 __all__ = [
-    "ScoutingVideoCreate",
-    "ScoutingVideoUpdate",
-    "ScoutingVideoResponse",
-    "S3PresignUploadRequest",
-    "S3PresignUploadResponse",
-    "S3CompleteMultipartRequest",
-    "VideoClipCreate",
-    "VideoClipResponse",
-    "VideoAnnotationCreate",
-    "VideoAnnotationResponse",
     "ClipPlaylistCreate",
     "ClipPlaylistResponse",
-    "PlaylistItemCreate",
     "ClipShareCreate",
     "ClipShareResponse",
-    "ScoutingPlayerCreate",
-    "ScoutingPlayerResponse",
     "CompileCardCreate",
     "CompileCardResponse",
+    "PlaylistItemCreate",
+    "S3CompleteMultipartRequest",
+    "S3PresignUploadRequest",
+    "S3PresignUploadResponse",
+    "ScoutingPlayerCreate",
+    "ScoutingPlayerResponse",
+    "ScoutingVideoCreate",
+    "ScoutingVideoResponse",
+    "ScoutingVideoUpdate",
+    "VideoAnnotationCreate",
+    "VideoAnnotationResponse",
+    "VideoClipCreate",
+    "VideoClipResponse",
 ]

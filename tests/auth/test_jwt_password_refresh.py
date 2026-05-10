@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from src.auth.jwt_service import create_access_token, decode_access_token
 from src.auth.password_service import hash_password, verify_password
 from src.auth.refresh_token_service import generate_refresh_token, hash_refresh_token
 from src.core.config import settings
-
 
 # ---------------------------------------------------------------------------
 # JWT
@@ -37,7 +36,7 @@ class TestJWT:
                 "email": "x@x.com",
                 "role": "coach",
                 "type": "refresh",  # wrong type
-                "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                "exp": datetime.now(UTC) + timedelta(hours=1),
             }
             token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
             assert decode_access_token(token) is None
@@ -54,7 +53,7 @@ class TestJWT:
         """Mint a token already in the past and confirm decode fails."""
         from jose import jwt
         with patch.object(settings, "JWT_SECRET_KEY", "test-secret-key-32-chars-long-xx"):
-            past = datetime.now(timezone.utc) - timedelta(hours=1)
+            past = datetime.now(UTC) - timedelta(hours=1)
             payload = {
                 "sub": "1",
                 "email": "x@x.com",
@@ -113,7 +112,7 @@ class TestRefreshToken:
 
     def test_expiry_is_in_the_future(self):
         _, _, expires = generate_refresh_token()
-        assert expires > datetime.now(timezone.utc)
+        assert expires > datetime.now(UTC)
         # Within the configured window (default 30d)
-        delta = expires - datetime.now(timezone.utc)
+        delta = expires - datetime.now(UTC)
         assert delta <= timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS + 1)

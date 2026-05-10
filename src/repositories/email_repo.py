@@ -58,6 +58,6 @@ class MailingListMembersRepository(BaseRepository[MailingListMember]):
 
 __all__ = [
     "EmailLogRepository",
-    "MailingListsRepository",
     "MailingListMembersRepository",
+    "MailingListsRepository",
 ]

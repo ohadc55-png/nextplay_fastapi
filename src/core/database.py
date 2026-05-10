@@ -14,12 +14,12 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import TypeDecorator, Text, event
+from fastapi import Request
+from sqlalchemy import Text, TypeDecorator, event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from src.core.config import settings
-
 
 # ---------------------------------------------------------------------------
 # Engine + session factory
@@ -43,7 +43,7 @@ engine = create_async_engine(settings.database_url_async, **_engine_kwargs)
 # Apply SQLite pragmas on every new connection (matches Flask db_connection.py:202-207).
 if _is_sqlite:
     @event.listens_for(engine.sync_engine, "connect")
-    def _sqlite_pragmas(dbapi_connection, _connection_record):  # noqa: ANN001
+    def _sqlite_pragmas(dbapi_connection, _connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -62,13 +62,26 @@ AsyncSessionLocal = async_sessionmaker(
 # FastAPI dependency
 # ---------------------------------------------------------------------------
 
-async def get_db() -> AsyncIterator[AsyncSession]:
+async def get_db(request: Request) -> AsyncIterator[AsyncSession]:
     """Yield a request-scoped AsyncSession. Commit on clean return,
     rollback on any unhandled exception. Routers / services use
     `flush()` to push changes within the request; this dependency
-    finalises with `commit()` so writes persist after the response."""
+    finalises with `commit()` so writes persist after the response.
+
+    Multi-org RLS (Layer 3): when `OrgContextMiddleware` has stamped
+    `request.state.org_id` AND we're on Postgres, set the GUC
+    `app.current_org_id` so RLS policies can filter by it. The call is
+    `set_config(..., true)` = `SET LOCAL`, scoped to the current
+    transaction, auto-cleared on commit/rollback. The dialect guard
+    keeps SQLite tests unchanged (RLS doesn't exist on SQLite)."""
     async with AsyncSessionLocal() as session:
         try:
+            org_id = getattr(request.state, "org_id", None)
+            if org_id is not None and engine.dialect.name == "postgresql":
+                await session.execute(
+                    text("SELECT set_config('app.current_org_id', :v, true)"),
+                    {"v": str(int(org_id))},
+                )
             yield session
             await session.commit()
         except Exception:
@@ -94,12 +107,12 @@ class JSONText(TypeDecorator):
     impl = Text
     cache_ok = True
 
-    def process_bind_param(self, value: Any, _dialect):  # noqa: ANN001
+    def process_bind_param(self, value: Any, _dialect):
         if value is None:
             return None
         return json.dumps(value, ensure_ascii=False)
 
-    def process_result_value(self, value: Any, _dialect):  # noqa: ANN001
+    def process_result_value(self, value: Any, _dialect):
         if value is None or value == "":
             return None
         if isinstance(value, (dict, list)):
@@ -134,10 +147,10 @@ class TimestampMixin:
 
 
 __all__ = [
-    "Base",
-    "TimestampMixin",
-    "JSONText",
-    "engine",
     "AsyncSessionLocal",
+    "Base",
+    "JSONText",
+    "TimestampMixin",
+    "engine",
     "get_db",
 ]

@@ -1,0 +1,230 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Compose Email{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+        <h2>Compose Email</h2>
+        <p>Send to all coaches, a mailing list, or specific users</p>
+    </div>
+    <a href="{{ url_for('admin.email_log_view') }}" style="color:var(--admin-text-2);text-decoration:none;font-size:13px;">&larr; Back to log</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+    <!-- Form -->
+    <div class="admin-card">
+        <h3 style="margin:0 0 14px 0;font-size:1rem;">Message</h3>
+
+        <div class="form-row">
+            <label class="form-label">Recipients</label>
+            <select id="recipientMode" class="form-input">
+                <option value="all">All users ({{ user_count }})</option>
+                <option value="list">Mailing list&hellip;</option>
+                <option value="specific">Specific users&hellip;</option>
+                <option value="test">Test send to admin only ({{ admin_email }})</option>
+            </select>
+        </div>
+
+        <div id="listPicker" class="form-row" hidden>
+            <label class="form-label">Pick a list</label>
+            <select id="listId" class="form-input">
+                {% for l in lists %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}
+            </select>
+            {% if not lists %}
+            <p style="font-size:0.8rem;color:var(--admin-text-3);margin-top:6px;">No lists yet &mdash; <a href="{{ url_for('admin.mailing_lists_view') }}" style="color:var(--admin-accent);">create one</a>.</p>
+            {% endif %}
+        </div>
+
+        <div id="specificPicker" class="form-row" hidden>
+            <label class="form-label">Search users (email or name)</label>
+            <input type="text" id="userSearch" class="form-input" placeholder="Type at least 2 chars&hellip;">
+            <div id="userResults" style="margin-top:6px;font-size:0.85rem;"></div>
+            <div id="userPicked" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Subject</label>
+            <input type="text" id="subject" class="form-input" placeholder="Subject line">
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Default language (used when LLM rewrite is OFF)</label>
+            <select id="language" class="form-input">
+                <option value="en">English</option>
+                <option value="he">עברית</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.88rem;">
+                <input type="checkbox" id="llmRewrite" style="width:auto;">
+                <span>LLM-rewrite per recipient (uses each user's preferred language + name)</span>
+            </label>
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Body (plain text or HTML)</label>
+            <textarea id="body" class="form-input form-input-lg" rows="14" placeholder="Write the message&hellip;"></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button type="button" id="previewBtn" class="btn-secondary" style="padding:10px 18px;border-radius:8px;background:rgba(255,255,255,0.06);color:var(--admin-text);border:1px solid var(--admin-border-2);font-weight:600;font-size:13px;cursor:pointer;">Preview</button>
+            <button type="button" id="testBtn" class="btn-secondary" style="padding:10px 18px;border-radius:8px;background:rgba(255,255,255,0.06);color:var(--admin-text);border:1px solid var(--admin-border-2);font-weight:600;font-size:13px;cursor:pointer;">Test send to admin</button>
+            <button type="button" id="sendBtn" class="btn-primary" style="padding:10px 22px;border-radius:8px;background:var(--admin-accent);color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;">Send broadcast</button>
+        </div>
+        <div id="sendStatus" style="margin-top:12px;font-size:0.88rem;"></div>
+    </div>
+
+    <!-- Preview -->
+    <div class="admin-card" style="overflow:hidden;">
+        <h3 style="margin:0 0 14px 0;font-size:1rem;">Preview</h3>
+        <div id="previewSubject" style="padding:10px 14px;background:var(--admin-bg-2);border:1px solid var(--admin-border-2);border-radius:8px;margin-bottom:10px;font-size:0.9rem;color:var(--admin-text-3);">
+            Subject preview will appear here
+        </div>
+        <iframe id="previewFrame" style="width:100%;height:540px;border:1px solid var(--admin-border-2);border-radius:8px;background:#fff;"></iframe>
+    </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const pickedUsers = new Map();  // id -> {email, display_name}
+
+    $('recipientMode').addEventListener('change', () => {
+        const m = $('recipientMode').value;
+        $('listPicker').hidden = m !== 'list';
+        $('specificPicker').hidden = m !== 'specific';
+    });
+
+    function clearChildren(node) {
+        while (node.firstChild) node.removeChild(node.firstChild);
+    }
+
+    function buildResultRow(u) {
+        // Safe DOM construction — never use innerHTML with user/DB content.
+        const row = document.createElement('div');
+        row.style.cssText = 'padding:6px 10px;background:var(--admin-bg-2);border-radius:6px;margin-bottom:4px;cursor:pointer;display:flex;justify-content:space-between;';
+        const left = document.createElement('span');
+        left.textContent = u.email;
+        if (u.display_name) {
+            const nameSpan = document.createElement('span');
+            nameSpan.style.color = 'var(--admin-text-3)';
+            nameSpan.style.marginLeft = '8px';
+            nameSpan.textContent = u.display_name;
+            left.appendChild(nameSpan);
+        }
+        const right = document.createElement('span');
+        right.style.color = 'var(--admin-accent)';
+        right.textContent = '+ Add';
+        row.appendChild(left);
+        row.appendChild(right);
+        row.addEventListener('click', () => {
+            pickedUsers.set(u.id, {email: u.email, display_name: u.display_name || ''});
+            renderPicked();
+        });
+        return row;
+    }
+
+    function buildPickedChip(uid, u) {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--admin-accent-dim);color:var(--admin-accent);border:1px solid var(--admin-accent);border-radius:999px;font-size:0.8rem;';
+        chip.appendChild(document.createTextNode(u.email));
+        const x = document.createElement('span');
+        x.style.cssText = 'cursor:pointer;font-weight:700;';
+        x.textContent = '×';
+        x.addEventListener('click', () => { pickedUsers.delete(uid); renderPicked(); });
+        chip.appendChild(x);
+        return chip;
+    }
+
+    function renderPicked() {
+        const wrap = $('userPicked');
+        clearChildren(wrap);
+        for (const [uid, u] of pickedUsers.entries()) {
+            wrap.appendChild(buildPickedChip(uid, u));
+        }
+    }
+
+    let searchTimer;
+    $('userSearch').addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        const q = $('userSearch').value.trim();
+        const results = $('userResults');
+        if (q.length < 2) { clearChildren(results); return; }
+        searchTimer = setTimeout(async () => {
+            const r = await fetch('/admin/emails/api/users?q=' + encodeURIComponent(q));
+            const data = await r.json();
+            clearChildren(results);
+            for (const u of (data.users || [])) {
+                results.appendChild(buildResultRow(u));
+            }
+        }, 300);
+    });
+
+    function payload() {
+        return {
+            subject: $('subject').value,
+            body: $('body').value,
+            language: $('language').value,
+            llm_rewrite: $('llmRewrite').checked,
+        };
+    }
+
+    $('previewBtn').addEventListener('click', async () => {
+        const r = await fetch('/admin/emails/api/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload()),
+        });
+        const data = await r.json();
+        if (data.error) { $('sendStatus').textContent = 'Preview error: ' + data.error; return; }
+        $('previewSubject').textContent = data.subject || '(no subject)';
+        $('previewSubject').style.color = 'var(--admin-text)';
+        // Render preview HTML inside a sandboxed iframe via a Blob URL.
+        // The HTML comes from our own server-side template render, but
+        // sandboxing the iframe contains any LLM-injected scripts as well.
+        const blob = new Blob([data.html], {type: 'text/html'});
+        const frame = $('previewFrame');
+        frame.setAttribute('sandbox', '');  // no scripts, no forms, no top-nav
+        frame.src = URL.createObjectURL(blob);
+    });
+
+    $('testBtn').addEventListener('click', async () => {
+        $('sendStatus').textContent = 'Sending test…';
+        const r = await fetch('/admin/emails/api/test-send', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload()),
+        });
+        const data = await r.json();
+        $('sendStatus').textContent = (data.status === 'sent') ? '✓ Test sent to admin.' : '✗ Test failed: ' + (data.error || '');
+        $('sendStatus').style.color = (data.status === 'sent') ? '#3fb68b' : '#ff6b6b';
+    });
+
+    $('sendBtn').addEventListener('click', async () => {
+        const mode = $('recipientMode').value;
+        if (mode === 'test') { $('testBtn').click(); return; }
+        if (!confirm('Send broadcast in mode "' + mode + '"? This is real and goes to live users (in EMAIL_MODE=send).')) return;
+
+        const body = payload();
+        body.mode = mode;
+        if (mode === 'list') body.list_id = parseInt($('listId').value);
+        if (mode === 'specific') body.user_ids = Array.from(pickedUsers.keys());
+
+        $('sendStatus').textContent = 'Sending…';
+        const r = await fetch('/admin/emails/api/send', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (data.error) {
+            $('sendStatus').textContent = '✗ ' + data.error;
+            $('sendStatus').style.color = '#ff6b6b';
+        } else {
+            $('sendStatus').textContent = '✓ Queued ' + data.queued + ' of ' + data.recipient_count + ' recipients.';
+            $('sendStatus').style.color = '#3fb68b';
+        }
+    });
+})();
+</script>
+{% endblock %}

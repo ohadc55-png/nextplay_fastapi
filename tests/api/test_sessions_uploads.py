@@ -5,8 +5,6 @@ stub until Phase 5 lands ChromaDB."""
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from httpx import AsyncClient
 from sqlalchemy import select
 
@@ -14,7 +12,6 @@ from src.models.conversations import Conversation
 from src.models.teams import TeamProfile
 from src.models.uploads import Upload
 from src.models.users import User
-
 
 # ---------------------------------------------------------------------------
 # Sessions

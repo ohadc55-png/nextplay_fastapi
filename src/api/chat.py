@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +41,11 @@ class _ChatBody(BaseModel):
     message: str = Field(min_length=1, max_length=5000)
     session_id: str = Field(min_length=1, max_length=128)
     agent: str | None = None
+    # "fast" (default, 2-5s) or "full" (CrewAI multi-step, 30-60s).
+    mode: str = "fast"
+    # "scouting" → Brad walks the coach through un-profiled players
+    # (used when /chat?onboarding=scouting). Anything else → ignored.
+    onboarding: str | None = None
 
 
 class _OpeningBody(BaseModel):
@@ -56,17 +61,22 @@ class _OpeningBody(BaseModel):
 @router.post("/chat")
 async def chat(
     body: _ChatBody,
+    background: BackgroundTasks,
     user: User = Depends(require_active_subscription),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Send a single message, get a JSON reply. Used by mobile clients
     or any frontend path that prefers a single round-trip over SSE."""
+    onboarding = body.onboarding if body.onboarding in ("scouting",) else None
     try:
         return await chat_service.send_message(
             db, user=user,
             session_id=body.session_id,
             message=body.message.strip(),
             agent=body.agent,
+            background=background,
+            mode=body.mode,
+            onboarding_mode=onboarding,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -79,6 +89,7 @@ async def chat(
 @router.post("/chat-stream")
 async def chat_stream(
     body: _ChatBody,
+    background: BackgroundTasks,
     user: User = Depends(require_active_subscription),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
@@ -89,11 +100,14 @@ async def chat_stream(
 
     Headers match v1: `Cache-Control: no-cache` + `X-Accel-Buffering: no`
     so reverse-proxies don't buffer the stream."""
+    onboarding = body.onboarding if body.onboarding in ("scouting",) else None
     generator = chat_service.stream_message(
         db, user=user,
         session_id=body.session_id,
         message=body.message.strip(),
         agent=body.agent,
+        background=background,
+        onboarding_mode=onboarding,
     )
     return StreamingResponse(
         generator,
@@ -119,6 +133,103 @@ async def list_agents(_user: User = Depends(get_current_user)) -> dict:
             {"key": key, **AGENTS[key]} for key in order if key in AGENTS
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# File-upload chat (Phase 7 batch 4)
+# ---------------------------------------------------------------------------
+
+
+_MAX_CHAT_UPLOAD_FILES = 3
+_MAX_CHAT_UPLOAD_PER_FILE_BYTES = 10 * 1024 * 1024   # 10 MB per file
+_MAX_CHAT_UPLOAD_COMBINED_BYTES = 30 * 1024 * 1024   # 30 MB combined
+
+
+@router.post("/chat-upload")
+async def chat_upload(
+    background: BackgroundTasks,
+    files: list[UploadFile] = File(default_factory=list, alias="file"),
+    message: str = Form(default=""),
+    session_id: str = Form(default=""),
+    agent: str = Form(default=""),
+    user: User = Depends(require_active_subscription),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Handle 1-3 file uploads attached to a chat turn.
+
+    Pipeline:
+      1. Reject if no files / too many / oversized
+      2. Save each to `data/uploads/<user_id>/<safe_name>` with
+         magic-byte validation
+      3. Persist an `uploads` row per file
+      4. Run vision Stage 1 on images + extract text from data files
+      5. Build the enriched message + Stage 2 instruction
+      6. Delegate to chat_service.send_message — same tool-loop /
+         persistence / memory extraction as a normal chat turn
+
+    Errors at the validation layer surface as 400; LLM errors degrade
+    via send_message's friendly fallback (never 500 on the user)."""
+    from src.models.uploads import Upload
+    from src.services import chat_service
+    from src.services.upload_service import save_upload_bytes
+
+    files = [f for f in (files or []) if f and f.filename]
+    if not files:
+        raise HTTPException(status_code=400, detail="No file")
+    if len(files) > _MAX_CHAT_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many files (max {_MAX_CHAT_UPLOAD_FILES})",
+        )
+
+    # Read + per-file size check + combined size check.
+    raw_files: list[tuple[str, bytes]] = []
+    total = 0
+    for f in files:
+        data = await f.read(_MAX_CHAT_UPLOAD_PER_FILE_BYTES + 1)
+        if len(data) > _MAX_CHAT_UPLOAD_PER_FILE_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{f.filename}' exceeds 10 MB per-file limit",
+            )
+        total += len(data)
+        if total > _MAX_CHAT_UPLOAD_COMBINED_BYTES:
+            raise HTTPException(
+                status_code=400, detail="Combined file size exceeds 30 MB",
+            )
+        raw_files.append((f.filename, data))
+
+    # Save to disk + persist Upload rows.
+    saved: list[tuple[str, str]] = []  # (filename, abs_filepath)
+    for filename, data in raw_files:
+        try:
+            safe_name, abs_path = await save_upload_bytes(
+                user_id=user.id, filename=filename, data=data,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        # Persist Upload row so /api/uploads/list shows it
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        db.add(Upload(
+            user_id=user.id, team_id=user.active_team_id,
+            filename=safe_name, filepath=abs_path,
+            file_type=ext, category="chat",
+            description="",
+        ))
+        saved.append((safe_name, abs_path))
+    await db.flush()
+
+    try:
+        return await chat_service.send_chat_with_uploads(
+            db, user=user,
+            session_id=session_id or "",
+            message=message,
+            agent=agent or None,
+            files=saved,
+            background=background,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/opening-message")

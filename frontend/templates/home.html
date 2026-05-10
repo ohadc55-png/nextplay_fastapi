@@ -1,0 +1,697 @@
+{% extends "base.html" %}
+{% set active_page = "home" %}
+
+{% block content %}
+{% if not profile %}
+<!-- Onboarding: Welcome banner with clear next step -->
+<div class="card mb-24 welcome-banner">
+    <div class="welcome-icon-wrap">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+    </div>
+    {% set coach_name = (g.user.display_name if g.user and g.user.display_name else (g.user.email.split('@')[0] if g.user and g.user.email else '')) %}
+    <h1 class="welcome-title">Welcome to NextPlay{% if coach_name %}, Coach <span class="welcome-name">{{ coach_name }}</span>{% else %}, Coach{% endif %}!</h1>
+    <p class="welcome-sub">Your AI coaching staff is ready. Click <strong>+ Add Team</strong> to create your first team.</p>
+    <button type="button" class="btn btn-primary welcome-cta" onclick="openNewTeamModal()" aria-label="Add your first team">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Team
+    </button>
+</div>
+
+<div class="section-title">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-inline-end: 6px; opacity: 0.6;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Meet Your AI Coaching Staff
+</div>
+
+<div class="agents-grid">
+    <div class="agent-card gm">
+        <img class="agent-photo" src="{{ url_for('static', filename='img/agents/brad_binn.png') }}" alt="Brad Binn">
+        <span class="role role-gm">GM</span>
+        <div class="name">Brad Binn</div>
+        <div class="desc">Routes queries to the right expert on your staff</div>
+    </div>
+    <div class="agent-card scout">
+        <img class="agent-photo" src="{{ url_for('static', filename='img/agents/jack_hunter.png') }}" alt="Jack Hunter" loading="lazy" decoding="async">
+        <span class="role role-scout">Scout</span>
+        <div class="name">Jack Hunter</div>
+        <div class="desc">Fact-based scouting reports and opponent analysis</div>
+    </div>
+    <div class="agent-card analytics">
+        <img class="agent-photo" src="{{ url_for('static', filename='img/agents/dr_nexus.png') }}" alt="Dr. Nexus" loading="lazy" decoding="async">
+        <span class="role role-analytics">Analytics</span>
+        <div class="name">Dr. Nexus</div>
+        <div class="desc">Advanced stats, metrics, and data insights</div>
+    </div>
+    <div class="agent-card tactics">
+        <img class="agent-photo" src="{{ url_for('static', filename='img/agents/ed_vance.png') }}" alt="Ed Vance" loading="lazy" decoding="async">
+        <span class="role role-tactics">Tactics</span>
+        <div class="name">Ed Vance</div>
+        <div class="desc">Game plans, play design, and in-game adjustments</div>
+    </div>
+    <div class="agent-card training">
+        <img class="agent-photo" src="{{ url_for('static', filename='img/agents/duncan_bucket.png') }}" alt="Duncan Bucket" loading="lazy" decoding="async">
+        <span class="role role-training">Training</span>
+        <div class="name">Duncan Bucket</div>
+        <div class="desc">Practice plans, drills, and periodization</div>
+    </div>
+</div>
+
+{% else %}
+<!-- Dashboard -->
+<div class="hero">
+    <div class="hero-top-light"></div>
+    <div class="hero-court-overlay"></div>
+
+    <!-- FIBA Court background image -->
+    <div class="hero-court-bg">
+        <img src="/static/img/court_fiba.png" alt="" loading="lazy" decoding="async">
+    </div>
+
+    <div class="hero-content">
+        <h1>{{ profile.team_name|upper }}</h1>
+        <p>{{ profile.league or '' }} {{ '· ' + profile.division if profile.division else '' }}</p>
+
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hs-value" dir="ltr">{{ players|length }}</div>
+                <div class="hs-label">PLAYERS</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hs-value" dir="ltr">{{ uploads|length }}</div>
+                <div class="hs-label">FILES</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hs-value" dir="ltr">{{ sessions|length }}</div>
+                <div class="hs-label">SESSIONS</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hs-value" dir="ltr">5</div>
+                <div class="hs-label">AI STAFF</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- stats moved to hero banner -->
+
+<!-- ═══ Onboarding checklist (hidden by default; JS fills + reveals) ═══ -->
+<div id="onboardingChecklist" class="card mb-24 onboarding-card" hidden>
+    <div class="onboarding-header">
+        <div class="onboarding-header-text">
+            <div class="onboarding-eyebrow">Your coaching journey</div>
+            <h3 class="onboarding-title" id="obHeaderTitle">Get started with NextPlay</h3>
+            <p class="onboarding-subtitle" id="obHeaderSub">Your team is ready to work</p>
+        </div>
+        <div class="onboarding-ring-wrap" aria-hidden="true">
+            <svg class="onboarding-ring" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="3"/>
+                <circle id="obRingFill" cx="20" cy="20" r="17" fill="none" stroke="url(#obRingGrad)"
+                        stroke-width="3" stroke-linecap="round"
+                        stroke-dasharray="106.8" stroke-dashoffset="106.8"
+                        transform="rotate(-90 20 20)"/>
+                <defs>
+                    <linearGradient id="obRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#ff8c5a"/>
+                        <stop offset="100%" stop-color="#ff6b35"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="onboarding-ring-text"><span id="obDone">0</span>/<span id="obTotal">12</span></div>
+        </div>
+    </div>
+    <div id="onboardingStages" class="onboarding-stages"></div>
+</div>
+
+<!-- ═══ Completed badge (shown when all 12 items are done) ═══ -->
+<div id="onboardingComplete" class="onboarding-complete" hidden>
+    <div class="onboarding-complete-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="onboarding-complete-text">You're all set up — ready for game day.</div>
+</div>
+
+<div class="card mb-24">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Your Coaching Staff
+    </div>
+    <div class="agents-grid" style="margin-bottom: 0;">
+        <a href="/chat?agent=gm" class="agent-card gm" style="text-decoration:none; cursor:pointer;" aria-label="Chat with GM Brad Binn">
+            <img class="agent-photo" src="{{ url_for('static', filename='img/agents/brad_binn.png') }}" alt="Brad Binn">
+            <span class="role role-gm">GM</span>
+            <div class="name">Brad Binn</div>
+            <div class="desc">Manages the entire staff</div>
+        </a>
+        <a href="/chat?agent=scout" class="agent-card scout" style="text-decoration:none; cursor:pointer;" aria-label="Chat with Scout Jack Hunter">
+            <img class="agent-photo" src="{{ url_for('static', filename='img/agents/jack_hunter.png') }}" alt="Jack Hunter" loading="lazy" decoding="async">
+            <span class="role role-scout">Scout</span>
+            <div class="name">Jack Hunter</div>
+            <div class="desc">Data-driven scouting</div>
+        </a>
+        <a href="/chat?agent=analytics" class="agent-card analytics" style="text-decoration:none; cursor:pointer;" aria-label="Chat with Dr. Nexus Analytics">
+            <img class="agent-photo" src="{{ url_for('static', filename='img/agents/dr_nexus.png') }}" alt="Dr. Nexus" loading="lazy" decoding="async">
+            <span class="role role-analytics">Analytics</span>
+            <div class="name">Dr. Nexus</div>
+            <div class="desc">Advanced stats</div>
+        </a>
+        <a href="/chat?agent=tactics" class="agent-card tactics" style="text-decoration:none; cursor:pointer;" aria-label="Chat with Coach Ed Vance Tactics">
+            <img class="agent-photo" src="{{ url_for('static', filename='img/agents/ed_vance.png') }}" alt="Ed Vance" loading="lazy" decoding="async">
+            <span class="role role-tactics">Tactics</span>
+            <div class="name">Ed Vance</div>
+            <div class="desc">Game plans</div>
+        </a>
+        <a href="/chat?agent=training" class="agent-card training" style="text-decoration:none; cursor:pointer;" aria-label="Chat with Coach Duncan Bucket Training">
+            <img class="agent-photo" src="{{ url_for('static', filename='img/agents/duncan_bucket.png') }}" alt="Duncan Bucket" loading="lazy" decoding="async">
+            <span class="role role-training">Training</span>
+            <div class="name">Duncan Bucket</div>
+            <div class="desc">Practice plans</div>
+        </a>
+    </div>
+</div>
+
+{% if profile.play_style or profile.strengths %}
+<div class="card">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Team Profile
+    </div>
+    <div class="profile-info-grid">
+        {% if profile.play_style %}
+        <div class="profile-info-item">
+            <div class="info-label">Play Style</div>
+            <div class="info-value">
+                <ul class="profile-bullet-list" dir="auto">
+                {% for item in profile.play_style.replace(' - ', '\n').replace(', ', '\n').split('\n') %}
+                    {% if item.strip() %}<li>{{ item.strip() }}</li>{% endif %}
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        {% if profile.strengths %}
+        <div class="profile-info-item">
+            <div class="info-label">
+                <span style="color: var(--green);">+</span> Strengths
+            </div>
+            <div class="info-value">
+                <ul class="profile-bullet-list" dir="auto">
+                {% for item in profile.strengths.replace(' - ', '\n').replace(', ', '\n').split('\n') %}
+                    {% if item.strip() %}<li>{{ item.strip() }}</li>{% endif %}
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        {% if profile.weaknesses %}
+        <div class="profile-info-item">
+            <div class="info-label">
+                <span style="color: var(--red);">-</span> Weaknesses
+            </div>
+            <div class="info-value">
+                <ul class="profile-bullet-list" dir="auto">
+                {% for item in profile.weaknesses.replace(' - ', '\n').replace(', ', '\n').split('\n') %}
+                    {% if item.strip() %}<li>{{ item.strip() }}</li>{% endif %}
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        {% if profile.notes %}
+        <div class="profile-info-item">
+            <div class="info-label">Notes</div>
+            <div class="info-value">
+                <ul class="profile-bullet-list" dir="auto">
+                {% for item in profile.notes.replace(' - ', '\n').replace(', ', '\n').split('\n') %}
+                    {% if item.strip() %}<li>{{ item.strip() }}</li>{% endif %}
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if profile %}
+<style>
+/* ═══ Onboarding checklist — premium welcome card ═══ */
+.onboarding-card {
+    position: relative;
+    padding: 22px 24px 20px;
+    background: linear-gradient(160deg, rgba(255, 107, 53, 0.06), rgba(26, 34, 48, 0.96) 60%);
+    border: 1px solid rgba(255, 107, 53, 0.22);
+    overflow: hidden;
+}
+.onboarding-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #ff6b35, #ff8c5a, transparent);
+}
+.onboarding-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 20px;
+}
+.onboarding-header-text { flex: 1; min-width: 0; }
+.onboarding-eyebrow {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.75;
+    margin-bottom: 4px;
+}
+.onboarding-title {
+    font-size: 1.22rem;
+    font-weight: 800;
+    color: var(--text);
+    margin: 0 0 3px;
+    letter-spacing: -0.015em;
+}
+.onboarding-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-2);
+    margin: 0;
+    opacity: 0.9;
+}
+.onboarding-ring-wrap {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+}
+.onboarding-ring { width: 100%; height: 100%; }
+#obRingFill { transition: stroke-dashoffset 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.onboarding-ring-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+}
+
+/* Stages */
+.onboarding-stages {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.onboarding-stage {
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 14px 16px;
+    transition: border-color 0.25s ease, background 0.25s ease, opacity 0.25s ease;
+}
+.onboarding-stage.active {
+    background: rgba(255, 107, 53, 0.04);
+    border-color: rgba(255, 107, 53, 0.25);
+    box-shadow: 0 1px 0 rgba(255, 107, 53, 0.08) inset;
+}
+.onboarding-stage.locked { opacity: 0.55; }
+.onboarding-stage.complete { opacity: 0.85; }
+
+/* Collapsed state — items hidden; chevron flipped */
+.onboarding-stage.collapsed .onboarding-items { display: none; }
+.onboarding-stage.collapsed .onboarding-stage-chevron { transform: rotate(0deg); }
+.onboarding-stage:not(.collapsed) .onboarding-stage-chevron { transform: rotate(180deg); }
+.onboarding-stage-chevron {
+    color: var(--text-3);
+    margin-left: 8px;
+    transition: transform 0.25s ease;
+}
+.onboarding-stage.complete .onboarding-stage-head:hover {
+    opacity: 0.95;
+}
+.onboarding-stage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.onboarding-stage-titles { min-width: 0; }
+.onboarding-stage-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.25;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.onboarding-stage-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(255, 107, 53, 0.15);
+    color: var(--accent);
+}
+.onboarding-stage.locked .onboarding-stage-badge {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-3);
+}
+.onboarding-stage.complete .onboarding-stage-badge {
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--green);
+}
+.onboarding-stage-sub {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    margin-top: 2px;
+}
+.onboarding-stage-progress {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-3);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.onboarding-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.onboarding-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.18s ease, transform 0.18s ease;
+    color: var(--text);
+}
+.onboarding-item:not(.done):hover {
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateX(2px);
+}
+[dir="rtl"] .onboarding-item:not(.done):hover { transform: translateX(-2px); }
+.onboarding-item.done { cursor: default; }
+.onboarding-check {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    transition: all 0.25s ease;
+}
+.onboarding-item.done .onboarding-check {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+.onboarding-item-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.86rem;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.onboarding-item.done .onboarding-item-label {
+    color: var(--text-3);
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 255, 255, 0.2);
+}
+.onboarding-item-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border-radius: 14px;
+    background: rgba(255, 107, 53, 0.13);
+    color: var(--accent);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    transition: background 0.18s ease;
+    flex-shrink: 0;
+}
+.onboarding-item:not(.done):hover .onboarding-item-cta {
+    background: rgba(255, 107, 53, 0.22);
+}
+.onboarding-item.done .onboarding-item-cta { display: none; }
+
+/* [hidden] attribute must beat display:flex */
+.onboarding-card[hidden],
+.onboarding-complete[hidden] { display: none !important; }
+
+.onboarding-complete {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    background: rgba(63, 185, 80, 0.08);
+    border: 1px solid rgba(63, 185, 80, 0.22);
+    border-radius: 10px;
+    color: var(--green);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+.onboarding-complete-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(63, 185, 80, 0.18);
+    flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+    .onboarding-card { padding: 18px 16px 16px; }
+    .onboarding-header { gap: 12px; margin-bottom: 16px; }
+    .onboarding-ring-wrap { width: 52px; height: 52px; }
+    .onboarding-title { font-size: 1.05rem; }
+    .onboarding-subtitle { font-size: 0.78rem; }
+    .onboarding-stage { padding: 12px 12px; }
+    .onboarding-item { padding: 10px 8px; gap: 10px; }
+    .onboarding-item-label { font-size: 0.82rem; white-space: normal; }
+    .onboarding-item-cta { padding: 5px 10px; font-size: 0.7rem; }
+}
+</style>
+
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+    var card = document.getElementById('onboardingChecklist');
+    var completeEl = document.getElementById('onboardingComplete');
+    if (!card) return;
+
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+    function makeCheckSvg() {
+        var s = document.createElementNS(SVG_NS, 'svg');
+        s.setAttribute('width', '12');
+        s.setAttribute('height', '12');
+        s.setAttribute('viewBox', '0 0 24 24');
+        s.setAttribute('fill', 'none');
+        s.setAttribute('stroke', 'currentColor');
+        s.setAttribute('stroke-width', '3.5');
+        s.setAttribute('stroke-linecap', 'round');
+        s.setAttribute('stroke-linejoin', 'round');
+        var p = document.createElementNS(SVG_NS, 'polyline');
+        p.setAttribute('points', '20 6 9 17 4 12');
+        s.appendChild(p);
+        return s;
+    }
+
+    // cache:'no-store' ensures we always get fresh status after the coach uploads a video,
+    // creates a play, etc. — and returns to home expecting a new ✓ mark.
+    fetch('/api/onboarding-status?t=' + Date.now(), {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' }
+        })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data || !data.stages) return;
+
+            if (data.all_done) {
+                card.hidden = true;
+                if (completeEl) completeEl.hidden = false;
+                return;
+            }
+
+            var done = data.total_done || 0;
+            var total = data.total_items || 12;
+            var pct = total > 0 ? done / total : 0;
+            var circumference = 2 * Math.PI * 17;
+            var ring = document.getElementById('obRingFill');
+            if (ring) ring.setAttribute('stroke-dashoffset', String(circumference * (1 - pct)));
+            var doneEl = document.getElementById('obDone');
+            var totalEl = document.getElementById('obTotal');
+            if (doneEl) doneEl.textContent = String(done);
+            if (totalEl) totalEl.textContent = String(total);
+
+            var activeStageIdx = data.stages.findIndex(function (s) {
+                return s.items.some(function (it) { return !it.done; });
+            });
+            if (activeStageIdx === -1) activeStageIdx = 0;
+
+            var activeStage = data.stages[activeStageIdx];
+            var headerTitle = document.getElementById('obHeaderTitle');
+            var headerSub = document.getElementById('obHeaderSub');
+            if (headerTitle && activeStage) {
+                headerTitle.textContent = activeStageIdx === 0
+                    ? 'Get started with NextPlay'
+                    : activeStage.title;
+            }
+            if (headerSub && activeStage) headerSub.textContent = activeStage.subtitle;
+
+            var stagesEl = document.getElementById('onboardingStages');
+            if (!stagesEl) return;
+            stagesEl.replaceChildren();
+
+            data.stages.forEach(function (stage, idx) {
+                var stageDone = stage.items.filter(function (it) { return it.done; }).length;
+                var stageTotal = stage.items.length;
+                var allStageDone = stageDone === stageTotal;
+
+                var stageDiv = document.createElement('div');
+                var cls = 'onboarding-stage';
+                if (idx === activeStageIdx) cls += ' active';
+                else if (idx < activeStageIdx || allStageDone) cls += ' complete';
+                else cls += ' locked';
+                stageDiv.className = cls;
+
+                var head = document.createElement('div');
+                head.className = 'onboarding-stage-head';
+
+                var titles = document.createElement('div');
+                titles.className = 'onboarding-stage-titles';
+
+                var title = document.createElement('div');
+                title.className = 'onboarding-stage-title';
+                var badge = document.createElement('span');
+                badge.className = 'onboarding-stage-badge';
+                badge.textContent = allStageDone ? '✓' : 'Stage ' + (idx + 1);
+                title.appendChild(badge);
+                title.appendChild(document.createTextNode(stage.title));
+
+                var sub = document.createElement('div');
+                sub.className = 'onboarding-stage-sub';
+                sub.textContent = stage.subtitle;
+
+                titles.appendChild(title);
+                titles.appendChild(sub);
+
+                var progress = document.createElement('div');
+                progress.className = 'onboarding-stage-progress';
+                progress.textContent = stageDone + ' / ' + stageTotal;
+
+                head.appendChild(titles);
+                head.appendChild(progress);
+                stageDiv.appendChild(head);
+
+                var locked = idx > activeStageIdx;
+
+                // Chevron indicator for completed stages (collapse/expand)
+                if (allStageDone && !locked) {
+                    var chev = document.createElementNS(SVG_NS, 'svg');
+                    chev.setAttribute('class', 'onboarding-stage-chevron');
+                    chev.setAttribute('width', '14');
+                    chev.setAttribute('height', '14');
+                    chev.setAttribute('viewBox', '0 0 24 24');
+                    chev.setAttribute('fill', 'none');
+                    chev.setAttribute('stroke', 'currentColor');
+                    chev.setAttribute('stroke-width', '2.5');
+                    chev.setAttribute('stroke-linecap', 'round');
+                    chev.setAttribute('stroke-linejoin', 'round');
+                    var chevPath = document.createElementNS(SVG_NS, 'polyline');
+                    chevPath.setAttribute('points', '6 9 12 15 18 9');
+                    chev.appendChild(chevPath);
+                    progress.appendChild(chev);
+                }
+
+                if (!locked) {
+                    var itemsEl = document.createElement('div');
+                    itemsEl.className = 'onboarding-items';
+                    stage.items.forEach(function (item) {
+                        var a;
+                        if (item.done) {
+                            a = document.createElement('div');
+                            a.className = 'onboarding-item done';
+                        } else {
+                            a = document.createElement('a');
+                            a.className = 'onboarding-item';
+                            a.href = item.href;
+                        }
+                        var chk = document.createElement('span');
+                        chk.className = 'onboarding-check';
+                        chk.appendChild(makeCheckSvg());
+                        var label = document.createElement('span');
+                        label.className = 'onboarding-item-label';
+                        label.textContent = item.label;
+                        var cta = document.createElement('span');
+                        cta.className = 'onboarding-item-cta';
+                        cta.textContent = item.cta + ' →';
+                        a.appendChild(chk);
+                        a.appendChild(label);
+                        a.appendChild(cta);
+                        itemsEl.appendChild(a);
+                    });
+                    stageDiv.appendChild(itemsEl);
+
+                    // Completed stages are collapsed by default; click header to toggle.
+                    if (allStageDone) {
+                        stageDiv.classList.add('collapsed');
+                        head.style.cursor = 'pointer';
+                        head.setAttribute('role', 'button');
+                        head.setAttribute('tabindex', '0');
+                        head.setAttribute('aria-expanded', 'false');
+                        var toggle = function () {
+                            var nowCollapsed = stageDiv.classList.toggle('collapsed');
+                            head.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+                        };
+                        head.addEventListener('click', toggle);
+                        head.addEventListener('keydown', function (e) {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggle();
+                            }
+                        });
+                    }
+                }
+
+                stagesEl.appendChild(stageDiv);
+            });
+
+            card.hidden = false;
+        })
+        .catch(function (err) {
+            console.debug('Onboarding status fetch failed:', err);
+        });
+})();
+</script>
+{% endif %}
+{% endblock %}

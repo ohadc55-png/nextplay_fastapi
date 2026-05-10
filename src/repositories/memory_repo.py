@@ -92,7 +92,7 @@ class MemoryRepository(BaseRepository[Memory]):
             stmt = stmt.where(or_(Memory.team_id == team_id, Memory.team_id.is_(None)))
         return list((await self.session.execute(stmt)).scalars().all())
 
-    async def mark_accessed(self, memory_id: int, *, last_accessed_at) -> None:  # noqa: ANN001
+    async def mark_accessed(self, memory_id: int, *, last_accessed_at) -> None:
         """Bump access_count + set last_accessed_at. Caller passes the
         timestamp (typically `datetime.utcnow()`) so the service decides on
         timezone semantics. Mirrors recall-side bookkeeping in v1.0-flask."""
@@ -174,8 +174,8 @@ class SessionSummariesRepository(BaseRepository[SessionSummary]):
 
 
 __all__ = [
-    "MemoryRepository",
-    "EntityRepository",
     "EntityObservationsRepository",
+    "EntityRepository",
+    "MemoryRepository",
     "SessionSummariesRepository",
 ]

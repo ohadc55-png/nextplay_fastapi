@@ -54,6 +54,6 @@ def clear_auth_cookies(response: Response) -> None:
 __all__ = [
     "REFRESH_COOKIE_NAME",
     "REFRESH_COOKIE_PATH",
-    "set_auth_cookies",
     "clear_auth_cookies",
+    "set_auth_cookies",
 ]

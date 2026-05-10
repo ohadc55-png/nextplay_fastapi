@@ -1,0 +1,2063 @@
+{% extends "base.html" %}
+{% set active_page = "chat" %}
+
+{% block content %}
+<div class="chat-container">
+    <div class="page-header">
+        <svg class="page-header-icon" id="headerIcon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <div>
+            <h1 id="chatTitle">Coaching Staff Chat</h1>
+            <p id="chatSubtitle">Your AI-powered coaching experts are ready</p>
+        </div>
+        <div style="margin-inline-start: auto; display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="newSession()" aria-label="Start new chat session">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="opacity:0.7"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                New Session
+            </button>
+        </div>
+    </div>
+
+    <!-- Onboarding scouting banner (only when ?onboarding=scouting) -->
+    {% if request.args.get('onboarding') == 'scouting' %}
+    <div class="onboarding-chat-banner" id="onboardingBanner" role="status">
+        <span class="onboarding-chat-banner-icon" aria-hidden="true">★</span>
+        <span class="onboarding-chat-banner-text">Build your roster with Brad — describe each player in your own words.</span>
+        <button class="onboarding-chat-banner-skip" onclick="exitOnboardingMode()" aria-label="Exit onboarding mode">Skip</button>
+    </div>
+    {% endif %}
+
+    <!-- Agent selector buttons -->
+    <div class="quick-actions" id="agentButtons" role="group" aria-label="Agent selection">
+        <button class="quick-action agent-btn" data-agent="gm" onclick="openAgentChat('gm')" aria-label="Chat with GM Brad Binn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg>
+            GM Brad Binn
+        </button>
+        <button class="quick-action agent-btn" data-agent="scout" onclick="openAgentChat('scout')" aria-label="Chat with Scout">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Scout
+        </button>
+        <button class="quick-action agent-btn" data-agent="analytics" onclick="openAgentChat('analytics')" aria-label="Chat with Analytics">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Analytics
+        </button>
+        <button class="quick-action agent-btn" data-agent="tactics" onclick="openAgentChat('tactics')" aria-label="Chat with Tactics">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            Tactics
+        </button>
+        <button class="quick-action agent-btn" data-agent="training" onclick="openAgentChat('training')" aria-label="Chat with Training">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11"/><path d="M6.5 17.5h11"/><rect x="9" y="2" width="6" height="20" rx="2"/></svg>
+            Training
+        </button>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+        {% set agent_photo_map = {
+            'gm': 'img/agents/brad_binn.png',
+            'scout': 'img/agents/jack_hunter.png',
+            'analytics': 'img/agents/dr_nexus.png',
+            'tactics': 'img/agents/ed_vance.png',
+            'training': 'img/agents/duncan_bucket.png'
+        } %}
+        {% set agent_name_map = {
+            'gm': 'GM Brad Binn',
+            'scout': 'Scout Jack Hunter',
+            'analytics': 'Dr. Nexus',
+            'tactics': 'Coach Ed Vance',
+            'training': 'Coach Duncan Bucket'
+        } %}
+        {% for msg in messages %}
+        <div class="chat-msg {{ msg.role }}" {% if msg.role == 'assistant' %}data-response="{{ msg.content | e }}" data-agent="{{ msg.agent_used or 'auto' }}"{% endif %}>
+            <div class="avatar">
+                {% if msg.role == 'user' %}
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {% elif msg.agent_used and msg.agent_used in agent_photo_map %}
+                <img src="{{ url_for('static', filename=agent_photo_map[msg.agent_used]) }}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+                {% else %}
+                <img src="{{ url_for('static', filename='img/agents/brad_binn.png') }}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+                {% endif %}
+            </div>
+            <div class="msg-content">
+                <div class="msg-sender">
+                    {% if msg.role == 'user' %}Coach{% elif msg.agent_used and msg.agent_used in agent_name_map %}{{ agent_name_map[msg.agent_used] }}{% else %}AI Staff{% endif %}
+                </div>
+                <div class="bubble" data-auto-dir style="white-space:pre-wrap;">{{ msg.content }}</div>
+                {% if msg.role == 'assistant' %}
+                <div class="feedback-bar">
+                    <button class="feedback-btn feedback-up" onclick="sendFeedback(this, 1)" title="Good response" aria-label="Good response">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    </button>
+                    <button class="feedback-btn feedback-down" onclick="sendFeedback(this, -1)" title="Bad response" aria-label="Bad response">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                    </button>
+                    <button class="feedback-btn save-to-nb" onclick="openSaveToNotebook(this)" title="Save to Notebook" aria-label="Save to Notebook">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        <span style="font-size:0.72rem;margin-inline-start:3px;">Save to Notebook</span>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if not messages %}
+        <div class="chat-welcome">
+            <div class="welcome-icon">
+                <svg width="44" height="44" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="20" stroke="var(--accent)" stroke-width="2" fill="none"/>
+                    <path d="M24 4v40" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M4 24h40" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M9 9q15 15 0 30" stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    <path d="M39 9q-15 15 0 30" stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h2>Ready to assist, Coach</h2>
+            <p>Click on a coaching staff member above to start a direct conversation, or type a message below for auto-routing.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- File preview bar (hidden by default) -->
+    <div class="file-preview-bar" id="filePreviewBar" style="display:none;">
+        <div id="filePreviewList" class="file-preview-list"></div>
+        <div class="file-preview-footer">
+            <span id="filePreviewSummary" class="file-preview-summary"></span>
+            <button class="file-preview-clear" onclick="removeAllFiles()" aria-label="Remove all files">Clear</button>
+        </div>
+    </div>
+
+    <div class="chat-input-bar">
+        <input type="file" id="fileInput" style="display:none" multiple
+               accept=".csv,.xlsx,.xls,.pdf,.txt,.json,.jpg,.jpeg,.png,.gif,.webp"
+               onchange="handleFileSelect(event)">
+        <button class="btn-attach" onclick="document.getElementById('fileInput').click()" aria-label="Upload file" title="Upload file">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <textarea id="chatInput" dir="auto" rows="1"
+                  placeholder="Ask your coaching staff anything..."
+                  autocomplete="off" maxlength="5000"
+                  aria-label="Chat message input"></textarea>
+        <button class="btn-send" id="btnSend" onclick="sendMessage()" aria-label="Send message (Alt+Enter)" title="Send (Alt+Enter)">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+    </div>
+    <div class="chat-input-hint" aria-hidden="true">Alt+Enter to send · Enter for new line · Paste or drop files to attach</div>
+</div>
+
+<!-- Drag & drop overlay (hidden by default) -->
+<div id="dropOverlay" class="drop-overlay" aria-hidden="true">
+    <div class="drop-overlay-inner">
+        <svg class="drop-overlay-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="drop-overlay-title">Drop to attach</div>
+        <div class="drop-overlay-sub">Images, PDFs, CSVs, and more · up to 25 MB</div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div id="chatToast" class="chat-toast" role="status" aria-live="polite"></div>
+
+<!-- Save to Notebook Modal -->
+<div class="modal-overlay" id="saveToNbModal" role="dialog" aria-modal="true" aria-labelledby="saveToNbTitle">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h3 id="saveToNbTitle">Save to Notebook</h3>
+      <button class="modal-close" onclick="closeSaveToNb()" aria-label="Close modal"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="save-nb-agent" id="saveNbAgent"></div>
+      <div class="form-group">
+        <label class="label">Category</label>
+        <select class="input" id="saveNbType" aria-label="Category">
+          <option value="practice_plan">Practice Plan</option>
+          <option value="game_summary">Game Summary</option>
+          <option value="tactical_plan">Tactical Plan</option>
+          <option value="period_plan">Period Plan</option>
+          <option value="player_note">Player Note</option>
+          <option value="free_document" selected>Free Document</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="label">Title</label>
+        <input type="text" class="input" id="saveNbTitle" placeholder="e.g. Practice plan for tonight" aria-label="Title">
+      </div>
+      <div class="save-nb-preview" id="saveNbPreview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSaveToNb()" aria-label="Cancel">Cancel</button>
+      <button class="btn btn-primary" id="saveNbBtn" onclick="confirmSaveToNb()" aria-label="Save to notebook">
+        <span class="material-symbols-outlined" style="font-size:1rem;">bookmark_add</span>
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+// Mark body so mobile CSS can raise the guide widget above the fixed chat input bar
+document.body.classList.add('has-chat-input-bar');
+let sessionId = "{{ session_id }}";
+let currentAgent = null;  // null = auto-route, "gm"/"scout"/etc = direct
+
+// Onboarding mode — opt-in via URL param ?onboarding=scouting
+let onboardingMode = (function () {
+    try {
+        var p = new URLSearchParams(window.location.search);
+        var v = p.get('onboarding');
+        return v === 'scouting' ? 'scouting' : null;
+    } catch (e) { return null; }
+})();
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const btnSend = document.getElementById('btnSend');
+
+const AGENT_NAMES = {
+    gm: 'GM Brad Binn',
+    scout: 'Scout Jack Hunter',
+    analytics: 'Dr. Nexus',
+    tactics: 'Coach Ed Vance',
+    training: 'Coach Duncan Bucket'
+};
+
+// Agent photo avatars
+const AGENT_PHOTOS = {
+    gm: '{{ url_for("static", filename="img/agents/brad_binn.png") }}',
+    scout: '{{ url_for("static", filename="img/agents/jack_hunter.png") }}',
+    analytics: '{{ url_for("static", filename="img/agents/dr_nexus.png") }}',
+    tactics: '{{ url_for("static", filename="img/agents/ed_vance.png") }}',
+    training: '{{ url_for("static", filename="img/agents/duncan_bucket.png") }}',
+};
+const userAvatarSVG = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+function getAgentAvatar(agent) {
+    const src = AGENT_PHOTOS[agent || currentAgent];
+    if (src) return `<img src="${src}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">`;
+    return '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/></svg>';
+}
+const aiAvatarSVG = getAgentAvatar();
+
+// ── Shared button builders for feedback + save ──
+function _mkFeedbackBtn(type) {
+    var btn = document.createElement('button');
+    btn.className = 'feedback-btn feedback-' + type;
+    btn.title = type === 'up' ? 'Good response' : 'Bad response';
+    btn.setAttribute('onclick', 'sendFeedback(this, ' + (type === 'up' ? '1' : '-1') + ')');
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '14');
+    svg.setAttribute('height', '14');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    var p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    var p2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    if (type === 'up') {
+        p1.setAttribute('d', 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z');
+        p2.setAttribute('d', 'M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3');
+    } else {
+        p1.setAttribute('d', 'M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z');
+        p2.setAttribute('d', 'M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3');
+    }
+    svg.appendChild(p1);
+    svg.appendChild(p2);
+    btn.appendChild(svg);
+    return btn;
+}
+function _mkSaveBtn() {
+    var btn = document.createElement('button');
+    btn.className = 'feedback-btn save-to-nb';
+    btn.title = 'Save to Notebook';
+    btn.addEventListener('click', function() { openSaveToNotebook(this); });
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '14');
+    svg.setAttribute('height', '14');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    var pa = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pa.setAttribute('d', 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20');
+    var pb = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pb.setAttribute('d', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z');
+    svg.appendChild(pa);
+    svg.appendChild(pb);
+    btn.appendChild(svg);
+    var label = document.createElement('span');
+    label.style.cssText = 'font-size:0.72rem;margin-inline-start:3px;';
+    label.textContent = 'Save to Notebook';
+    btn.appendChild(label);
+    return btn;
+}
+
+// ── Smart auto-scroll: stops when user scrolls up, shows "jump to bottom" ──
+let _userScrolledUp = false;
+let _programmaticScroll = false;
+function scrollBottom() {
+    if (_userScrolledUp) return;
+    _programmaticScroll = true;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    requestAnimationFrame(() => { _programmaticScroll = false; });
+}
+chatMessages.addEventListener('scroll', () => {
+    if (_programmaticScroll) return; // ignore scrolls we triggered
+    const distFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
+    if (distFromBottom < 30) {
+        _userScrolledUp = false;
+        _hideJumpBtn();
+    } else {
+        _userScrolledUp = true;
+        _showJumpBtn();
+    }
+});
+function _showJumpBtn() {
+    let btn = document.getElementById('jumpToBottom');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'jumpToBottom';
+        btn.className = 'jump-to-bottom';
+        btn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+        btn.onclick = () => { _userScrolledUp = false; _programmaticScroll = true; chatMessages.scrollTop = chatMessages.scrollHeight; requestAnimationFrame(() => { _programmaticScroll = false; }); _hideJumpBtn(); };
+        chatMessages.parentElement.appendChild(btn);
+    }
+    btn.classList.add('visible');
+}
+function _hideJumpBtn() {
+    const btn = document.getElementById('jumpToBottom');
+    if (btn) btn.classList.remove('visible');
+}
+scrollBottom();
+
+function isHebrew(text) {
+    // Check if the text contains Hebrew characters
+    const hebrewRegex = /[\u0590-\u05FF]/;
+    return hebrewRegex.test(text);
+}
+
+// Track last user message for feedback context
+let lastUserMessage = '';
+
+function addMessage(role, content, senderName) {
+    // Remove empty/welcome state
+    const empty = chatMessages.querySelector('.empty-state, .chat-welcome');
+    if (empty) empty.remove();
+
+    if (role === 'user') lastUserMessage = content;
+
+    const div = document.createElement('div');
+    div.className = `chat-msg ${role}`;
+
+    const avatarHTML = role === 'user' ? userAvatarSVG : getAgentAvatar();
+    const sender = senderName || (role === 'user' ? 'Coach' : (currentAgent ? AGENT_NAMES[currentAgent] : 'AI Staff'));
+
+    const rtlClass = isHebrew(content) ? ' rtl' : '';
+
+    // Safely escape HTML to prevent XSS
+    // Strip hidden JSON blocks from display, keep in dataset for detection
+    const displayContent = (typeof _stripStatsJson === 'function') ? _stripStatsJson(content) : content;
+    const escaped = displayContent.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    // Feedback buttons for assistant messages
+    const feedbackHTML = role === 'assistant' ? `
+        <div class="feedback-bar">
+            <button class="feedback-btn feedback-up" onclick="sendFeedback(this, 1)" title="Good response">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            </button>
+            <button class="feedback-btn feedback-down" onclick="sendFeedback(this, -1)" title="Bad response">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+            </button>
+            <button class="feedback-btn save-to-nb" onclick="openSaveToNotebook(this)" title="Save to Notebook">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                <span style="font-size:0.72rem;margin-inline-start:3px;">Save to Notebook</span>
+            </button>
+        </div>
+    ` : '';
+
+    div.innerHTML = `
+        <div class="avatar">${avatarHTML}</div>
+        <div class="msg-content">
+            <div class="msg-sender">${sender}</div>
+            <div class="bubble${rtlClass}" style="white-space:pre-wrap;">${escaped}</div>
+            ${feedbackHTML}
+        </div>
+    `;
+
+    // Store response content for feedback
+    if (role === 'assistant') {
+        div.dataset.response = content;
+        div.dataset.agent = currentAgent || 'auto';
+        div.dataset.userMsg = lastUserMessage;
+    }
+
+    chatMessages.appendChild(div);
+
+    // Detect game stats JSON marker in AI responses
+    if (role === 'assistant') {
+        detectGameStats(div, content);
+    }
+
+    scrollBottom();
+}
+
+// ── Game Stats Detection & Save ──────────────────────────────
+function detectGameStats(msgDiv, rawContent) {
+    const marker = /\[GAME_STATS_JSON\]([\s\S]*?)\[\/GAME_STATS_JSON\]/;
+    const match = rawContent.match(marker);
+    if (!match) return;
+
+    let statsData;
+    try {
+        statsData = JSON.parse(match[1].trim());
+    } catch (e) {
+        console.error('Failed to parse game stats JSON:', e);
+        return;
+    }
+
+    if (!statsData.players || !statsData.players.length) return;
+
+    // Build preview card
+    const card = document.createElement('div');
+    card.className = 'game-stats-card';
+    card.innerHTML = `
+        <div class="gsc-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><circle cx="12" cy="14" r="4"/><path d="M8 14h8"/></svg>
+            <span>Game Stats Detected</span>
+            <span class="gsc-meta">${esc(statsData.opponent || '')} ${esc(statsData.game_date || '')}</span>
+        </div>
+        <table class="gsc-table">
+            <thead><tr><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>MIN</th></tr></thead>
+            <tbody>${statsData.players.map(p => `<tr>
+                <td>${esc(p.name || '')}</td>
+                <td style="font-weight:700;color:var(--accent)">${p.points || 0}</td>
+                <td>${p.reb || 0}</td>
+                <td>${p.ast || 0}</td>
+                <td>${p.minutes || 0}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+        <button class="btn btn-primary btn-sm gsc-save" onclick="saveGameStats(this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save Game Stats
+        </button>
+    `;
+    card.dataset.stats = JSON.stringify(statsData);
+
+    const msgContent = msgDiv.querySelector('.msg-content');
+    msgContent.appendChild(card);
+}
+
+async function saveGameStats(btn) {
+    const card = btn.closest('.game-stats-card');
+    const statsData = JSON.parse(card.dataset.stats);
+
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+
+    try {
+        // Step 1: Match player names to roster
+        const names = statsData.players.map(p => p.name);
+        const matchRes = await fetch('/api/notebook/match-players', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ names })
+        });
+        const matchJson = await matchRes.json();
+        const matches = matchJson.data || [];
+
+        // Map matched IDs back to players
+        const unmatched = [];
+        for (let i = 0; i < statsData.players.length; i++) {
+            const m = matches[i];
+            if (m && m.player_id) {
+                statsData.players[i].player_id = m.player_id;
+            } else {
+                unmatched.push(statsData.players[i].name);
+            }
+        }
+
+        // Filter out unmatched players
+        const matched = statsData.players.filter(p => p.player_id);
+        if (!matched.length) {
+            NpDialog.alert('Could not match any players to your roster. Please check player names.', { title: 'No Match', icon: 'person_search' });
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            return;
+        }
+
+        let msg = `Matched ${matched.length} of ${statsData.players.length} players.`;
+        if (unmatched.length) {
+            msg += `\nUnmatched: ${unmatched.join(', ')}`;
+        }
+        msg += '\n\nSave game stats?';
+
+        const ok = await NpDialog.confirm(msg, { ok: 'Save', cancel: 'Cancel' });
+        if (!ok) {
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            return;
+        }
+
+        // Step 2: Save
+        statsData.players = matched;
+        const saveRes = await fetch('/api/notebook/game-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(statsData)
+        });
+        const saveJson = await saveRes.json();
+
+        if (saveRes.ok) {
+            btn.textContent = '✓ Stats Saved';
+            btn.classList.remove('btn-loading');
+            btn.style.background = 'var(--green)';
+            btn.style.borderColor = 'var(--green)';
+        } else {
+            NpDialog.alert(saveJson.error || 'Error saving stats', { title: 'Error', icon: 'error' });
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        console.error('Save game stats failed:', e);
+        NpDialog.alert('Error saving stats', { title: 'Error', icon: 'error' });
+        btn.classList.remove('btn-loading');
+        btn.disabled = false;
+    }
+}
+
+async function sendFeedback(btn, rating) {
+    const msgDiv = btn.closest('.chat-msg');
+    const feedbackBar = btn.closest('.feedback-bar');
+
+    // Prevent double-click
+    if (feedbackBar.classList.contains('feedback-sent')) return;
+
+    const response = msgDiv.dataset.response || '';
+    const agent = msgDiv.dataset.agent || 'auto';
+    const userMsg = msgDiv.dataset.userMsg || '';
+
+    // If thumbs down, ask for optional comment
+    let comment = '';
+    if (rating === -1) {
+        comment = await NpDialog.prompt('What could be improved?', { title: 'Feedback', icon: 'feedback', placeholder: 'Optional...', okText: 'Submit' }) || '';
+    }
+
+    try {
+        await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                rating, comment, agent,
+                message: userMsg.substring(0, 500),
+                response: response.substring(0, 500)
+            })
+        });
+
+        // Visual feedback
+        feedbackBar.classList.add('feedback-sent');
+        if (rating === 1) {
+            btn.classList.add('feedback-active-up');
+        } else {
+            btn.classList.add('feedback-active-down');
+        }
+        // Disable feedback buttons (not save-to-nb)
+        feedbackBar.querySelectorAll('.feedback-up, .feedback-down').forEach(b => b.disabled = true);
+    } catch (err) {
+        console.error('Feedback error:', err);
+    }
+}
+
+let _loadingInterval = null;
+
+// Generate contextual thinking messages based on the question
+function _getThinkingSteps(agentName, isAutoRoute, question) {
+    const q = (question || '').toLowerCase();
+    // URL detection — fetching + reading an external page adds real latency,
+    // so we tell the coach upfront this will take a moment.
+    const hasUrl = /https?:\/\/\S+/i.test(q);
+    if (hasUrl) {
+        const name = agentName || 'Your coach';
+        return [
+            name + ' is opening your link...',
+            'Fetching the page (external links take longer, 20-30s)...',
+            'Reading the content carefully...',
+            'Pulling out what matters for you...',
+            'Writing it up...',
+        ];
+    }
+    // Detect topic for contextual messages
+    const isDefense = /defense|הגנה|defend|zone|man.to.man|אדם|איזור|pressure|לחץ/.test(q);
+    const isOffense = /offense|התקפה|attack|scoring|קליעה|נקודות|shoot|play|מהלך/.test(q);
+    const isDrill = /drill|תרגיל|practice|אימון|workout|warm|חימום/.test(q);
+    const isStats = /stats|סטטיסטיק|average|ממוצע|percent|אחוז|numbers|מספרים|analytics|ניתוח/.test(q);
+    const isScout = /opponent|יריב|scout|סקאוטינג|against|נגד|team.*play|קבוצ/.test(q);
+    const isPlayer = /player|שחקן|roster|סגל|lineup|הרכב|position|עמדה/.test(q);
+
+    if (isAutoRoute) {
+        const base = ['GM Brad Binn is reviewing your question...'];
+        if (isDefense) base.push('This looks like a defensive question...', 'Routing to tactical analysis...');
+        else if (isOffense) base.push('Analyzing offensive concepts...', 'Checking your team capabilities...');
+        else if (isDrill) base.push('Looking at training options...', 'Matching drills to your needs...');
+        else if (isStats) base.push('Pulling up the numbers...', 'Running statistical analysis...');
+        else if (isScout) base.push('Gathering scouting data...', 'Reviewing opponent tendencies...');
+        else if (isPlayer) base.push('Checking roster information...', 'Reviewing player profiles...');
+        else base.push('Deciding which specialist to assign...', 'Routing to the right expert...');
+        base.push('Specialist is working on it...', 'Preparing your answer...');
+        return base;
+    }
+    const name = agentName || 'Your coach';
+    const base = [name + ' is on it...'];
+    if (isDefense) base.push('Reviewing defensive schemes...', 'Checking matchup data...');
+    else if (isOffense) base.push('Designing offensive options...', 'Analyzing shooting zones...');
+    else if (isDrill) base.push('Searching drill library...', 'Building practice structure...');
+    else if (isStats) base.push('Crunching the numbers...', 'Computing advanced metrics...');
+    else if (isScout) base.push('Reviewing film and data...', 'Identifying key patterns...');
+    else if (isPlayer) base.push('Analyzing player data...', 'Cross-referencing stats...');
+    else base.push('Analyzing the situation...', 'Building a detailed response...');
+    base.push('Almost ready...');
+    return base;
+}
+
+// Track when the indicator appeared so hideLoading() can guarantee
+// a minimum visible duration (anti-flash) — the coach always sees
+// something happen, even if the server replies lightning-fast.
+var _loadingShownAt = 0;
+var MIN_LOADING_VISIBLE_MS = 350;
+
+function showLoading(agentName) {
+    const isAutoRoute = !currentAgent;
+    const name = agentName || (isAutoRoute ? 'GM Brad Binn' : 'Coaching staff');
+    // avatarSrc comes from AGENT_PHOTOS (static server URL map, not user input)
+    const avatarSrc = isAutoRoute ? AGENT_PHOTOS['gm'] : (AGENT_PHOTOS[currentAgent] || AGENT_PHOTOS['gm']);
+    const steps = _getThinkingSteps(name, isAutoRoute, lastUserMessage);
+
+    // Clean up any leftover indicator/interval from a previous send.
+    const existing = document.getElementById('loadingIndicator');
+    if (existing) existing.remove();
+    if (_loadingInterval) { clearInterval(_loadingInterval); _loadingInterval = null; }
+
+    // Build via DOM (no innerHTML) — safer + clearer.
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-loading';
+    wrap.id = 'loadingIndicator';
+
+    const avatarBox = document.createElement('div');
+    avatarBox.className = 'avatar';
+    const avatarImg = document.createElement('img');
+    avatarImg.src = avatarSrc;
+    avatarImg.alt = '';
+    avatarImg.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;';
+    avatarBox.appendChild(avatarImg);
+
+    const textCol = document.createElement('div');
+    const label = document.createElement('div');
+    label.id = 'loadingLabel';
+    label.style.cssText = 'font-weight:700;font-size:0.82rem;color:var(--accent);margin-bottom:6px;transition:opacity 0.3s;';
+    label.textContent = steps[0];
+
+    const dots = document.createElement('div');
+    dots.className = 'dots';
+    for (let i = 0; i < 3; i++) dots.appendChild(document.createElement('span'));
+
+    textCol.appendChild(label);
+    textCol.appendChild(dots);
+    wrap.appendChild(avatarBox);
+    wrap.appendChild(textCol);
+
+    chatMessages.appendChild(wrap);
+    _loadingShownAt = Date.now();
+    _userScrolledUp = false;
+    scrollBottom();
+
+    let step = 0;
+    _loadingInterval = setInterval(() => {
+        step++;
+        if (step < steps.length) {
+            const lbl = document.getElementById('loadingLabel');
+            if (lbl) {
+                lbl.style.opacity = '0';
+                setTimeout(() => {
+                    lbl.textContent = steps[step];
+                    lbl.style.opacity = '1';
+                }, 200);
+            }
+        }
+    }, 3000);
+}
+
+function hideLoading() {
+    // Anti-flash: if the indicator only just appeared, keep it on screen
+    // until it has been visible for at least MIN_LOADING_VISIBLE_MS.
+    const elapsed = Date.now() - (_loadingShownAt || 0);
+    const remove = () => {
+        if (_loadingInterval) { clearInterval(_loadingInterval); _loadingInterval = null; }
+        const el = document.getElementById('loadingIndicator');
+        if (el) el.remove();
+        _loadingShownAt = 0;
+    };
+    if (_loadingShownAt && elapsed < MIN_LOADING_VISIBLE_MS) {
+        setTimeout(remove, MIN_LOADING_VISIBLE_MS - elapsed);
+    } else {
+        remove();
+    }
+}
+
+function updateHeader(agentKey) {
+    const title = document.getElementById('chatTitle');
+    const subtitle = document.getElementById('chatSubtitle');
+    if (agentKey && AGENT_NAMES[agentKey]) {
+        title.textContent = `Chat with ${AGENT_NAMES[agentKey]}`;
+        subtitle.textContent = 'Direct conversation mode';
+    } else {
+        title.textContent = 'Coaching Staff Chat';
+        subtitle.textContent = 'Your AI-powered coaching experts are ready';
+    }
+
+    // Highlight active agent button
+    document.querySelectorAll('.agent-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.agent === agentKey);
+    });
+}
+
+async function openAgentChat(agentKey) {
+    // Prevent duplicate if same agent tab already active
+    if (currentAgent === agentKey) return;
+    // Start new session with this agent
+    const res = await fetch('/api/new-session');
+    const data = await res.json();
+    sessionId = data.session_id;
+    currentAgent = agentKey;
+
+    // Clear chat
+    chatMessages.innerHTML = '';
+    updateHeader(agentKey);
+
+    // Generate opening message
+    const agentName = AGENT_NAMES[agentKey];
+    showLoading(agentName);
+
+    try {
+        const openBody = { agent: agentKey, session_id: sessionId };
+        if (onboardingMode) openBody.onboarding = onboardingMode;
+        const openRes = await fetch('/api/opening-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(openBody)
+        });
+        const openData = await openRes.json();
+        hideLoading();
+        addMessage('assistant', openData.message, agentName);
+
+        // If chatting with GM (Brad) WITHOUT onboarding mode, and there are
+        // still un-profiled players, offer inline buttons to resume profiling.
+        if (agentKey === 'gm' && !onboardingMode) {
+            _maybeShowResumeProfilingCTA();
+        }
+    } catch (err) {
+        hideLoading();
+        addMessage('assistant', `Hey coach, I'm ${agentName}. How can I help you today?`, agentName);
+    }
+
+    if (window.innerWidth > 768) chatInput.focus();
+}
+
+// ═══ Resume profiling CTA — shown under Brad's opening when ════════
+//     there are still players without metrics filled in.
+async function _maybeShowResumeProfilingCTA() {
+    try {
+        const res = await fetch('/api/onboarding/players-status', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const pending = (data && data.pending) || [];
+        if (pending.length === 0) return;
+
+        // Build inline CTA bar with safe DOM API (no innerHTML)
+        const wrap = document.createElement('div');
+        wrap.className = 'resume-profiling-cta';
+
+        const txt = document.createElement('div');
+        txt.className = 'resume-profiling-text';
+        const strong = document.createElement('strong');
+        strong.textContent = String(pending.length);
+        txt.appendChild(strong);
+        const plural = pending.length === 1 ? '' : 's';
+        txt.appendChild(document.createTextNode(
+            ' player' + plural + ' still need scouting profile' + plural +
+            '. Building them out makes my analysis sharper.'
+        ));
+
+        const actions = document.createElement('div');
+        actions.className = 'resume-profiling-actions';
+
+        const yesBtn = document.createElement('button');
+        yesBtn.className = 'btn btn-primary btn-sm';
+        yesBtn.id = 'resumeProfilingYes';
+        yesBtn.textContent = 'Continue profiling';
+
+        const noBtn = document.createElement('button');
+        noBtn.className = 'btn-link';
+        noBtn.id = 'resumeProfilingNo';
+        noBtn.textContent = 'Maybe later';
+
+        actions.appendChild(yesBtn);
+        actions.appendChild(noBtn);
+        wrap.appendChild(txt);
+        wrap.appendChild(actions);
+
+        chatMessages.appendChild(wrap);
+        scrollBottom();
+
+        yesBtn.addEventListener('click', function () {
+            // Switch into onboarding mode (URL reload picks up the param + banner).
+            // CRITICAL: also force agent=gm into the URL so auto_agent fires the
+            // opening-message call after reload. Without this, if the coach got
+            // here by clicking the GM agent BUTTON (not via URL), the URL has
+            // no `agent` param → openAgentChat() never runs → Brad sends no
+            // follow-up question about the next player.
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('agent', 'gm');
+                url.searchParams.set('onboarding', 'scouting');
+                window.location.href = url.toString();
+            } catch (e) {
+                window.location.href = '/chat?agent=gm&onboarding=scouting';
+            }
+        });
+        noBtn.addEventListener('click', function () {
+            wrap.remove();
+        });
+    } catch (e) {
+        console.warn('[resume-cta] check failed:', e);
+    }
+}
+
+async function refreshToken() {
+    try {
+        const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin' });
+        return res.ok;
+    } catch { return false; }
+}
+
+// ── Create empty streaming bubble ────────────────────────────
+function createStreamBubble(agentName) {
+    const empty = chatMessages.querySelector('.empty-state, .chat-welcome');
+    if (empty) empty.remove();
+
+    const sender = agentName || 'AI Staff';
+    const div = document.createElement('div');
+    div.className = 'chat-msg assistant';
+
+    div.innerHTML = `
+        <div class="avatar">${getAgentAvatar()}</div>
+        <div class="msg-content">
+            <div class="msg-sender">${sender}</div>
+            <div class="bubble" style="white-space:pre-wrap;"><span class="stream-cursor" style="display:inline-block;width:2px;height:1em;background:var(--accent);animation:blink 0.8s infinite;vertical-align:text-bottom"></span></div>
+        </div>
+    `;
+
+    chatMessages.appendChild(div);
+    scrollBottom();
+    return { msgDiv: div, bubble: div.querySelector('.bubble') };
+}
+
+function _stripStatsJson(text) {
+    return text.replace(/\[GAME_STATS_JSON\][\s\S]*?\[\/GAME_STATS_JSON\]/g, '').trim();
+}
+
+function finalizeStreamMessage(msgDiv, bubble, fullResponse) {
+    // Remove cursor
+    const cursor = bubble.querySelector('.stream-cursor');
+    if (cursor) cursor.remove();
+
+    // Set data attributes (keep full response with JSON for detection)
+    msgDiv.dataset.response = fullResponse;
+    msgDiv.dataset.agent = currentAgent || 'auto';
+    msgDiv.dataset.userMsg = lastUserMessage;
+
+    // Strip JSON block from visible text
+    const displayText = _stripStatsJson(fullResponse);
+
+    // RTL detection
+    if (isHebrew(displayText)) bubble.classList.add('rtl');
+
+    // Re-escape and set final HTML (for consistent rendering)
+    const escaped = displayText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    bubble.innerHTML = escaped;
+
+    // Add feedback + save buttons (reuse the same template as addMessage)
+    var _postStreamBar = document.createElement('div');
+    _postStreamBar.className = 'feedback-bar';
+    _postStreamBar.appendChild(_mkFeedbackBtn('up'));
+    _postStreamBar.appendChild(_mkFeedbackBtn('down'));
+    _postStreamBar.appendChild(_mkSaveBtn());
+    msgDiv.querySelector('.msg-content').appendChild(_postStreamBar);
+
+    // Detect game stats
+    detectGameStats(msgDiv, fullResponse);
+    scrollBottom();
+}
+
+// ── Non-streaming fallback ──────────────────────────────────
+async function sendMessageFallback(msg) {
+    const agentName = currentAgent ? AGENT_NAMES[currentAgent] : null;
+    showLoading(agentName);
+
+    try {
+        const body = { message: msg, session_id: sessionId };
+        if (currentAgent) body.agent = currentAgent;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        hideLoading();
+
+        if (res.status === 401 && await refreshToken()) {
+            const retry = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (retry.ok) {
+                const data = await retry.json();
+                addMessage('assistant', data.response || 'No response', agentName);
+            } else {
+                window.location.href = '/login';
+            }
+            return;
+        }
+
+        if (!res.ok) {
+            addMessage('assistant', `Server error (${res.status})`, agentName);
+            return;
+        }
+
+        const data = await res.json();
+        // Use the routed agent name if auto-routed
+        const respondingAgent = data.agent_used && AGENT_NAMES[data.agent_used]
+            ? AGENT_NAMES[data.agent_used] : agentName;
+        // Update avatar for this response based on routed agent
+        const prevAgent = currentAgent;
+        if (data.agent_used && !currentAgent) currentAgent = data.agent_used;
+        addMessage('assistant', data.response || 'No response', respondingAgent);
+        if (!prevAgent) currentAgent = null; // restore auto-route mode
+    } catch (err) {
+        hideLoading();
+        if (err.name === 'AbortError') {
+            addMessage('assistant', 'The request timed out — please try again.', currentAgent ? AGENT_NAMES[currentAgent] : null);
+        } else {
+            addMessage('assistant', 'Connection error: ' + err.message, currentAgent ? AGENT_NAMES[currentAgent] : null);
+        }
+    }
+}
+
+// ── Main send message (streaming first, fallback if needed) ──
+async function sendMessage() {
+    const msg = chatInput.value.trim();
+    if (!msg && pendingFiles.length === 0) return;
+
+    const displayMsg = pendingFiles.length > 0
+        ? `[${pendingFiles.map(f => f.name).join(', ')}] ${msg || ''}`.trim()
+        : msg;
+
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    chatInput.disabled = true;
+    btnSend.disabled = true;
+    if (msg) lastUserMessage = msg;
+    _userScrolledUp = false;
+    _hideJumpBtn();
+
+    addMessage('user', displayMsg);
+
+    // Handle file upload (non-streaming)
+    if (pendingFiles.length > 0) {
+        const files = pendingFiles.slice();
+        removeAllFiles();
+        await uploadFiles(files, msg);
+        chatInput.disabled = false;
+        btnSend.disabled = false;
+        chatInput.focus();
+        return;
+    }
+
+    const agentName = currentAgent ? AGENT_NAMES[currentAgent] : null;
+
+    try {
+        const body = { message: msg, session_id: sessionId };
+        if (currentAgent) body.agent = currentAgent;
+        if (onboardingMode) body.onboarding = onboardingMode;
+
+        // Onboarding scouting: kick off background extraction in parallel
+        // (Brad acknowledges the description, the system extracts metrics asynchronously)
+        if (onboardingMode === 'scouting' && currentAgent === 'gm') {
+            _runScoutingExtraction(msg);
+        }
+
+        // Show thinking indicator while waiting for first chunk
+        showLoading(agentName);
+
+        // Try streaming endpoint first
+        const res = await fetch('/api/chat-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const contentType = res.headers.get('content-type') || '';
+
+        // Server returned JSON = redirect to non-streaming (full mode or auto-route)
+        if (contentType.includes('application/json')) {
+            hideLoading();
+            await sendMessageFallback(msg);
+            chatInput.disabled = false;
+            btnSend.disabled = false;
+            chatInput.focus();
+            return;
+        }
+
+        // Stream the response
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = '';
+        let buffer = '';
+        let msgDiv = null, bubble = null;
+        let chunkQueue = [];
+        let rendering = false;
+        let inJsonBlock = false;
+
+        // Render chunks with slight delay for smoother reading
+        function renderQueue() {
+            if (rendering || !chunkQueue.length) return;
+            rendering = true;
+            const chunk = chunkQueue.shift();
+            const cursor = bubble.querySelector('.stream-cursor');
+            const textNode = document.createTextNode(chunk);
+            if (cursor) bubble.insertBefore(textNode, cursor);
+            else bubble.appendChild(textNode);
+            scrollBottom();
+            setTimeout(() => { rendering = false; renderQueue(); }, 30);
+        }
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const evt = JSON.parse(line.slice(6));
+                    if (evt.t === 'chunk' && evt.c) {
+                        fullResponse += evt.c;
+
+                        // Hide [GAME_STATS_JSON]...[/GAME_STATS_JSON] from display
+                        if (evt.c.includes('[GAME_STATS_JSON]')) inJsonBlock = true;
+                        if (!inJsonBlock) {
+                            // On first visible chunk: replace loading with stream bubble
+                            if (!msgDiv) {
+                                hideLoading();
+                                const result = createStreamBubble(agentName);
+                                msgDiv = result.msgDiv;
+                                bubble = result.bubble;
+                            }
+                            chunkQueue.push(evt.c);
+                            renderQueue();
+                        }
+                        if (evt.c.includes('[/GAME_STATS_JSON]')) inJsonBlock = false;
+                    } else if (evt.t === 'error') {
+                        fullResponse += '\n[Error: ' + evt.message + ']';
+                    }
+                } catch (e) { /* skip malformed */ }
+            }
+        }
+
+        // Wait for render queue to finish
+        await new Promise(resolve => {
+            const check = () => { if (!chunkQueue.length && !rendering) resolve(); else setTimeout(check, 50); };
+            check();
+        });
+
+        // Finalize
+        hideLoading();
+        if (msgDiv && bubble) {
+            finalizeStreamMessage(msgDiv, bubble, fullResponse);
+        } else if (fullResponse) {
+            addMessage('assistant', fullResponse, agentName);
+        }
+
+    } catch (err) {
+        hideLoading();
+        console.error('Stream error:', err);
+        await sendMessageFallback(msg);
+    }
+
+    chatInput.disabled = false;
+    btnSend.disabled = false;
+    chatInput.focus();
+}
+
+// ═══ Onboarding scouting: extract player metrics in background ═══
+async function _runScoutingExtraction(description) {
+    // Skip if user said "skip" / "stop" / "later" — let Brad handle the exit
+    var lower = (description || '').toLowerCase().trim();
+    var skipPatterns = ['skip', 'stop', 'later', 'מספיק', 'דלג', 'לא עכשיו'];
+    if (skipPatterns.some(function (p) { return lower === p || lower.startsWith(p + ' ') || lower.startsWith(p + ','); })) {
+        // Exit onboarding mode for the rest of this chat
+        onboardingMode = null;
+        var banner = document.getElementById('onboardingBanner');
+        if (banner) banner.style.display = 'none';
+        return;
+    }
+    try {
+        // Get the next pending player
+        var statusResp = await fetch('/api/onboarding/players-status', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        if (!statusResp.ok) return;
+        var status = await statusResp.json();
+        var nextPlayer = status.next;
+        if (!nextPlayer) return;  // all profiled
+
+        // Send extraction request — runs in parallel with Brad's reply
+        var extractResp = await fetch('/api/onboarding/extract-player-skills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ player_id: nextPlayer.id, description: description })
+        });
+        if (extractResp.ok) {
+            var data = await extractResp.json();
+            if (data.success) {
+                _showOnboardingToast(nextPlayer.name + "'s profile saved");
+            }
+        }
+    } catch (e) {
+        console.warn('[onboarding] extraction failed:', e);
+    }
+}
+
+function exitOnboardingMode() {
+    onboardingMode = null;
+    var banner = document.getElementById('onboardingBanner');
+    if (banner) banner.style.display = 'none';
+    // Strip the URL param so refresh keeps it normal
+    try {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('onboarding');
+        window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+}
+
+function _showOnboardingToast(text) {
+    if (typeof toast === 'function') { toast(text); return; }
+    // Fallback: simple corner notification
+    var el = document.createElement('div');
+    el.textContent = '✓ ' + text;
+    el.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2332;color:#f48c25;padding:10px 16px;border-radius:8px;border:1px solid rgba(244,140,37,0.4);box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:0.85rem;font-weight:600;z-index:9999;';
+    document.body.appendChild(el);
+    setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity 0.4s'; }, 2500);
+    setTimeout(function () { el.remove(); }, 3000);
+}
+
+function newSession() {
+    fetch('/api/new-session')
+        .then(r => r.json())
+        .then(data => { window.location.href = `/chat?session=${data.session_id}`; });
+}
+
+// ── File Upload ──────────────────────────────────────────────
+let pendingFiles = []; // max MAX_FILES files, combined ≤ MAX_COMBINED_BYTES
+
+const MAX_FILE_BYTES = 25 * 1024 * 1024;        // per-file hard cap (25 MB)
+const MAX_COMBINED_BYTES = 30 * 1024 * 1024;    // combined cap across all files (30 MB)
+const MAX_FILES = 3;
+const ALLOWED_EXTS = ['csv','xlsx','xls','pdf','txt','json','jpg','jpeg','png','gif','webp'];
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function fileExt(name) {
+    return (name.split('.').pop() || '').toLowerCase();
+}
+
+function iconForFile(name) {
+    const ext = fileExt(name);
+    if (['pdf'].includes(ext)) return 'PDF';
+    if (['csv','xlsx','xls'].includes(ext)) return 'XLS';
+    if (['json','txt'].includes(ext)) return 'TXT';
+    return 'FILE';
+}
+
+function showChatToast(msg, variant) {
+    const t = document.getElementById('chatToast');
+    if (!t) return;
+    t.textContent = msg;
+    t.dataset.variant = variant || 'error';
+    t.classList.add('visible');
+    clearTimeout(showChatToast._timer);
+    showChatToast._timer = setTimeout(() => t.classList.remove('visible'), 3500);
+}
+
+function validateSingleFile(file) {
+    if (file.size > MAX_FILE_BYTES) {
+        showChatToast(`File too large (${formatBytes(file.size)}). Max per file: 25 MB`);
+        return false;
+    }
+    if (file.size === 0) {
+        showChatToast('File appears to be empty');
+        return false;
+    }
+    const ext = fileExt(file.name);
+    if (!ALLOWED_EXTS.includes(ext)) {
+        showChatToast(`Unsupported file type: .${ext || '(unknown)'}`);
+        return false;
+    }
+    return true;
+}
+
+function currentCombinedBytes() {
+    return pendingFiles.reduce((s, f) => s + f.size, 0);
+}
+
+function renderFilePreview() {
+    const bar = document.getElementById('filePreviewBar');
+    const list = document.getElementById('filePreviewList');
+    const summary = document.getElementById('filePreviewSummary');
+
+    // Revoke any existing blob URLs before re-rendering to avoid leaks
+    list.querySelectorAll('img.file-preview-thumb[src^="blob:"]').forEach(img => {
+        URL.revokeObjectURL(img.src);
+    });
+    list.replaceChildren();
+
+    if (pendingFiles.length === 0) {
+        bar.style.display = 'none';
+        chatInput.placeholder = 'Ask your coaching staff anything...';
+        return;
+    }
+
+    pendingFiles.forEach((file, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'file-preview-chip';
+
+        const isImage = file.type && file.type.startsWith('image/');
+        if (isImage) {
+            const img = document.createElement('img');
+            img.className = 'file-preview-thumb';
+            img.src = URL.createObjectURL(file);
+            img.alt = '';
+            chip.appendChild(img);
+        } else {
+            const icon = document.createElement('span');
+            icon.className = 'file-preview-icon';
+            const badge = document.createElement('span');
+            badge.className = 'file-type-badge';
+            badge.textContent = iconForFile(file.name);
+            icon.appendChild(badge);
+            chip.appendChild(icon);
+        }
+
+        const meta = document.createElement('div');
+        meta.className = 'file-preview-meta';
+        const name = document.createElement('span');
+        name.textContent = file.name;
+        const size = document.createElement('span');
+        size.className = 'file-preview-size';
+        size.textContent = formatBytes(file.size);
+        meta.appendChild(name);
+        meta.appendChild(size);
+        chip.appendChild(meta);
+
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'file-preview-remove';
+        rm.setAttribute('aria-label', 'Remove file');
+        rm.textContent = '×';
+        rm.addEventListener('click', () => removeFileAt(idx));
+        chip.appendChild(rm);
+
+        list.appendChild(chip);
+    });
+
+    const total = currentCombinedBytes();
+    summary.textContent = `${pendingFiles.length} / ${MAX_FILES} files · ${formatBytes(total)} / 30 MB`;
+    bar.style.display = 'flex';
+
+    chatInput.placeholder = pendingFiles.length === 1
+        ? `Add a message about ${pendingFiles[0].name}...`
+        : `Add a message about the ${pendingFiles.length} files...`;
+}
+
+function handleIncomingFile(file) {
+    if (!file) return;
+
+    // Auto-name pasted screenshots
+    const looksGeneric = !file.name || /^(image|screenshot|untitled)/i.test(file.name);
+    const hasExt = file.name && /\.[a-z0-9]{2,5}$/i.test(file.name);
+    if (looksGeneric || !hasExt) {
+        const extGuess = (file.type && file.type.split('/')[1]) || 'png';
+        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        file = new File([file], `pasted-image-${ts}.${extGuess}`, { type: file.type || 'image/png' });
+    }
+
+    if (!validateSingleFile(file)) return;
+
+    if (pendingFiles.length >= MAX_FILES) {
+        showChatToast(`Maximum ${MAX_FILES} files reached. Remove one to add another.`);
+        return;
+    }
+    if (currentCombinedBytes() + file.size > MAX_COMBINED_BYTES) {
+        showChatToast(`Combined size would exceed 30 MB. Remove a file or pick a smaller one.`);
+        return;
+    }
+
+    pendingFiles.push(file);
+    renderFilePreview();
+    chatInput.focus();
+}
+
+function handleFileSelect(event) {
+    const files = Array.from(event.target.files || []);
+    for (const file of files) {
+        handleIncomingFile(file);
+        if (pendingFiles.length >= MAX_FILES) break;
+    }
+    event.target.value = '';
+}
+
+function removeFileAt(idx) {
+    pendingFiles.splice(idx, 1);
+    renderFilePreview();
+}
+
+function removeAllFiles() {
+    pendingFiles = [];
+    document.getElementById('fileInput').value = '';
+    renderFilePreview();
+}
+
+// Backward-compatible alias
+function removeFile() {
+    removeAllFiles();
+}
+
+function _buildUploadForm(files, message) {
+    const fd = new FormData();
+    for (const f of files) fd.append('file', f);
+    fd.append('session_id', sessionId);
+    fd.append('message', message);
+    if (currentAgent) fd.append('agent', currentAgent);
+    return fd;
+}
+
+async function uploadFiles(files, message) {
+    const agentName = currentAgent ? AGENT_NAMES[currentAgent] : null;
+    showLoading(agentName);
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min
+
+        const res = await fetch('/api/chat-upload', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: _buildUploadForm(files, message),
+            credentials: 'same-origin',
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        hideLoading();
+
+        if (res.status === 401 && await refreshToken()) {
+            showLoading(agentName);
+            const retry = await fetch('/api/chat-upload', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: _buildUploadForm(files, message),
+                credentials: 'same-origin',
+            });
+            hideLoading();
+            if (retry.ok) {
+                const data = await retry.json();
+                addMessage('assistant', data.response || data.error || 'No response', agentName);
+            } else {
+                window.location.href = '/login';
+            }
+            return;
+        }
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error('Upload error:', res.status, errorText);
+            addMessage('assistant', `Upload error (${res.status}): ${errorText.substring(0, 200)}`, agentName);
+            return;
+        }
+
+        const data = await res.json();
+        addMessage('assistant', data.response || data.error || 'No response', agentName);
+    } catch (err) {
+        hideLoading();
+        console.error('Upload fetch error:', err);
+        if (err.name === 'AbortError') {
+            addMessage('assistant', 'The upload timed out. The file analysis is taking longer than usual — please try again.', agentName);
+        } else {
+            addMessage('assistant', `Upload error: ${err.message}`, agentName);
+        }
+    }
+}
+
+// ── Textarea behaviour: Alt+Enter = send, Enter = newline, auto-grow ────
+const CHAT_INPUT_MAX_HEIGHT = 144; // ~6 lines at 24px line-height
+function autoGrowChatInput() {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, CHAT_INPUT_MAX_HEIGHT) + 'px';
+}
+chatInput.addEventListener('input', autoGrowChatInput);
+chatInput.addEventListener('keydown', (e) => {
+    // Enter may come as e.key === 'Enter', e.code === 'Enter' / 'NumpadEnter',
+    // or via keyCode 13 depending on browser / OS / keyboard layout.
+    const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13;
+    if (!isEnter) return;
+    console.debug('[chat] Enter pressed:', {key: e.key, code: e.code, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey});
+    if (e.altKey || e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            sendMessage();
+        } catch (err) {
+            console.error('[chat] sendMessage threw:', err);
+        }
+    }
+    // Plain Enter / Shift+Enter = newline (default textarea behavior)
+});
+
+// ── Paste support: images / files copied from Explorer or other apps ──
+chatInput.addEventListener('paste', (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items || !items.length) return;
+    for (const item of items) {
+        if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+                e.preventDefault();
+                handleIncomingFile(file);
+                return;
+            }
+        }
+    }
+    // No file — let default text paste proceed
+});
+
+// ── Drag & drop anywhere on the page ─────────────────────────
+(function initDragDrop() {
+    const overlay = document.getElementById('dropOverlay');
+    let dragDepth = 0;
+    function hasFiles(e) {
+        return e.dataTransfer && e.dataTransfer.types &&
+               Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') !== -1;
+    }
+    document.addEventListener('dragenter', (e) => {
+        if (!hasFiles(e)) return;
+        dragDepth++;
+        overlay.classList.add('visible');
+    });
+    document.addEventListener('dragleave', (e) => {
+        if (!hasFiles(e)) return;
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) overlay.classList.remove('visible');
+    });
+    document.addEventListener('dragover', (e) => {
+        if (hasFiles(e)) e.preventDefault();
+    });
+    document.addEventListener('drop', (e) => {
+        dragDepth = 0;
+        overlay.classList.remove('visible');
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) handleIncomingFile(file);
+    });
+})();
+
+// ── Auto-open ────────────────────────────────────────────────
+// Auto-open agent chat if arriving from home page or URL param
+const autoAgent = "{{ auto_agent or '' }}";
+if (autoAgent && ['gm','scout','analytics','tactics','training'].includes(autoAgent)) {
+    openAgentChat(autoAgent);
+} else {
+    chatInput.focus();
+}
+
+// Auto-detect RTL for server-rendered messages
+document.querySelectorAll('[data-auto-dir]').forEach(el => {
+    if (isHebrew(el.textContent)) {
+        el.classList.add('rtl');
+    }
+});
+
+// ══════════ Save to Notebook ══════════
+var _saveNbContent = '';
+var _saveNbAgent = '';
+
+var AGENT_LABELS = {
+  gm: 'Brad Binn (GM)', scout: 'Jack Hunter (Scout)',
+  analytics: 'Dr. Nexus (Analytics)', tactics: 'Coach Ed Vance (Tactics)',
+  training: 'Coach Duncan Bucket (Training)', auto: 'AI Staff'
+};
+
+function openSaveToNotebook(btn) {
+  var msgEl = btn.closest('.chat-msg');
+  if (!msgEl) return;
+  _saveNbContent = msgEl.dataset.response || msgEl.querySelector('.bubble').textContent;
+  _saveNbAgent = msgEl.dataset.agent || 'auto';
+
+  var agentLabel = AGENT_LABELS[_saveNbAgent] || 'AI Staff';
+  document.getElementById('saveNbAgent').textContent = 'From: ' + agentLabel;
+
+  var preview = document.getElementById('saveNbPreview');
+  preview.textContent = _saveNbContent.length > 200 ? _saveNbContent.substring(0, 200) + '...' : _saveNbContent;
+
+  document.getElementById('saveNbTitle').value = '';
+  document.getElementById('saveNbType').value = 'free_document';
+  document.getElementById('saveToNbModal').classList.add('active');
+}
+
+function closeSaveToNb() {
+  document.getElementById('saveToNbModal').classList.remove('active');
+}
+
+async function confirmSaveToNb() {
+  var title = document.getElementById('saveNbTitle').value.trim();
+  var entryType = document.getElementById('saveNbType').value;
+  if (!title) {
+    NpDialog.alert('Please enter a title', { title: 'Missing Title', icon: 'title' });
+    return;
+  }
+  var btn = document.getElementById('saveNbBtn');
+  var origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Formatting...';
+
+  var agentLabel = AGENT_LABELS[_saveNbAgent] || 'AI Staff';
+
+  try {
+    // Step 1: AI formats the content into structured notebook fields
+    var fmtRes = await fetch('/api/notebook/format-for-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: _saveNbContent, entry_type: entryType })
+    });
+    var fmtData = await fmtRes.json();
+    var formattedContent = fmtData.formatted || { content: _saveNbContent };
+
+    // Add agent metadata
+    formattedContent.source_agent = _saveNbAgent;
+    formattedContent.source_agent_name = agentLabel;
+
+    btn.textContent = 'Saving...';
+
+    // Step 2: Save to notebook with formatted content
+    var res = await fetch('/api/notebook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entry_type: entryType,
+        title: title,
+        entry_date: new Date().toISOString().slice(0, 10),
+        source: 'chat',
+        tags: ['from-chat', _saveNbAgent],
+        content: formattedContent
+      })
+    });
+    if (res.ok) {
+      closeSaveToNb();
+      NpDialog.alert('Saved to Notebook!', { title: 'Saved', icon: 'bookmark_added' });
+    } else {
+      var data = await res.json();
+      NpDialog.alert(data.error || 'Failed to save', { title: 'Error', icon: 'error' });
+    }
+  } catch(e) {
+    NpDialog.alert('Network error', { title: 'Error', icon: 'error' });
+  }
+  btn.disabled = false;
+  btn.textContent = origText;
+}
+
+</script>
+
+<style>
+.agent-btn.active {
+    background: rgba(255, 107, 53, 0.2) !important;
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+}
+.btn-attach {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-2);
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+}
+.btn-attach:hover {
+    color: var(--accent);
+    background: rgba(255, 107, 53, 0.1);
+}
+.file-preview-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    margin: 0 16px;
+    background: rgba(255, 107, 53, 0.08);
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    border-radius: 10px 10px 0 0;
+    border-bottom: none;
+    font-size: 0.85rem;
+    color: var(--accent);
+}
+.file-preview-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+.file-preview-info span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-preview-remove {
+    background: none;
+    border: none;
+    color: var(--text-2);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.file-preview-remove:hover {
+    color: var(--red);
+    background: rgba(255, 107, 53, 0.1);
+}
+/* Streaming cursor blink */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Game Stats Card (in chat) */
+.game-stats-card {
+    margin-top: 10px;
+    background: var(--bg-elevated, #1e2638);
+    border: 1px solid var(--accent, #ff6b35);
+    border-radius: 10px;
+    padding: 12px 16px;
+    max-width: min(420px, 100%);
+}
+.gsc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent, #ff6b35);
+    margin-bottom: 10px;
+}
+.gsc-meta {
+    font-weight: 600;
+    color: var(--text-2, #9ba4b0);
+    margin-inline-start: auto;
+    font-size: 0.75rem;
+}
+.gsc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin-bottom: 10px;
+}
+.gsc-table th {
+    padding: 4px 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-3, #5c6370);
+    text-transform: uppercase;
+    text-align: center;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+.gsc-table th:first-child { text-align: left; }
+.gsc-table td {
+    padding: 4px 8px;
+    text-align: center;
+    color: var(--text, #f0f3f6);
+}
+.gsc-table td:first-child { text-align: left; }
+.gsc-save {
+    width: 100%;
+    margin-top: 4px;
+}
+
+/* Feedback buttons */
+.feedback-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+.feedback-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    color: #94a3b8;
+    padding: 5px 8px;
+    border-radius: 8px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+}
+.feedback-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.feedback-up:hover:not(:disabled) {
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, 0.3);
+    background: rgba(74, 222, 128, 0.08);
+}
+.feedback-down:hover:not(:disabled) {
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.3);
+    background: rgba(248, 113, 113, 0.08);
+}
+.feedback-active-up {
+    color: #4ade80 !important;
+    background: rgba(74, 222, 128, 0.1) !important;
+    border-color: rgba(74, 222, 128, 0.2) !important;
+}
+.feedback-active-down {
+    color: #f87171 !important;
+    background: rgba(248, 113, 113, 0.1) !important;
+    border-color: rgba(248, 113, 113, 0.2) !important;
+}
+.feedback-btn:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* Modal (for Save to Notebook) */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+    background: var(--bg-elevated, #1e2638);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    width: 100%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    overflow: hidden;
+    animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes modalSlideIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.modal-header h3 { font-size: 1rem; font-weight: 700; color: #fff; }
+.modal-close {
+    background: none; border: none; color: rgba(255,255,255,0.4);
+    cursor: pointer; padding: 4px; border-radius: 6px;
+}
+.modal-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.modal-body { padding: 16px 20px; }
+.modal-body .form-group { margin-bottom: 14px; }
+.modal-body .label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-2, #94a3b8); margin-bottom: 6px; }
+.modal-body .input {
+    width: 100%; padding: 9px 12px;
+    background: #1a2332; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; color: #fff; font-size: 0.85rem; font-family: inherit;
+}
+.modal-body .input:focus { outline: none; border-color: #f48c25; }
+.modal-body select.input {
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+.modal-body select.input option {
+    background: #1a2332;
+    color: #fff;
+}
+.modal-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 20px; border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Save to Notebook button */
+.save-to-nb {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 3px;
+    color: #f48c25;
+    padding: 5px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(244,140,37,0.25) !important;
+    background: rgba(244,140,37,0.08) !important;
+    transition: all 0.15s ease;
+}
+.save-to-nb:hover {
+    color: #fff !important;
+    border-color: #f48c25 !important;
+    background: rgba(244,140,37,0.2) !important;
+}
+
+/* Save to Notebook modal extras */
+.save-nb-agent {
+    font-size: 0.78rem;
+    color: #f48c25;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.save-nb-preview {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+/* ── File preview: multi-file chip list ─────────────────────── */
+.file-preview-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px;
+    padding: 10px 14px !important;
+}
+.file-preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.file-preview-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: rgba(255, 107, 53, 0.05);
+    border: 1px solid rgba(255, 107, 53, 0.15);
+    border-radius: 8px;
+    min-width: 0;
+}
+.file-preview-thumb {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 107, 53, 0.3);
+    background: rgba(0,0,0,0.2);
+}
+.file-preview-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background: rgba(255, 107, 53, 0.15);
+    color: var(--accent);
+}
+.file-type-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.file-preview-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.3;
+    flex: 1;
+}
+.file-preview-meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-preview-size {
+    font-size: 0.72rem;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+.file-preview-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(255, 107, 53, 0.2);
+}
+.file-preview-summary {
+    font-size: 0.72rem;
+    color: var(--accent);
+    opacity: 0.8;
+}
+.file-preview-clear {
+    background: none;
+    border: none;
+    color: var(--text-2);
+    cursor: pointer;
+    font-size: 0.78rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.file-preview-clear:hover {
+    color: var(--red);
+    background: rgba(255, 107, 53, 0.1);
+}
+
+/* ── Chat input hint ─────────────────────────────────────────── */
+.chat-input-hint {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    opacity: 0.65;
+    padding: 6px 20px 2px;
+    text-align: center;
+    user-select: none;
+}
+@media (max-width: 768px) {
+    .chat-input-hint { display: none; }
+}
+
+/* ── Drag & drop overlay ─────────────────────────────────────── */
+.drop-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9500;
+    background: rgba(12, 18, 28, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: none;
+}
+.drop-overlay.visible {
+    display: flex;
+    animation: dropFadeIn 0.15s ease-out;
+}
+@keyframes dropFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.drop-overlay-inner {
+    text-align: center;
+    color: var(--text);
+    padding: 48px 64px;
+    border: 3px dashed var(--accent);
+    border-radius: 24px;
+    background: rgba(255, 107, 53, 0.08);
+    max-width: 90vw;
+}
+.drop-overlay-icon {
+    color: var(--accent);
+    margin-bottom: 16px;
+    animation: dropBounce 1.4s ease-in-out infinite;
+}
+@keyframes dropBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+.drop-overlay-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.drop-overlay-sub {
+    font-size: 0.9rem;
+    color: var(--text-2);
+}
+
+/* ── Toast (file errors) ─────────────────────────────────────── */
+.chat-toast {
+    position: fixed;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px;
+    border-radius: 10px;
+    background: #2d1a1a;
+    color: #ffcccc;
+    border: 1px solid rgba(255, 80, 80, 0.4);
+    font-size: 0.88rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 9600;
+    max-width: 90vw;
+    text-align: center;
+}
+.chat-toast[data-variant="success"] {
+    background: #1a2d1f;
+    color: #b8e8c4;
+    border-color: rgba(80, 200, 120, 0.4);
+}
+.chat-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+</style>
+{% endblock %}

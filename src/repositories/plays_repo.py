@@ -24,4 +24,4 @@ class PlaySharesRepository(BaseRepository[PlayShare]):
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
 
-__all__ = ["PlaysRepository", "PlaySharesRepository"]
+__all__ = ["PlaySharesRepository", "PlaysRepository"]

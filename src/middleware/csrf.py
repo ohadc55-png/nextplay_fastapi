@@ -24,7 +24,6 @@ from __future__ import annotations
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.types import ASGIApp
 
 # Paths exempt from CSRF check. Mirrors `backend/auth/middleware.py:9-20`
 # plus the internal cron endpoint which authenticates with CRON_SECRET
@@ -54,7 +53,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     """Enforces an X-Requested-With or JSON content-type header on all
     state-changing `/api/*` requests, with the bypass list above."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001
+    async def dispatch(self, request: Request, call_next) -> Response:
         # Cheap bail-outs first.
         if request.method in _SAFE_METHODS:
             return await call_next(request)

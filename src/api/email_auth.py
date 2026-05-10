@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.password_service import hash_password
 from src.core.database import get_db
-from src.core.exceptions import NotFoundError, UnauthorizedError
+from src.core.exceptions import UnauthorizedError
 from src.repositories.auth_repo import AuditLogRepository, AuthTokenRepository
 from src.repositories.users_repo import UsersRepository
 from src.schemas.auth import (
@@ -87,7 +87,7 @@ async def resend_verification(
     if user and not user.email_verified:
         try:
             await send_verification_email(db, user_id=user.id, email=user.email)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("[resend-verification] enqueue failed for %s: %s", body.email, e)
     return StatusResponse(status="ok", detail="if the email is registered, a verification link was sent")
 
@@ -107,7 +107,7 @@ async def forgot_password(
     if user:
         try:
             await send_password_reset_email(db, user_id=user.id, email=user.email)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("[forgot-password] enqueue failed for %s: %s", body.email, e)
     return StatusResponse(status="ok", detail="if the email is registered, a reset link was sent")
 

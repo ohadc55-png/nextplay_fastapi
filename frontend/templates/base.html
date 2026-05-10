@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <title>{% block title %}NextPlay{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ config.get('CSS_VERSION', '2') }}">
+    <link rel="preload" href="{{ url_for('static', filename='css/mobile.css') }}?v={{ config.get('CSS_VERSION', '2') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}?v={{ config.get('CSS_VERSION', '2') }}"></noscript>
+    <link rel="preload" href="{{ url_for('static', filename='css/auth.css') }}?v={{ config.get('CSS_VERSION', '2') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}?v={{ config.get('CSS_VERSION', '2') }}"></noscript>
+    <link rel="preload" href="{{ url_for('static', filename='css/tour.css') }}?v={{ config.get('CSS_VERSION', '2') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="{{ url_for('static', filename='css/tour.css') }}?v={{ config.get('CSS_VERSION', '2') }}"></noscript>
+    <link rel="preload" href="{{ url_for('static', filename='css/guide-widget.css') }}?v={{ config.get('CSS_VERSION', '2') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="{{ url_for('static', filename='css/guide-widget.css') }}?v={{ config.get('CSS_VERSION', '2') }}"></noscript>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+
+    {# ── PWA: makes the app installable on iPhone/Android/desktop.
+       Manifest declares icons + display mode + start URL.
+       apple-touch-icon is iOS-specific (Safari ignores manifest icons for the home screen).
+       The cache-bust on the manifest URL forces re-fetch on every deploy so icon/name changes propagate. #}
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}?v={{ config.get('CSS_VERSION', '2') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/icons/apple-touch-icon-180.png') }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NEXTPLAY">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" crossorigin="anonymous">
+
+    <!-- ═══ Page loader: covers FOUC + layout shifts during initial render ═══
+         Inline in <head> so the overlay paints immediately on first byte,
+         before any external CSS is applied. Auto-hides on window.load
+         (plus a 3 s safety net in case a resource stalls). -->
+    <style>
+        #pageLoader {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: #0a0e14;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.35s ease, visibility 0.35s ease;
+            opacity: 1;
+            visibility: visible;
+        }
+        #pageLoader.loaded {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #pageLoader .pl-ball {
+            width: 64px;
+            height: 64px;
+            animation: plRoll 1.1s linear infinite;
+            filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
+        }
+        #pageLoader .pl-shadow {
+            position: absolute;
+            margin-top: 80px;
+            width: 48px;
+            height: 6px;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 70%);
+            animation: plShadowPulse 1.1s ease-in-out infinite;
+        }
+        @keyframes plRoll {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+        @keyframes plShadowPulse {
+            0%, 100% { transform: scaleX(1); opacity: 0.55; }
+            50%      { transform: scaleX(0.72); opacity: 0.3; }
+        }
+        /* Respect reduced-motion preferences */
+        @media (prefers-reduced-motion: reduce) {
+            #pageLoader .pl-ball,
+            #pageLoader .pl-shadow { animation: none; }
+        }
+    </style>
+    <script>
+        // Fire as soon as all resources finish, with a 3 s safety net.
+        (function () {
+            function hide() {
+                var el = document.getElementById('pageLoader');
+                if (el) el.classList.add('loaded');
+            }
+            if (document.readyState === 'complete') {
+                hide();
+            } else {
+                window.addEventListener('load', hide);
+                setTimeout(hide, 3000);
+            }
+        })();
+    </script>
+</head>
+<body>
+<!-- Page loader (auto-hides on load; see <head> for styles + script) -->
+<div id="pageLoader" aria-hidden="true" role="status" aria-live="polite">
+    <span class="pl-shadow" aria-hidden="true"></span>
+    <svg class="pl-ball" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+            <radialGradient id="plBallGrad" cx="35%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#FFB270"/>
+                <stop offset="55%" stop-color="#F97316"/>
+                <stop offset="100%" stop-color="#B45309"/>
+            </radialGradient>
+        </defs>
+        <circle cx="20" cy="20" r="18" fill="url(#plBallGrad)" stroke="#7C2D12" stroke-width="1.2"/>
+        <path d="M 2 20 Q 20 22 38 20" fill="none" stroke="#7C2D12" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M 20 2 Q 22 20 20 38" fill="none" stroke="#7C2D12" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M 5 8 Q 18 20 5 32" fill="none" stroke="#7C2D12" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M 35 8 Q 22 20 35 32" fill="none" stroke="#7C2D12" stroke-width="1.2" stroke-linecap="round"/>
+        <ellipse cx="13" cy="12" rx="4" ry="2.5" fill="rgba(255, 220, 180, 0.45)"/>
+    </svg>
+    <span class="sr-only" style="position:absolute;left:-9999px;">Loading…</span>
+</div>
+<a href="#main-content" class="skip-to-content">Skip to main content</a>
+<style>
+.skip-to-content {
+  position: absolute; left: -9999px; top: auto;
+  width: 1px; height: 1px; overflow: hidden;
+}
+.skip-to-content:focus {
+  position: fixed; top: 8px; left: 8px; z-index: 99999;
+  width: auto; height: auto; padding: 12px 24px;
+  background: #f48c25; color: #fff; border-radius: 8px;
+  font-weight: 700; text-decoration: none;
+}
+</style>
+<div class="app-layout">
+
+    <!-- Mobile menu button -->
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24" id="menuIcon"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+
+    <!-- Sidebar overlay for mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" role="complementary" aria-label="Sidebar">
+        <div class="sidebar-brand">
+            <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" class="brand-logo-img" width="90" height="90">
+            <h2>NEXTPLAY</h2>
+        </div>
+
+        <!-- Team section — populated by JS from /api/me -->
+        <div id="sidebarTeamSection"></div>
+
+        {% if subscription_plan == 'trial' and trial_days_left is defined %}
+        <a href="/upgrade" class="trial-banner" title="Upgrade your plan" aria-label="Upgrade your plan - trial period">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Trial: {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }} left
+        </a>
+        {% elif subscription_plan == 'expired' %}
+        <a href="/upgrade" class="trial-banner trial-banner-expired" title="Trial ended — upgrade to continue" aria-label="Trial ended">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Trial ended &middot; data deletes in {{ days_until_purge }} day{{ 's' if days_until_purge != 1 else '' }}
+        </a>
+        {% endif %}
+
+        <nav class="sidebar-nav" id="sidebarNav" aria-label="Main navigation">
+            <a href="/" data-page="home" aria-label="Home">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                <span>Home</span>
+            </a>
+            <a href="/chat" data-page="chat" aria-label="Chat">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>Chat</span>
+            </a>
+            <a href="/team-setup" data-page="team-setup" aria-label="Team Setup">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="M5 5q7 7 0 14"/><path d="M19 5q-7 7 0 14"/></svg>
+                <span>Team Setup</span>
+            </a>
+            <a href="/data-upload" data-page="data-upload" aria-label="Data Upload">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>Data Upload</span>
+            </a>
+            <a href="/scouting" data-page="scouting" aria-label="Video Hub">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                <span>Video Hub</span>
+            </a>
+            <a href="/plays" data-page="plays" aria-label="Play Creator">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="12"/><line x1="12" y1="12" x2="18" y2="18"/><line x1="6" y1="6" x2="12" y2="12"/></svg>
+                <span>Play Creator</span>
+            </a>
+            <a href="/notebook" data-page="notebook" aria-label="Notebook">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="9" y1="7" x2="17" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/></svg>
+                <span>Notebook</span>
+            </a>
+            <a href="/history" data-page="history" aria-label="History">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                <span>History</span>
+            </a>
+            <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
+            <a href="/profile" data-page="profile" aria-label="My Profile">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>My Profile</span>
+            </a>
+            <a href="/settings" data-page="settings" aria-label="Settings">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Settings</span>
+            </a>
+            {% if is_club_admin %}
+            <a href="/club-admin" data-page="club-admin" aria-label="Club Admin">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Club Admin</span>
+            </a>
+            {% endif %}
+            <a href="#" class="nav-add-team" onclick="event.preventDefault();openNewTeamModal()" aria-label="Add Team">
+                <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Add Team</span>
+            </a>
+        </nav>
+
+        {% if subscription_plan in ('trial', 'basic', 'expired') %}
+        <a href="/upgrade" class="sidebar-upgrade-btn" aria-label="Upgrade Plan">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span>Upgrade Plan</span>
+        </a>
+        {% else %}
+        <a href="/upgrade" class="sidebar-manage-plan" aria-label="Manage Plan">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            <span>Manage Plan</span>
+        </a>
+        {% endif %}
+
+        <div class="sidebar-footer">
+            {% if g.user %}
+            <button type="button" class="sidebar-install-btn" data-pwa-install
+                    aria-label="Install NEXTPLAY as an app"
+                    style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;font-weight:600;color:#ff6b35;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.45);border-radius:8px;cursor:pointer;font-family:inherit;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span data-pwa-label>Install App</span>
+            </button>
+            <div class="sidebar-user">
+                <span class="user-name">{{ g.user.display_name or g.user.email }}</span>
+                <button class="btn-logout" onclick="logout()" title="Sign Out" aria-label="Sign Out">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+            {% endif %}
+            Powered by CrewAI + GPT-4o
+        </div>
+    </aside>
+
+    <!-- New Team Modal (outside sidebar so it overlays full page) -->
+    <style>
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-overlay .modal {
+            background: var(--surface, #161d28);
+            border: 1px solid var(--border, rgba(255,255,255,0.06));
+            border-radius: 16px;
+            padding: 0;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .modal-overlay .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px 0;
+        }
+        .modal-overlay .modal-header h3 {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+        }
+        .modal-overlay .modal-close {
+            background: none;
+            border: none;
+            color: #9ba4b0;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+        .modal-overlay .modal-close:hover { color: #fff; }
+        .modal-overlay .modal-body {
+            padding: 20px 24px;
+        }
+        .modal-overlay .modal-body .form-group {
+            margin-bottom: 16px;
+        }
+        .modal-overlay .modal-body label {
+            display: block;
+            color: #9ba4b0;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .modal-overlay .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 0 24px 20px;
+        }
+    </style>
+    <div class="modal-overlay" id="newTeamModal" onclick="if(event.target===this)closeNewTeamModal()" role="dialog" aria-modal="true" aria-labelledby="newTeamModalTitle">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <h3 id="newTeamModalTitle">Add New Team</h3>
+                <button class="modal-close" onclick="closeNewTeamModal()" aria-label="Close modal">&times;</button>
+            </div>
+            <form id="newTeamForm" onsubmit="return createTeam(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="newTeamName">Team Name *</label>
+                        <input type="text" class="form-input" name="team_name" id="newTeamName" dir="auto" required placeholder="e.g., Maccabi Tel Aviv" aria-label="Team name">
+                    </div>
+                    <div class="form-group">
+                        <label for="newTeamLeague">League</label>
+                        <input type="text" class="form-input" name="league" id="newTeamLeague" dir="auto" placeholder="e.g., Winner League" aria-label="League">
+                    </div>
+                    <div class="form-group">
+                        <label for="newTeamDivision">Division</label>
+                        <input type="text" class="form-input" name="division" id="newTeamDivision" dir="auto" placeholder="e.g., U18" aria-label="Division">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" onclick="closeNewTeamModal()" aria-label="Cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="createTeamBtn" aria-label="Create team">Create Team</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <main class="main" id="main-content" role="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Global Floating Upload Progress Banner -->
+    <div id="bgUploadBanner" style="display:none; position:fixed; bottom:24px; right:24px; z-index:9999;
+        background:var(--surface, #161d28); border:1px solid var(--border, rgba(255,255,255,0.08));
+        border-radius:14px; padding:16px 20px; min-width:300px; max-width:400px;
+        box-shadow:0 8px 32px rgba(0,0,0,0.4); font-size:14px; color:#c8cdd4;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent, #f48c25)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="bgUploadTitle" style="font-weight:600; color:#fff;">Uploading video...</span>
+        </div>
+        <span id="bgUploadPct" style="font-weight:700; color:var(--accent, #f48c25);">0%</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.08); border-radius:6px; height:6px; overflow:hidden;">
+        <div id="bgUploadFill" style="width:0%; height:100%; background:var(--accent, #f48c25); border-radius:6px; transition:width 0.3s ease;"></div>
+      </div>
+      <div id="bgUploadStatus" style="margin-top:6px; font-size:12px; color:#9ba4b0;">Preparing...</div>
+    </div>
+
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+// ── Sidebar data (populated by /api/me) ─────────────────────
+window._sidebarData = null;
+
+async function loadSidebar() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) return;
+        const data = await res.json();
+        window._sidebarData = data;
+        renderSidebarTeam(data);
+    } catch(e) { /* silent */ }
+}
+
+function renderSidebarTeam(data) {
+    const section = document.getElementById('sidebarTeamSection');
+    if (!section) return;
+
+    const profile = data.profile;
+    const teams = data.teams || [];
+    const activeTeamId = data.active_team_id;
+    const playerCount = data.player_count || 0;
+    const uploadCount = data.upload_count || 0;
+
+    if (profile) {
+        let teamSwitcherHtml = '';
+        if (teams.length > 1) {
+            const dropdownItems = teams.map(t => {
+                const isActive = t.id === activeTeamId;
+                const leagueHtml = t.league ? `<small>${esc(t.league)}</small>` : '';
+                const checkHtml = isActive ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+                return `<button class="team-dropdown-item ${isActive ? 'active' : ''}" onclick="switchTeam(${t.id})"><span dir="auto">${esc(t.team_name)}</span>${leagueHtml}${checkHtml}</button>`;
+            }).join('');
+            teamSwitcherHtml = `
+                <div class="team-switcher">
+                    <button class="team-switcher-btn" onclick="toggleTeamDropdown()" title="Switch team">
+                        <span class="team-name">${esc(profile.team_name)}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="team-dropdown" id="teamDropdown">${dropdownItems}</div>
+                </div>`;
+        } else {
+            teamSwitcherHtml = `<div class="team-name" dir="auto">${esc(profile.team_name)}</div>`;
+        }
+        const leagueHtml = profile.league ? `<div class="team-league">${esc(profile.league)}</div>` : '';
+        section.innerHTML = `
+            <div class="sidebar-team">
+                ${teamSwitcherHtml}
+                ${leagueHtml}
+                <div class="sidebar-stats">
+                    <span class="sidebar-stat orange"><span dir="ltr">${playerCount}</span> Players</span>
+                    <span class="sidebar-stat blue"><span dir="ltr">${uploadCount}</span> Files</span>
+                </div>
+            </div>`;
+    } else if (teams.length === 0) {
+        section.innerHTML = `
+            <div class="sidebar-team" style="text-align:center;padding:12px 0;">
+                <button class="btn-add-first-team" onclick="openNewTeamModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Team
+                </button>
+            </div>`;
+    } else {
+        section.innerHTML = '';
+    }
+}
+
+function esc(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// ── Active nav highlight (URL-based) ────────────────────────
+function highlightActiveNav() {
+    const path = window.location.pathname;
+    const pageMap = {'/': 'home', '/chat': 'chat', '/team-setup': 'team-setup',
+                     '/data-upload': 'data-upload', '/scouting': 'scouting',
+                     '/plays': 'plays', '/notebook': 'notebook', '/history': 'history',
+                     '/profile': 'profile', '/settings': 'settings'};
+    let activePage = pageMap[path] || '';
+    // /player/<id> highlights Team Setup
+    if (path.startsWith('/player/')) activePage = 'team-setup';
+    document.querySelectorAll('#sidebarNav a[data-page]').forEach(a => {
+        a.classList.toggle('active', a.dataset.page === activePage);
+    });
+}
+
+// ── Mobile menu ─────────────────────────────────────────────
+function toggleMobileMenu() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const isOpen = sidebar.classList.contains('open');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+    document.body.classList.toggle('sidebar-open', !isOpen);
+    document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+
+document.querySelectorAll('.sidebar-nav a').forEach(link => {
+    link.addEventListener('click', () => {
+        if (window.innerWidth <= 768) toggleMobileMenu();
+    });
+});
+
+// ── Logout ──────────────────────────────────────────────────
+async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+}
+
+// ── Team Switcher ───────────────────────────────────────────
+function toggleTeamDropdown() {
+    document.getElementById('teamDropdown')?.classList.toggle('open');
+}
+document.addEventListener('click', e => {
+    const dd = document.getElementById('teamDropdown');
+    if (dd && !e.target.closest('.team-switcher')) dd.classList.remove('open');
+});
+
+async function switchTeam(teamId) {
+    await fetch(`/api/teams/${teamId}/switch`, { method: 'POST' });
+    location.reload();
+}
+
+// ── New Team Modal ──────────────────────────────────────────
+var _newTeamModalRelease = null;
+function openNewTeamModal() {
+    document.getElementById('teamDropdown')?.classList.remove('open');
+    var modal = document.getElementById('newTeamModal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function() {
+        document.querySelector('#newTeamForm input[name="team_name"]').focus();
+        if (typeof trapFocus === 'function') _newTeamModalRelease = trapFocus(modal);
+    }, 100);
+}
+function closeNewTeamModal() {
+    if (_newTeamModalRelease) { _newTeamModalRelease(); _newTeamModalRelease = null; }
+    document.getElementById('newTeamModal').classList.remove('active');
+    document.body.style.overflow = '';
+    document.getElementById('newTeamForm').reset();
+}
+
+async function createTeam(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = document.getElementById('createTeamBtn');
+    btn.disabled = true; btn.textContent = '...';
+    const fd = new FormData(form);
+    const res = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(fd))
+    });
+    if (res.ok) {
+        const data = await res.json();
+        await fetch(`/api/teams/${data.team_id}/switch`, { method: 'POST' });
+        location.href = '/team-setup';
+    } else {
+        btn.disabled = false; btn.textContent = 'Create Team';
+    }
+    return false;
+}
+
+// ── Init ────────────────────────────────────────────────────
+highlightActiveNav();
+loadSidebar();
+</script>
+
+<!-- ── Styled Dialog (replaces native confirm/alert/prompt) ── -->
+<div id="npDialog" class="np-dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="npDialogTitle">
+  <div class="np-dialog">
+    <div class="np-dialog-icon" id="npDialogIcon"></div>
+    <h3 class="np-dialog-title" id="npDialogTitle"></h3>
+    <p class="np-dialog-msg" id="npDialogMsg"></p>
+    <input type="text" class="np-dialog-input" id="npDialogInput" style="display:none;" autocomplete="off">
+    <div class="np-dialog-btns">
+      <button class="np-dialog-btn np-dialog-cancel" id="npDialogCancel" aria-label="Cancel">Cancel</button>
+      <button class="np-dialog-btn np-dialog-ok" id="npDialogOk" aria-label="OK">OK</button>
+    </div>
+  </div>
+</div>
+<script nonce="{{ g.csp_nonce }}">
+// ── NextPlay styled dialogs ──
+const NpDialog = (() => {
+  const overlay = document.getElementById('npDialog');
+  const titleEl = document.getElementById('npDialogTitle');
+  const msgEl = document.getElementById('npDialogMsg');
+  const iconEl = document.getElementById('npDialogIcon');
+  const inputEl = document.getElementById('npDialogInput');
+  const okBtn = document.getElementById('npDialogOk');
+  const cancelBtn = document.getElementById('npDialogCancel');
+  let _resolve = null;
+
+  function _show(opts) {
+    titleEl.textContent = opts.title || '';
+    msgEl.textContent = opts.message || '';
+    iconEl.innerHTML = opts.icon ? `<span class="material-symbols-outlined">${opts.icon}</span>` : '';
+    okBtn.textContent = opts.okText || 'OK';
+    cancelBtn.textContent = opts.cancelText || 'Cancel';
+    okBtn.className = 'np-dialog-btn np-dialog-ok' + (opts.danger ? ' danger' : '');
+    inputEl.style.display = opts.input ? '' : 'none';
+    cancelBtn.style.display = opts.alert ? 'none' : '';
+    if (opts.input) { inputEl.value = opts.defaultValue || ''; inputEl.placeholder = opts.placeholder || ''; }
+    overlay.style.display = '';
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+    if (opts.input) setTimeout(() => inputEl.focus(), 100);
+    return new Promise(r => { _resolve = r; });
+  }
+
+  function _hide(val) {
+    overlay.classList.remove('visible');
+    setTimeout(() => { overlay.style.display = 'none'; }, 200);
+    if (_resolve) { _resolve(val); _resolve = null; }
+  }
+
+  okBtn.addEventListener('click', () => {
+    const inp = inputEl.style.display !== 'none' ? inputEl.value : true;
+    _hide(inp);
+  });
+  cancelBtn.addEventListener('click', () => _hide(false));
+  overlay.addEventListener('click', e => { if (e.target === overlay) _hide(false); });
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') okBtn.click(); });
+
+  return {
+    confirm: (msg, opts = {}) => _show({ message: msg, icon: opts.icon || 'help', title: opts.title || 'Confirm', danger: opts.danger, okText: opts.okText, cancelText: opts.cancelText, ...opts }),
+    alert: (msg, opts = {}) => _show({ message: msg, icon: opts.icon || 'info', title: opts.title || 'Notice', alert: true, okText: opts.okText || 'OK', ...opts }),
+    prompt: (msg, opts = {}) => _show({ message: msg, icon: opts.icon || 'edit', title: opts.title || 'Input', input: true, defaultValue: opts.defaultValue, placeholder: opts.placeholder, okText: opts.okText, cancelText: opts.cancelText, ...opts }),
+  };
+})();
+</script>
+
+<script src="{{ url_for('static', filename='js/utils/modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+{# PWA: SW + install-prompt — loaded for ALL visitors so anonymous users
+   on /main can install the app too. Defers itself to window.load. #}
+<script src="{{ url_for('static', filename='js/pwa-register.js') }}?v={{ config.get('CSS_VERSION', '2') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pwa-install-banner.js') }}?v={{ config.get('CSS_VERSION', '2') }}" defer></script>
+{% if g.user %}
+<script src="{{ url_for('static', filename='js/activity-tracker.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script src="{{ url_for('static', filename='js/tour.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script src="{{ url_for('static', filename='js/guide-widget.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script src="{{ url_for('static', filename='js/upload-idb.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script src="{{ url_for('static', filename='js/upload-client.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+{# Push subscribe helper — exposes window.NextPlayPush for the settings page. #}
+<script src="{{ url_for('static', filename='js/push-subscribe.js') }}?v={{ config.get('CSS_VERSION', '2') }}" defer></script>
+{% endif %}
+
+{# ───── Trial-Ended soft-redirect (loss-aversion UX) ─────
+   When subscription_plan == 'expired', render the page normally for ~3
+   seconds so the coach SEES their app one last time, then auto-redirect
+   to /upgrade. The cost-leak is already plugged at the API level
+   (@check_subscription returns 403 on /api/* routes), so the user can't
+   actually consume LLM/API quota during this window — they just see the UI.
+
+   Skip on /upgrade itself (would loop) and on /admin/* (admin uses its
+   own auth; admin trial doesn't apply). #}
+{% if subscription_plan == 'expired' and request.path not in ['/upgrade'] and not request.path.startswith('/admin') %}
+<style nonce="{{ g.csp_nonce }}">
+    .trial-end-overlay {
+        position: fixed; inset: 0;
+        background: rgba(10, 14, 20, 0.78);
+        backdrop-filter: blur(6px);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 100000;
+        opacity: 0;
+        animation: trialEndFadeIn 0.4s 2.5s ease forwards;
+        pointer-events: none;
+    }
+    .trial-end-overlay.visible { pointer-events: auto; }
+    @keyframes trialEndFadeIn {
+        to { opacity: 1; }
+    }
+    .trial-end-card {
+        max-width: 460px; width: calc(100% - 32px);
+        background: linear-gradient(180deg, #151c2a 0%, #0f1520 100%);
+        border: 1px solid rgba(255, 107, 53, 0.32);
+        border-radius: 18px;
+        padding: 36px 32px 28px;
+        text-align: center;
+        box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7),
+                    0 0 0 1px rgba(255, 107, 53, 0.08) inset;
+        transform: translateY(12px) scale(0.96);
+        animation: trialEndCardIn 0.45s 2.5s var(--ease, cubic-bezier(.4, 0, .2, 1)) forwards;
+    }
+    @keyframes trialEndCardIn {
+        to { transform: translateY(0) scale(1); }
+    }
+    .trial-end-icon {
+        width: 64px; height: 64px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        background: rgba(255, 107, 53, 0.12);
+        display: flex; align-items: center; justify-content: center;
+        color: #ff6b35;
+    }
+    .trial-end-card h2 {
+        margin: 0 0 10px 0;
+        font-size: 1.6rem;
+        color: #f0f3f6;
+        letter-spacing: -0.01em;
+    }
+    .trial-end-card p {
+        margin: 0 0 22px 0;
+        color: #9ba4b0;
+        font-size: 0.98rem;
+        line-height: 1.55;
+    }
+    .trial-end-cta {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 13px 28px;
+        background: linear-gradient(180deg, #ff6b35 0%, #ff5722 100%);
+        color: #fff; font-weight: 600; font-size: 1rem;
+        border: none; border-radius: 10px;
+        text-decoration: none;
+        cursor: pointer;
+        box-shadow: 0 8px 24px -8px rgba(255, 107, 53, 0.5);
+        transition: transform 0.15s ease;
+    }
+    .trial-end-cta:hover { transform: translateY(-1px); }
+    .trial-end-meta {
+        margin-top: 14px;
+        font-size: 0.78rem;
+        color: #5a6372;
+        letter-spacing: 0.02em;
+    }
+</style>
+<div class="trial-end-overlay" id="trialEndOverlay" aria-hidden="true">
+    <div class="trial-end-card" role="dialog" aria-labelledby="trialEndTitle" aria-describedby="trialEndDesc">
+        <div class="trial-end-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+        </div>
+        <h2 id="trialEndTitle">Your 14-day trial has ended</h2>
+        <p id="trialEndDesc">
+            Pick a plan to keep your team data, conversations, and AI staff.
+            We're saving everything for <strong>{{ days_until_purge }} more day{{ 's' if days_until_purge != 1 else '' }}</strong>.
+        </p>
+        <a href="/upgrade" class="trial-end-cta">
+            See plans
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+        <div class="trial-end-meta">Redirecting in <span id="trialEndCountdown">3</span>s…</div>
+    </div>
+</div>
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    'use strict';
+    // 3-second soft redirect — user sees the app render, then this fires.
+    var overlay = document.getElementById('trialEndOverlay');
+    var counter = document.getElementById('trialEndCountdown');
+    var seconds = 3;
+    setTimeout(function() {
+        if (overlay) overlay.classList.add('visible');
+    }, 2400);
+    var tick = setInterval(function() {
+        seconds -= 1;
+        if (counter) counter.textContent = Math.max(0, seconds);
+        if (seconds <= 0) {
+            clearInterval(tick);
+            window.location.href = '/upgrade';
+        }
+    }, 1000);
+})();
+</script>
+{% endif %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <svg class="page-header-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <div>
+        <h1>Data Upload</h1>
+        <p>Upload game stats, scouting reports, and data for your AI coaching staff.</p>
+    </div>
+</div>
+
+<!-- Upload -->
+<div class="card mb-24">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload New File
+    </div>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div class="form-row">
+            <div>
+                <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <p id="dropText">Click to select a file or drag & drop</p>
+                    <p class="hint">CSV, PDF, TXT, JSON, XLSX (max 200MB)</p>
+                </div>
+                <input type="file" id="fileInput" name="file" accept=".csv,.pdf,.txt,.json,.xlsx" style="display:none" onchange="fileSelected(this)">
+            </div>
+            <div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select class="form-select" name="category">
+                        <option>Game Stats</option>
+                        <option>Scouting Report</option>
+                        <option>Opponent Data</option>
+                        <option>Team Data</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Description (optional)</label>
+                    <input class="form-input" name="description" placeholder="e.g., Stats from Feb 15 game vs Maccabi">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="uploadBtn" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+                    Upload File
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Files -->
+<div class="card">
+    <div class="card-header">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        Uploaded Files
+        <span class="badge badge-blue" style="margin-inline-start: auto;" id="filesCount">loading...</span>
+    </div>
+    <div id="filesList">
+        <div class="empty-state" id="filesLoading" style="padding:32px 0;">
+            <p>Loading files...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+
+// ── Load files from API ─────────────────────────────────────
+async function loadFiles() {
+    try {
+        const res = await fetch('/api/uploads/list');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderFiles(data.uploads || []);
+    } catch(e) { document.getElementById('filesLoading').innerHTML = '<p>Error loading files</p>'; }
+}
+
+function renderFiles(uploads) {
+    document.getElementById('filesCount').innerHTML = `<span dir="ltr">${uploads.length}</span> files`;
+    const list = document.getElementById('filesList');
+    if (!uploads.length) {
+        list.innerHTML = `<div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <p>No files uploaded yet.<br>Upload game data so your AI staff can analyze it.</p>
+        </div>`;
+        return;
+    }
+    const badgeCls = {'Game Stats':'badge-blue','Scouting Report':'badge-orange','Opponent Data':'badge-purple','Team Data':'badge-green'};
+    const iconMap = {
+        csv: '<svg class="file-type-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+        pdf: '<svg class="file-type-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+        json: '<svg class="file-type-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+        xlsx: '<svg class="file-type-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>',
+        _default: '<svg class="file-type-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+    };
+    list.innerHTML = uploads.map(u => {
+        const icon = iconMap[u.file_type] || iconMap._default;
+        const badge = badgeCls[u.category] || 'badge-orange';
+        const desc = u.description ? `<span>${esc(u.description)}</span>` : '';
+        const date = u.uploaded_at ? `<span style="color:var(--text-3);" dir="ltr">${u.uploaded_at.substring(0,16)}</span>` : '';
+        return `<div class="file-item" id="file-${u.id}">
+            ${icon}
+            <div class="file-info">
+                <div class="file-name">${esc(u.filename)}</div>
+                <div class="file-meta">
+                    <span class="badge ${badge}">${esc(u.category || 'Other')}</span>
+                    ${desc}${date}
+                </div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="previewFile(${u.id}, event)" title="Preview">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Preview
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="deleteFile(${u.id})">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                Delete
+            </button>
+        </div>`;
+    }).join('');
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+loadFiles();
+
+// ── Drag & Drop ─────────────────────────────────────────────
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    fileInput.files = e.dataTransfer.files;
+    fileSelected(fileInput);
+});
+
+function fileSelected(input) {
+    if (input.files.length) {
+        const name = input.files[0].name;
+        const size = (input.files[0].size / 1024 / 1024).toFixed(1);
+        document.getElementById('dropText').innerHTML = `<strong>${name}</strong> <span style="color: var(--text-3); font-size: 0.82rem;">(${size} MB)</span>`;
+        uploadBtn.disabled = false;
+    }
+}
+
+function toast(msg, type='success') {
+    const div = document.createElement('div');
+    div.className = `toast toast-${type}`;
+    div.textContent = msg;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    uploadBtn.disabled = true;
+    uploadBtn.classList.add('btn-loading');
+    uploadBtn.querySelector('svg').style.display = 'none';
+    const res = await fetch('/api/upload', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd });
+    uploadBtn.classList.remove('btn-loading');
+    uploadBtn.querySelector('svg').style.display = '';
+    if (res.ok) { toast('File uploaded!'); setTimeout(() => loadFiles(), 500); }
+    else toast('Upload failed', 'error');
+    uploadBtn.disabled = false;
+});
+
+async function previewFile(id, ev) {
+    if (ev) ev.stopPropagation();
+    // Create modal if not exists
+    let overlay = document.getElementById('previewModal');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'previewModal';
+        overlay.className = 'modal-overlay';
+        overlay.onclick = function(e) { if (e.target === this) this.classList.remove('active'); };
+        overlay.innerHTML = `<div class="modal" style="max-width:min(700px,92vw);max-height:85vh;display:flex;flex-direction:column">
+            <div class="modal-header">
+                <h2 id="previewTitle">File Preview</h2>
+                <button class="modal-close" onclick="document.getElementById('previewModal').classList.remove('active')"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+            </div>
+            <div class="modal-body" id="previewBody" style="overflow-y:auto;flex:1">
+                <p>Loading...</p>
+            </div>
+        </div>`;
+        document.body.appendChild(overlay);
+    }
+    document.getElementById('previewBody').innerHTML = '<p style="color:var(--text-3)">Loading preview...</p>';
+    overlay.classList.add('active');
+
+    // Check if it's an image file
+    const fileRow = document.getElementById('file-' + id);
+    const filename = fileRow ? fileRow.querySelector('.file-name')?.textContent || '' : '';
+    const ext = filename.split('.').pop().toLowerCase();
+    const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext);
+
+    try {
+        if (isImage) {
+            document.getElementById('previewTitle').textContent = filename;
+            document.getElementById('previewBody').innerHTML = `<img src="/api/uploads/${id}/image" style="max-width:100%;border-radius:8px" alt="${esc(filename)}">`;
+        } else {
+            const res = await fetch('/api/uploads/' + id + '/preview');
+            const json = await res.json();
+            document.getElementById('previewTitle').textContent = json.filename || 'File Preview';
+            const content = json.content || 'No preview available.';
+            document.getElementById('previewBody').innerHTML = `<pre style="white-space:pre-wrap;word-break:break-word;font-size:0.82rem;color:var(--text);line-height:1.6;margin:0;font-family:inherit">${esc(content)}</pre>`;
+        }
+    } catch (e) {
+        document.getElementById('previewBody').innerHTML = '<p style="color:var(--red)">Error loading preview</p>';
+    }
+}
+
+async function deleteFile(id) {
+    if (!await NpDialog.confirm('Delete this file?', { title: 'Delete File', icon: 'delete', danger: true, okText: 'Delete' })) return;
+    const item = document.getElementById(`file-${id}`);
+    item.style.opacity = '0.5';
+    item.style.pointerEvents = 'none';
+    const res = await fetch(`/api/upload/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+        item.style.transition = 'all 0.3s var(--ease)';
+        item.style.transform = 'translateX(-20px)';
+        item.style.opacity = '0';
+        setTimeout(() => { item.remove(); loadFiles(); }, 300);
+        toast('File deleted');
+    } else {
+        item.style.opacity = '1';
+        item.style.pointerEvents = '';
+    }
+}
+</script>
+{% endblock %}

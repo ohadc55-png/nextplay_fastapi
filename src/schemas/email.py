@@ -36,9 +36,9 @@ class MailingListMemberAdd(BaseModel):
 
 
 __all__ = [
+    "EmailBroadcastRequest",
     "EmailPreviewRequest",
     "EmailTestSendRequest",
-    "EmailBroadcastRequest",
     "MailingListCreate",
     "MailingListMemberAdd",
 ]

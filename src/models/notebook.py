@@ -84,4 +84,4 @@ class NotebookEntryPlayer(Base):
     )
 
 
-__all__ = ["NotebookEntry", "NotebookAttendance", "NotebookEntryPlayer"]
+__all__ = ["NotebookAttendance", "NotebookEntry", "NotebookEntryPlayer"]

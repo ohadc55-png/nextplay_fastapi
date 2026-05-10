@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - NextPlay</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+    <style>
+        .legal-page { max-width: 720px; margin: 0 auto; padding: 40px 24px; position: relative; z-index: 1; }
+        .legal-page h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; color: var(--accent); }
+        .legal-page .updated { color: var(--text-3); font-size: 0.82rem; margin-bottom: 32px; }
+        .legal-page h2 { font-size: 1.1rem; font-weight: 700; margin: 28px 0 12px; color: var(--text); }
+        .legal-page p, .legal-page li { color: var(--text-2); font-size: 0.9rem; line-height: 1.7; margin-bottom: 12px; }
+        .legal-page ul { padding-inline-start: 20px; }
+        .legal-page a { color: var(--accent); }
+        .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 0.85rem; margin-bottom: 24px; }
+    </style>
+</head>
+<body>
+<div class="legal-page">
+    <a href="/" class="back-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to app
+    </a>
+
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: March 2026</p>
+
+    <h2>1. Information We Collect</h2>
+    <p>When you use NextPlay, we collect:</p>
+    <ul>
+        <li>Account information: email address, display name, and password (securely hashed)</li>
+        <li>Team data: team profiles, player rosters, strengths/weaknesses, and metrics you enter</li>
+        <li>Chat conversations: messages between you and AI coaching agents</li>
+        <li>Uploaded files: documents and data files you upload for analysis</li>
+        <li>Usage data: login timestamps, IP addresses (for security), and feature usage</li>
+    </ul>
+
+    <h2>2. How We Use Your Information</h2>
+    <ul>
+        <li>To provide and improve the AI coaching experience</li>
+        <li>To personalize AI responses based on your preferences and feedback</li>
+        <li>To maintain account security and prevent abuse</li>
+        <li>To communicate service updates if necessary</li>
+    </ul>
+
+    <h2>3. Data Storage &amp; Security</h2>
+    <p>Your data is stored securely with encryption at rest. Passwords are hashed using bcrypt. Authentication tokens are stored as httpOnly cookies. We use security headers (CSP, HSTS, X-Frame-Options) to protect against common web attacks.</p>
+
+    <h2>4. Third-Party Services</h2>
+    <p>We use the following third-party services:</p>
+    <ul>
+        <li>OpenAI API: to power AI coaching conversations (your messages are sent to OpenAI for processing). Please note: Data sent via the OpenAI API is strictly for generating your responses and is NOT used by OpenAI to train their public models.</li>
+        <li>AWS S3: for video storage in the scouting feature.</li>
+        <li>Social login providers (Google, Facebook, Apple): if you choose to sign in with them.</li>
+    </ul>
+
+    <h2>5. Data Isolation</h2>
+    <p>Each coach's data is completely isolated. Your team profiles, players, conversations, and files are only accessible to you. Other users cannot see your data.</p>
+
+    <h2>6. Data of Minors</h2>
+    <p>NextPlay is designed for use by coaches, club managers, and team staff. We do not directly collect information from children. By entering data regarding minors (such as youth players' metrics or profiles) into the platform, you represent and warrant that you have the legal authority, and have obtained all necessary permissions or consents from parents or legal guardians, to process and store this data on our system.</p>
+
+    <h2>7. Data Retention &amp; Deletion</h2>
+    <p>You can delete your account at any time from the app settings. Upon deletion, your account is deactivated immediately and permanently deleted after 30 days. All associated data (teams, players, conversations, uploads) is removed.</p>
+
+    <h2>8. Your Rights</h2>
+    <p>You have the right to:</p>
+    <ul>
+        <li>Access your personal data</li>
+        <li>Correct inaccurate data</li>
+        <li>Delete your account and all associated data</li>
+        <li>Export your data upon request</li>
+    </ul>
+
+    <h2>9. Governing Law &amp; Jurisdiction</h2>
+    <p>This Privacy Policy and any disputes arising out of or related to it shall be governed by and construed in accordance with the laws of the State of Israel, without regard to its conflict of law principles. Any legal action or proceeding shall be brought exclusively in the competent courts located in Israel.</p>
+
+    <h2>10. Contact</h2>
+    <p>For privacy-related questions, contact us at: <a href="mailto:privacy@trynextplay.com">privacy@trynextplay.com</a></p>
+</div>
+</body>
+</html>

@@ -141,8 +141,8 @@ class AuditLogRepository(BaseRepository[AuditLog]):
 
 
 __all__ = [
-    "RefreshTokenRepository",
-    "AuthTokenRepository",
-    "SocialAccountRepository",
     "AuditLogRepository",
+    "AuthTokenRepository",
+    "RefreshTokenRepository",
+    "SocialAccountRepository",
 ]

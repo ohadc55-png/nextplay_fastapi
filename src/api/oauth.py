@@ -161,7 +161,7 @@ async def _handle_oauth_login(
         is_new = True
         try:
             await send_welcome_email(db, user_id=user.id, email=user.email)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("[oauth/%s] welcome-email enqueue failed: %s", provider, e)
 
     # 4. Link the social account. UNIQUE(provider, provider_user_id) means
@@ -308,7 +308,7 @@ async def apple_callback(
         # Apple's keys are at well-known/jwks; for Phase 3 we trust the JWT
         # claim (signature verification deferred to a hardening pass).
         claims = jose_jwt.get_unverified_claims(id_token)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("[oauth/apple] id_token decode failed: %s", e)
         return RedirectResponse(url="/login?error=oauth_failed")
 

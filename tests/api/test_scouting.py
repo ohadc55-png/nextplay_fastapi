@@ -1,16 +1,38 @@
-"""Scouting Room — videos, clips, annotations, playlists, share.
+"""Scouting Room — videos, clips, annotations, playlists, share + S3.
 
 Pro-gate is satisfied by the registered user's default `trial` plan.
-S3 upload paths are deferred to Phase 6 — these tests cover the CRUD
-that lives entirely in the database.
+S3 endpoints (upload-config, presign, multipart-complete, video-proxy,
+delete cleanup) test through patched aioboto3.
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, patch
+
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.models.scouting import ScoutingVideo
+
+class _FakeS3:
+    """Stand-in for the aioboto3 S3 client used in scouting tests."""
+
+    def __init__(self):
+        self.generate_presigned_url = AsyncMock(return_value="https://s3/presigned")
+        self.create_multipart_upload = AsyncMock(return_value={"UploadId": "mpu-test"})
+        self.complete_multipart_upload = AsyncMock(return_value={})
+        self.delete_object = AsyncMock(return_value={})
+        self.put_object = AsyncMock(return_value={})
+
+
+def _patch_s3(fake: _FakeS3):
+    @asynccontextmanager
+    async def _cm():
+        yield fake
+
+    from src.services import s3 as s3_module
+
+    return patch.object(s3_module, "s3_client", _cm)
 
 
 # ---------------------------------------------------------------------------
@@ -304,3 +326,248 @@ class TestShare:
         )
         # Same clip set → same token (idempotent)
         assert r1.json()["token"] == r2.json()["token"]
+
+
+# ---------------------------------------------------------------------------
+# S3 endpoints — upload-config, presign, multipart-complete, video-proxy
+# ---------------------------------------------------------------------------
+
+
+class TestUploadConfig:
+    async def test_returns_local_when_unconfigured(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "")
+        r = await authed_client.get("/api/scouting/upload-config")
+        assert r.status_code == 200
+        assert r.json() == {"provider": "local"}
+
+    async def test_returns_s3_when_configured(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setattr(settings, "AWS_S3_BUCKET", "test-bucket")
+        monkeypatch.setattr(settings, "AWS_S3_REGION", "eu-central-1")
+        r = await authed_client.get("/api/scouting/upload-config")
+        body = r.json()
+        assert body["provider"] == "s3"
+        assert body["bucket"] == "test-bucket"
+
+
+class TestPresignUpload:
+    async def test_503_when_not_configured(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "")
+        r = await authed_client.post(
+            "/api/scouting/s3/presign-upload",
+            json={"file_name": "g.mp4", "file_size": 1024, "content_type": "video/mp4"},
+        )
+        assert r.status_code == 503
+
+    async def test_single_part_presign(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "AKIA")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "s")
+        fake = _FakeS3()
+        fake.generate_presigned_url = AsyncMock(return_value="https://s3/put-url")
+        with _patch_s3(fake):
+            r = await authed_client.post(
+                "/api/scouting/s3/presign-upload",
+                json={"file_name": "game.mp4", "file_size": 1024,
+                      "content_type": "video/mp4"},
+            )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["mode"] == "single"
+        assert body["url"] == "https://s3/put-url"
+        # Key embeds tenant — that's the multi-tenancy invariant
+        assert body["key"].startswith("videos/")
+        # The user_id segment is the authed user's id (from authed_client = id 1)
+        assert "/videos/1/" in f"/{body['key']}"
+
+    async def test_multipart_presign(self, authed_client: AsyncClient, monkeypatch):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "AKIA")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "s")
+        fake = _FakeS3()
+        with _patch_s3(fake):
+            r = await authed_client.post(
+                "/api/scouting/s3/presign-upload",
+                json={"file_name": "long.mp4",
+                      "file_size": 250 * 1024 * 1024,
+                      "content_type": "video/mp4"},
+            )
+        body = r.json()
+        assert body["mode"] == "multipart"
+        assert body["upload_id"] == "mpu-test"
+        # 250MB / 100MB per part = 3 parts (ceil)
+        assert len(body["urls"]) == 3
+
+    async def test_disallowed_content_type_400(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "AKIA")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "s")
+        fake = _FakeS3()
+        with _patch_s3(fake):
+            r = await authed_client.post(
+                "/api/scouting/s3/presign-upload",
+                json={"file_name": "x.exe", "file_size": 1024,
+                      "content_type": "application/octet-stream"},
+            )
+        assert r.status_code == 400
+
+
+class TestMultipartComplete:
+    async def test_completes_for_own_prefix(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "AWS_ACCESS_KEY_ID", "AKIA")
+        monkeypatch.setattr(settings, "AWS_SECRET_ACCESS_KEY", "s")
+        fake = _FakeS3()
+        with _patch_s3(fake):
+            r = await authed_client.post(
+                "/api/scouting/s3/complete-multipart",
+                json={
+                    "key": "videos/1/abc/x.mp4",  # tenant=1 matches authed user
+                    "upload_id": "mpu-x",
+                    "parts": [{"part_number": 1, "etag": "e1"}],
+                },
+            )
+        assert r.status_code == 200
+        fake.complete_multipart_upload.assert_called_once()
+
+    async def test_rejects_cross_tenant_key(self, authed_client: AsyncClient):
+        """Even with a valid upload_id, a coach can't finalize someone
+        else's prefix. Defense against a coach scraping another coach's
+        upload_id via traffic inspection."""
+        r = await authed_client.post(
+            "/api/scouting/s3/complete-multipart",
+            json={
+                "key": "videos/999/abc/x.mp4",  # different user_id
+                "upload_id": "mpu-x",
+                "parts": [{"part_number": 1, "etag": "e1"}],
+            },
+        )
+        assert r.status_code == 403
+
+
+class TestVideoProxy:
+    async def test_owner_gets_presigned_url(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "CLOUDFRONT_DOMAIN", "")
+        # Create a video with an s3_key
+        r = await authed_client.post(
+            "/api/scouting/videos",
+            json={"title": "G", "s3_key": "videos/1/abc/x.mp4"},
+        )
+        vid = r.json()["id"]
+
+        fake = _FakeS3()
+        fake.generate_presigned_url = AsyncMock(return_value="https://s3/get-url")
+        with _patch_s3(fake):
+            r = await authed_client.get(f"/api/scouting/video-proxy/{vid}")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["url"] == "https://s3/get-url"
+        assert body["expires_in"] == 3600
+
+    async def test_cloudfront_used_when_configured(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "CLOUDFRONT_DOMAIN", "cdn.example.com")
+        r = await authed_client.post(
+            "/api/scouting/videos",
+            json={"title": "G", "s3_key": "videos/1/abc/x.mp4"},
+        )
+        vid = r.json()["id"]
+        r = await authed_client.get(f"/api/scouting/video-proxy/{vid}")
+        assert r.status_code == 200
+        assert r.json()["url"] == "https://cdn.example.com/videos/1/abc/x.mp4"
+
+    async def test_unknown_video_404(self, authed_client: AsyncClient):
+        r = await authed_client.get("/api/scouting/video-proxy/99999")
+        assert r.status_code == 404
+
+
+class TestDeleteVideoCleansUpS3:
+    async def test_delete_calls_s3(self, authed_client: AsyncClient):
+        # Create a video with an S3 key
+        r = await authed_client.post(
+            "/api/scouting/videos",
+            json={"title": "G", "s3_key": "videos/1/abc/x.mp4"},
+        )
+        vid = r.json()["id"]
+
+        fake = _FakeS3()
+        with _patch_s3(fake):
+            r = await authed_client.delete(f"/api/scouting/videos/{vid}")
+        assert r.status_code == 200
+        fake.delete_object.assert_called_once()
+        kwargs = fake.delete_object.await_args.kwargs
+        assert kwargs["Key"] == "videos/1/abc/x.mp4"
+
+    async def test_delete_with_empty_s3_key_skips_s3(
+        self, authed_client: AsyncClient
+    ):
+        """No S3 key (e.g. external video, local upload) → no S3 call.
+        DB row deleted regardless."""
+        r = await authed_client.post(
+            "/api/scouting/videos", json={"title": "G", "s3_key": ""},
+        )
+        vid = r.json()["id"]
+        fake = _FakeS3()
+        with _patch_s3(fake):
+            r = await authed_client.delete(f"/api/scouting/videos/{vid}")
+        assert r.status_code == 200
+        fake.delete_object.assert_not_called()
+
+    async def test_delete_with_local_prefix_skips_s3(
+        self, authed_client: AsyncClient
+    ):
+        r = await authed_client.post(
+            "/api/scouting/videos",
+            json={"title": "G", "s3_key": "local/dev/x.mp4"},
+        )
+        vid = r.json()["id"]
+        fake = _FakeS3()
+        with _patch_s3(fake):
+            r = await authed_client.delete(f"/api/scouting/videos/{vid}")
+        assert r.status_code == 200
+        fake.delete_object.assert_not_called()
+
+    async def test_s3_failure_returns_502_and_keeps_db_row(
+        self, authed_client: AsyncClient, api_session_factory
+    ):
+        """If S3 delete fails, the DB row stays so a sweeper can retry.
+        Better than orphaning the S3 object on a transient AWS hiccup."""
+        r = await authed_client.post(
+            "/api/scouting/videos",
+            json={"title": "G", "s3_key": "videos/1/abc/x.mp4"},
+        )
+        vid = r.json()["id"]
+
+        fake = _FakeS3()
+        fake.delete_object = AsyncMock(side_effect=RuntimeError("AWS down"))
+        with _patch_s3(fake):
+            r = await authed_client.delete(f"/api/scouting/videos/{vid}")
+        assert r.status_code == 502
+        # DB row still there
+        async with api_session_factory() as s:
+            from src.models.scouting import ScoutingVideo as SV  # noqa: N817
+            row = (await s.execute(select(SV).where(SV.id == vid))).scalar_one_or_none()
+            assert row is not None

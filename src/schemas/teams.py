@@ -36,4 +36,4 @@ class TeamResponse(ORMModel):
     extra_storage_gb: int | None = 0
 
 
-__all__ = ["TeamCreate", "TeamUpdate", "TeamResponse"]
+__all__ = ["TeamCreate", "TeamResponse", "TeamUpdate"]

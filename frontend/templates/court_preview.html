@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Court Preview</title>
+<style>
+body { margin: 0; background: #0a0e14; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Inter', sans-serif; }
+h2 { color: #ff6b35; text-align: center; margin-bottom: 24px; }
+.preview { max-width: 900px; width: 100%; padding: 20px; }
+</style>
+</head>
+<body>
+<div class="preview">
+<h2>Basketball Court Background Preview</h2>
+
+<!-- Full SVG Court - Top-down view of a basketball arena -->
+<svg viewBox="0 0 940 500" xmlns="http://www.w3.org/2000/svg" style="width:100%; border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);">
+  <defs>
+    <!-- Wood floor pattern -->
+    <pattern id="wood" patternUnits="userSpaceOnUse" width="60" height="60">
+      <rect width="60" height="60" fill="#1a1208"/>
+      <line x1="0" y1="0" x2="60" y2="0" stroke="#221a0e" stroke-width="0.5" opacity="0.5"/>
+      <line x1="0" y1="12" x2="60" y2="12" stroke="#1e150a" stroke-width="0.3" opacity="0.4"/>
+      <line x1="0" y1="24" x2="60" y2="24" stroke="#221a0e" stroke-width="0.5" opacity="0.5"/>
+      <line x1="0" y1="36" x2="60" y2="36" stroke="#1e150a" stroke-width="0.3" opacity="0.4"/>
+      <line x1="0" y1="48" x2="60" y2="48" stroke="#221a0e" stroke-width="0.5" opacity="0.5"/>
+    </pattern>
+
+    <!-- Arena glow -->
+    <radialGradient id="arenaGlow" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#2a1f0f" stop-opacity="0.6"/>
+      <stop offset="60%" stop-color="#1a1208" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0d0a04" stop-opacity="1"/>
+    </radialGradient>
+
+    <!-- Spotlight effects -->
+    <radialGradient id="spot1" cx="25%" cy="30%" r="35%">
+      <stop offset="0%" stop-color="#ff6b35" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spot2" cx="75%" cy="30%" r="35%">
+      <stop offset="0%" stop-color="#4da6ff" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Arena darkness -->
+  <rect width="940" height="500" fill="#0a0704"/>
+
+  <!-- Stands/Arena backdrop - rows of seats suggestion -->
+  <rect x="0" y="0" width="940" height="40" fill="#080604" opacity="0.9"/>
+  <rect x="0" y="460" width="940" height="40" fill="#080604" opacity="0.9"/>
+  <rect x="0" y="0" width="30" height="500" fill="#080604" opacity="0.9"/>
+  <rect x="910" y="0" width="30" height="500" fill="#080604" opacity="0.9"/>
+
+  <!-- Crowd dots (subtle) -->
+  <g opacity="0.15">
+    <circle cx="50" cy="15" r="2" fill="#665544"/>
+    <circle cx="70" cy="12" r="2" fill="#776655"/>
+    <circle cx="90" cy="18" r="2" fill="#554433"/>
+    <circle cx="130" cy="14" r="2" fill="#665544"/>
+    <circle cx="170" cy="16" r="2" fill="#776655"/>
+    <circle cx="210" cy="13" r="2" fill="#887766"/>
+    <circle cx="250" cy="17" r="2" fill="#665544"/>
+    <circle cx="300" cy="15" r="2" fill="#554433"/>
+    <circle cx="350" cy="12" r="2" fill="#776655"/>
+    <circle cx="400" cy="16" r="2" fill="#665544"/>
+    <circle cx="450" cy="14" r="2" fill="#887766"/>
+    <circle cx="500" cy="17" r="2" fill="#554433"/>
+    <circle cx="550" cy="13" r="2" fill="#776655"/>
+    <circle cx="600" cy="15" r="2" fill="#665544"/>
+    <circle cx="650" cy="12" r="2" fill="#554433"/>
+    <circle cx="700" cy="18" r="2" fill="#776655"/>
+    <circle cx="750" cy="14" r="2" fill="#665544"/>
+    <circle cx="800" cy="16" r="2" fill="#887766"/>
+    <circle cx="850" cy="13" r="2" fill="#554433"/>
+    <circle cx="890" cy="17" r="2" fill="#776655"/>
+    <!-- Bottom crowd -->
+    <circle cx="60" cy="485" r="2" fill="#665544"/>
+    <circle cx="120" cy="488" r="2" fill="#554433"/>
+    <circle cx="200" cy="484" r="2" fill="#776655"/>
+    <circle cx="300" cy="487" r="2" fill="#665544"/>
+    <circle cx="400" cy="483" r="2" fill="#887766"/>
+    <circle cx="500" cy="486" r="2" fill="#554433"/>
+    <circle cx="600" cy="488" r="2" fill="#776655"/>
+    <circle cx="700" cy="484" r="2" fill="#665544"/>
+    <circle cx="800" cy="487" r="2" fill="#554433"/>
+    <circle cx="880" cy="485" r="2" fill="#776655"/>
+  </g>
+
+  <!-- Court floor -->
+  <rect x="50" y="50" width="840" height="400" rx="4" fill="url(#wood)"/>
+  <rect x="50" y="50" width="840" height="400" rx="4" fill="url(#arenaGlow)"/>
+
+  <!-- Spotlights on court -->
+  <rect x="50" y="50" width="840" height="400" fill="url(#spot1)"/>
+  <rect x="50" y="50" width="840" height="400" fill="url(#spot2)"/>
+
+  <!-- Court lines -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2">
+    <!-- Court boundary -->
+    <rect x="70" y="70" width="800" height="360" rx="2"/>
+
+    <!-- Half-court line -->
+    <line x1="470" y1="70" x2="470" y2="430"/>
+
+    <!-- Center circle -->
+    <circle cx="470" cy="250" r="60"/>
+
+    <!-- Left 3-point arc -->
+    <path d="M 70,130 L 190,130" />
+    <path d="M 70,370 L 190,370" />
+    <path d="M 190,130 A 160,160 0 0,1 190,370"/>
+
+    <!-- Right 3-point arc -->
+    <path d="M 870,130 L 750,130" />
+    <path d="M 870,370 L 750,370" />
+    <path d="M 750,130 A 160,160 0 0,0 750,370"/>
+
+    <!-- Left key/paint -->
+    <rect x="70" y="170" width="150" height="160"/>
+    <!-- Left free throw circle -->
+    <circle cx="220" cy="250" r="60" stroke-dasharray="8,6"/>
+
+    <!-- Right key/paint -->
+    <rect x="720" y="170" width="150" height="160"/>
+    <!-- Right free throw circle -->
+    <circle cx="720" cy="250" r="60" stroke-dasharray="8,6"/>
+
+    <!-- Left basket -->
+    <circle cx="95" cy="250" r="8" stroke-width="2.5"/>
+    <rect x="70" y="240" width="12" height="20" stroke-width="1.5"/>
+
+    <!-- Right basket -->
+    <circle cx="845" cy="250" r="8" stroke-width="2.5"/>
+    <rect x="858" y="240" width="12" height="20" stroke-width="1.5"/>
+  </g>
+
+  <!-- Center court team name area -->
+  <circle cx="470" cy="250" r="55" fill="rgba(255,107,53,0.06)" stroke="none"/>
+
+  <!-- Team Name -->
+  <text x="470" y="244" text-anchor="middle" font-family="'Orbitron', sans-serif"
+        font-size="14" font-weight="900" fill="#ff6b35" opacity="0.6"
+        letter-spacing="3">HAPOEL</text>
+  <text x="470" y="264" text-anchor="middle" font-family="'Orbitron', sans-serif"
+        font-size="10" font-weight="700" fill="#ff6b35" opacity="0.35"
+        letter-spacing="2">BRENER</text>
+
+  <!-- Subtle vignette overlay -->
+  <rect x="0" y="0" width="940" height="500" fill="url(#arenaGlow)" opacity="0.3"/>
+</svg>
+
+<p style="color: #8b949e; text-align: center; margin-top: 20px; font-size: 0.9rem;">
+    This SVG court will appear as a subtle background behind the hero section.<br>
+    The team name will be dynamic (pulled from your team profile).<br>
+    Dark overlay ensures it never interferes with readability.
+</p>
+</div>
+</body>
+</html>

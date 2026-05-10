@@ -1,0 +1,391 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}API Costs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>API Costs</h2>
+    <p>OpenAI usage and spending breakdown</p>
+</div>
+
+<!-- Stats Row 1 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Cost Today</div>
+        <div class="stat-value accent">${{ '%.4f' | format(cost_today) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Cost This Week</div>
+        <div class="stat-value blue">${{ '%.4f' | format(cost_week) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Cost This Month</div>
+        <div class="stat-value">${{ '%.2f' | format(cost_month) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Tokens Today</div>
+        <div class="stat-value green">{{ '{:,}'.format(tokens_today | int) }}</div>
+    </div>
+</div>
+
+<!-- Stats Row 2 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Monthly Projection</div>
+        <div class="stat-value" style="color: {% if monthly_projection > 50 %}#f85149{% elif monthly_projection > 20 %}#f0b429{% else %}#3fb950{% endif %}">
+            ${{ '%.2f' | format(monthly_projection) }}
+        </div>
+        <div class="stat-sub">Based on 7-day avg</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Cost / Session</div>
+        <div class="stat-value blue">${{ '%.4f' | format(cost_per_session) }}</div>
+        <div class="stat-sub">Last 30 days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Input Tokens Today</div>
+        <div class="stat-value" style="color: #4da6ff">{{ '{:,}'.format(tokens_split_today.input_tokens | int) }}</div>
+        <div class="stat-sub">Prompt tokens</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Output Tokens Today</div>
+        <div class="stat-value" style="color: #bc8ff3">{{ '{:,}'.format(tokens_split_today.output_tokens | int) }}</div>
+        <div class="stat-sub">Completion tokens (4x cost)</div>
+    </div>
+</div>
+
+{% if not has_table %}
+<div class="admin-card">
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <h4>API Usage Tracking Not Set Up</h4>
+        <p>The api_usage_logs table has not been created yet. Run the migration to start tracking costs.</p>
+    </div>
+</div>
+{% else %}
+
+<!-- Charts Row -->
+<div class="admin-grid-2">
+    <!-- Daily Cost Chart -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Daily Cost (30 days)</h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="dailyCostChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Cost by Model -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Cost by Model</h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="modelChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Token Split + Agent Cost Charts -->
+<div class="admin-grid-2">
+    <!-- Input vs Output Tokens (Month) -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Input vs Output Tokens (30 days)</h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="tokenSplitChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Cost by Agent -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Cost by Agent</h3>
+        </div>
+        {% if by_agent %}
+        <div class="chart-container">
+            <canvas id="agentCostChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h4>No agent data yet</h4>
+            <p>Cost breakdown by agent will appear after API calls are logged.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Agent Detail Table -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Agent Cost Breakdown</h3>
+    </div>
+    {% if agent_detail %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Model</th>
+                    <th class="text-right">Price/1M (In)</th>
+                    <th class="text-right">Price/1M (Out)</th>
+                    <th class="text-right">Input Tokens</th>
+                    <th class="text-right">Output Tokens</th>
+                    <th class="text-right">Total Cost</th>
+                    <th class="text-right">Calls</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in agent_detail %}
+                {% set pricing = model_pricing.get(a.model, model_pricing.get('gpt-4o', {})) %}
+                <tr>
+                    <td>
+                        <span class="agent-badge agent-{{ a.agent_key }}">{{ a.agent_key | upper }}</span>
+                    </td>
+                    <td class="mono" style="font-size: 0.85em">{{ a.model }}</td>
+                    <td class="text-right mono">${{ '%.2f' | format(pricing.get('input', 0)) }}</td>
+                    <td class="text-right mono">${{ '%.2f' | format(pricing.get('output', 0)) }}</td>
+                    <td class="text-right mono">{{ '{:,}'.format(a.input_tokens | int) }}</td>
+                    <td class="text-right mono">{{ '{:,}'.format(a.output_tokens | int) }}</td>
+                    <td class="text-right mono accent">${{ '%.4f' | format(a.cost) }}</td>
+                    <td class="text-right mono">{{ '{:,}'.format(a.calls | int) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h4>No agent data yet</h4>
+        <p>Agent cost details will appear after API calls are logged.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Top Users by Cost -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Top 10 Users by Cost</h3>
+    </div>
+    {% if top_users %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th class="text-right">Total Cost</th>
+                    <th class="text-right">Total Tokens</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in top_users %}
+                <tr>
+                    <td class="text-muted">{{ loop.index }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.display_name or '---' }}</td>
+                    <td class="text-right mono">${{ '%.4f' | format(u.total_cost) }}</td>
+                    <td class="text-right mono">{{ '{:,}'.format(u.total_tokens | int) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h4>No usage data yet</h4>
+        <p>User cost breakdown will appear after API calls are logged.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_table %}
+<style>
+.agent-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: rgba(255,255,255,0.06);
+    color: #e6edf3;
+}
+.agent-gm { background: rgba(77, 166, 255, 0.15); color: #4da6ff; }
+.agent-scout { background: rgba(255, 107, 53, 0.15); color: #ff6b35; }
+.agent-analytics { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+.agent-tactics { background: rgba(188, 143, 243, 0.15); color: #bc8ff3; }
+.agent-training { background: rgba(240, 180, 41, 0.15); color: #f0b429; }
+.stat-sub {
+    font-size: 0.75em;
+    color: #6b7280;
+    margin-top: 4px;
+}
+</style>
+<script nonce="{{ g.csp_nonce }}">
+// Chart defaults
+Chart.defaults.color = '#9ba4b0';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+
+// Daily Cost Line Chart
+const dailyData = {{ daily_costs | tojson }};
+if (dailyData.length > 0) {
+    new Chart(document.getElementById('dailyCostChart'), {
+        type: 'line',
+        data: {
+            labels: dailyData.map(d => d.day),
+            datasets: [{
+                label: 'Cost ($)',
+                data: dailyData.map(d => d.cost),
+                borderColor: '#ff6b35',
+                backgroundColor: 'rgba(255, 107, 53, 0.08)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#ff6b35',
+                pointBorderColor: '#161d28',
+                pointBorderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { maxTicksLimit: 10 }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: v => '$' + v.toFixed(2) }
+                }
+            }
+        }
+    });
+}
+
+// Cost by Model Pie Chart
+const modelData = {{ by_model | tojson }};
+if (modelData.length > 0) {
+    const modelColors = ['#ff6b35', '#4da6ff', '#3fb950', '#f0b429', '#bc8ff3', '#f85149', '#e6edf3'];
+    new Chart(document.getElementById('modelChart'), {
+        type: 'doughnut',
+        data: {
+            labels: modelData.map(d => d.model),
+            datasets: [{
+                data: modelData.map(d => d.cost),
+                backgroundColor: modelColors.slice(0, modelData.length),
+                borderColor: '#161d28',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16, usePointStyle: true, pointStyleWidth: 8 }
+                }
+            }
+        }
+    });
+}
+
+// Input vs Output Token Split (Month)
+const splitData = {{ tokens_split_month | tojson }};
+if (splitData.input_tokens > 0 || splitData.output_tokens > 0) {
+    new Chart(document.getElementById('tokenSplitChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Tokens', 'Estimated Cost'],
+            datasets: [
+                {
+                    label: 'Input (Prompt)',
+                    data: [
+                        splitData.input_tokens,
+                        (splitData.input_tokens / 1000000 * 2.50).toFixed(4)
+                    ],
+                    backgroundColor: 'rgba(77, 166, 255, 0.6)',
+                    borderColor: '#4da6ff',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                },
+                {
+                    label: 'Output (Completion)',
+                    data: [
+                        splitData.output_tokens,
+                        (splitData.output_tokens / 1000000 * 10.00).toFixed(4)
+                    ],
+                    backgroundColor: 'rgba(188, 143, 243, 0.6)',
+                    borderColor: '#bc8ff3',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16, usePointStyle: true, pointStyleWidth: 8 }
+                }
+            },
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Cost by Agent Horizontal Bar
+const agentData = {{ by_agent | tojson }};
+if (agentData.length > 0 && document.getElementById('agentCostChart')) {
+    const agentColors = {
+        'gm': '#4da6ff', 'scout': '#ff6b35', 'analytics': '#3fb950',
+        'tactics': '#bc8ff3', 'training': '#f0b429'
+    };
+    new Chart(document.getElementById('agentCostChart'), {
+        type: 'bar',
+        data: {
+            labels: agentData.map(d => d.agent_key),
+            datasets: [{
+                label: 'Cost ($)',
+                data: agentData.map(d => d.cost),
+                backgroundColor: agentData.map(d => (agentColors[d.agent_key] || '#ff6b35') + '99'),
+                borderColor: agentData.map(d => agentColors[d.agent_key] || '#ff6b35'),
+                borderWidth: 1,
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { callback: v => '$' + v.toFixed(2) }
+                },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

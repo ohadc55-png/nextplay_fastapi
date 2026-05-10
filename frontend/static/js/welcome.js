@@ -1,0 +1,228 @@
+(function() {
+    'use strict';
+
+    // ========== Navbar scroll ==========
+    var navbar = document.getElementById('navbar');
+    var scrollThreshold = 50;
+
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > scrollThreshold) {
+            navbar.classList.add('scrolled');
+        } else {
+            navbar.classList.remove('scrolled');
+        }
+    }, { passive: true });
+
+    // ========== Smooth scroll ==========
+    var mobileMenu = document.getElementById('mobileMenu');
+
+    document.querySelectorAll('a[href^="#"]').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            var href = this.getAttribute('href');
+            if (href === '#') return;
+            var target = document.querySelector(href);
+            if (target) {
+                e.preventDefault();
+                mobileMenu.classList.remove('open');
+                document.body.style.overflow = '';
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    // ========== Mobile menu ==========
+    var hamburgerBtn = document.getElementById('hamburgerBtn');
+    var mobileMenuClose = document.getElementById('mobileMenuClose');
+
+    hamburgerBtn.addEventListener('click', function() {
+        mobileMenu.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    });
+
+    mobileMenuClose.addEventListener('click', function() {
+        mobileMenu.classList.remove('open');
+        document.body.style.overflow = '';
+    });
+
+    // ========== FAQ accordion ==========
+    document.querySelectorAll('.faq-question').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var item = this.parentElement;
+            var wasOpen = item.classList.contains('open');
+            document.querySelectorAll('.faq-item.open').forEach(function(el) {
+                el.classList.remove('open');
+            });
+            if (!wasOpen) {
+                item.classList.add('open');
+            }
+        });
+    });
+
+    // ========== Password toggle ==========
+    document.querySelectorAll('.password-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var input = document.getElementById(this.dataset.target);
+            var isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            var svg = this.querySelector('svg');
+            while (svg.firstChild) { svg.removeChild(svg.firstChild); }
+            if (isPassword) {
+                var path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path1.setAttribute('d', 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24');
+                var line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line1.setAttribute('x1', '1'); line1.setAttribute('y1', '1');
+                line1.setAttribute('x2', '23'); line1.setAttribute('y2', '23');
+                svg.appendChild(path1);
+                svg.appendChild(line1);
+            } else {
+                var path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path2.setAttribute('d', 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z');
+                var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '3');
+                svg.appendChild(path2);
+                svg.appendChild(circle);
+            }
+        });
+    });
+
+    // ========== Registration form ==========
+    var registerForm = document.getElementById('registerForm');
+    var registerBtn = document.getElementById('registerBtn');
+
+    function showError(id, msg) {
+        var el = document.getElementById(id);
+        el.textContent = msg;
+        el.classList.add('visible');
+    }
+
+    function clearErrors() {
+        document.querySelectorAll('.form-error').forEach(function(el) {
+            el.textContent = '';
+            el.classList.remove('visible');
+        });
+    }
+
+    registerForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        clearErrors();
+
+        var name = document.getElementById('reg-name').value.trim();
+        var email = document.getElementById('reg-email').value.trim();
+        var password = document.getElementById('reg-password').value;
+        var confirm = document.getElementById('reg-confirm').value;
+        var valid = true;
+
+        if (!name) {
+            showError('nameError', 'Please enter your full name.');
+            valid = false;
+        }
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            showError('emailError', 'Please enter a valid email address.');
+            valid = false;
+        }
+
+        if (password.length < 8) {
+            showError('passwordError', 'Password must be at least 8 characters.');
+            valid = false;
+        }
+
+        if (password !== confirm) {
+            showError('confirmError', 'Passwords do not match.');
+            valid = false;
+        }
+
+        if (!valid) return;
+
+        registerBtn.disabled = true;
+        registerBtn.textContent = 'Creating Account...';
+
+        fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                display_name: name,
+                email: email,
+                password: password
+            })
+        })
+        .then(function(res) {
+            return res.json().then(function(data) {
+                return { ok: res.ok, data: data };
+            });
+        })
+        .then(function(result) {
+            if (result.ok) {
+                window.location.href = '/';
+            } else {
+                showError('serverError', result.data.error || result.data.message || 'Registration failed. Please try again.');
+                registerBtn.disabled = false;
+                registerBtn.textContent = 'Create Account';
+            }
+        })
+        .catch(function() {
+            showError('serverError', 'Network error. Please check your connection and try again.');
+            registerBtn.disabled = false;
+            registerBtn.textContent = 'Create Account';
+        });
+    });
+
+    // ========== Billing toggle (matching upgrade.html) ==========
+    var isYearly = false;
+
+    window.setBilling = function(mode) {
+        isYearly = mode === 'yearly';
+        updatePricing();
+    };
+
+    window.toggleBilling = function() {
+        isYearly = !isYearly;
+        updatePricing();
+    };
+
+    function updatePricing() {
+        var key = isYearly ? 'yearly' : 'monthly';
+        var track = document.getElementById('toggleTrack');
+        var lblM = document.getElementById('lblMonthly');
+        var lblY = document.getElementById('lblYearly');
+
+        track.classList.toggle('yearly', isYearly);
+        lblM.classList.toggle('active', !isYearly);
+        lblY.classList.toggle('active', isYearly);
+
+        document.querySelectorAll('.price[data-monthly]').forEach(function(el) {
+            el.textContent = el.dataset[key];
+        });
+        document.querySelectorAll('.period[data-monthly]').forEach(function(el) {
+            el.textContent = el.dataset[key];
+        });
+        document.querySelectorAll('.yearly-note[data-monthly]').forEach(function(el) {
+            var text = el.dataset[key];
+            el.textContent = text;
+            el.style.display = text ? 'block' : 'none';
+        });
+        document.querySelectorAll('.plan-per-seat[data-monthly]').forEach(function(el) {
+            el.textContent = el.dataset[key];
+        });
+    }
+
+    // ========== IntersectionObserver animations ==========
+    var observerOptions = {
+        root: null,
+        rootMargin: '0px 0px -60px 0px',
+        threshold: 0.1
+    };
+
+    var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, observerOptions);
+
+    document.querySelectorAll('.animate-on-scroll').forEach(function(el) {
+        observer.observe(el);
+    });
+})();

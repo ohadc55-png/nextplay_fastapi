@@ -7,7 +7,6 @@ from pydantic import BaseModel, EmailStr, Field
 from src.schemas.common import ORMModel
 from src.schemas.users import ClubMemberSummary
 
-
 # ---------------------------------------------------------------------------
 # Clubs
 # ---------------------------------------------------------------------------
@@ -65,9 +64,9 @@ class RedeemCodeRequest(BaseModel):
 
 
 __all__ = [
-    "ClubResponse",
     "ClubInfoResponse",
     "ClubInviteRequest",
+    "ClubResponse",
     "InviteCodeCreate",
     "InviteCodeResponse",
     "RedeemCodeRequest",

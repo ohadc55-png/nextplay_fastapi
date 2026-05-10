@@ -1,0 +1,115 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Feedback{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Feedback</h2>
+    <p>User satisfaction and agent performance</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Satisfaction Rate</div>
+        <div class="stat-value {% if satisfaction >= 70 %}green{% elif satisfaction >= 40 %}accent{% else %}red{% endif %}">{{ satisfaction }}%</div>
+        <div class="stat-sub">{{ positive }} positive / {{ negative }} negative</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Feedback</div>
+        <div class="stat-value blue">{{ total }}</div>
+        <div class="stat-sub">all time</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Worst Agent</div>
+        <div class="stat-value red" style="font-size: 18px; word-break: break-all;">{{ worst_agent }}</div>
+        <div class="stat-sub">lowest satisfaction score</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Negative Count</div>
+        <div class="stat-value red">{{ negative }}</div>
+        <div class="stat-sub">thumbs down</div>
+    </div>
+</div>
+
+<!-- Per-Agent Table -->
+{% if per_agent %}
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Per-Agent Satisfaction</h3>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th class="text-right">Total</th>
+                    <th class="text-right">Positive</th>
+                    <th class="text-right">Negative</th>
+                    <th class="text-right">Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in per_agent %}
+                <tr>
+                    <td>{{ a.agent_key or 'unknown' }}</td>
+                    <td class="text-right mono">{{ a.total }}</td>
+                    <td class="text-right">
+                        <span class="badge badge-positive">{{ a.positive }}</span>
+                    </td>
+                    <td class="text-right">
+                        <span class="badge badge-negative">{{ a.negative }}</span>
+                    </td>
+                    <td class="text-right mono">
+                        {% set score = ((a.positive / a.total * 100) if a.total > 0 else 0) | round(0) | int %}
+                        <span style="color: {% if score >= 70 %}var(--admin-green){% elif score >= 40 %}var(--admin-yellow){% else %}var(--admin-red){% endif %}">
+                            {{ score }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="admin-card">
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <h4>No feedback yet</h4>
+        <p>Feedback data will appear after users rate agent responses.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Negative Feedback -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Recent Negative Feedback</h3>
+        <span class="card-subtitle">last 20</span>
+    </div>
+
+    {% if recent_negative %}
+    {% for f in recent_negative %}
+    <div class="feedback-item">
+        <div class="feedback-meta">
+            <strong>{{ f.display_name or f.email or 'Anonymous' }}</strong>
+            <span>{{ f.agent_key or 'unknown' }}</span>
+            <span>{{ (f.created_at|string)[:16] if f.created_at else '' }}</span>
+        </div>
+        {% if f.message_content %}
+        <div class="feedback-preview">{{ f.message_content[:200] }}</div>
+        {% endif %}
+        {% if f.comment %}
+        <div class="feedback-comment">{{ f.comment }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        <h4>No negative feedback</h4>
+        <p>All clear! No users have left negative feedback yet.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

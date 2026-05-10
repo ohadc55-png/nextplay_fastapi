@@ -22,4 +22,4 @@ class OnboardingEventCreate(BaseModel):
     event: str  # e.g. "created_first_play", "uploaded_video"
 
 
-__all__ = ["PageViewCreate", "OnboardingEventCreate"]
+__all__ = ["OnboardingEventCreate", "PageViewCreate"]

@@ -23,7 +23,6 @@ from src.crew.prompts import (
 )
 from src.crew.season import current_season, today_iso
 
-
 # ---------------------------------------------------------------------------
 # Multi-team data attribution rules — every agent gets these.
 # Verbatim from backend/agents.py:28.
@@ -269,11 +268,11 @@ def build_agent_prompt(
 
 
 __all__ = [
+    "ACCURACY_RULES",
     "AGENTS",
     "DEFAULT_AGENT",
-    "MULTI_TEAM_DATA_RULES",
     "GAME_RESULT_RULES",
     "LINEUP_RULES",
-    "ACCURACY_RULES",
+    "MULTI_TEAM_DATA_RULES",
     "build_agent_prompt",
 ]

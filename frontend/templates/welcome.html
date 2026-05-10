@@ -1,0 +1,2389 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextPlay — AI-Powered Basketball Coaching</title>
+    <meta name="description" content="NextPlay is an AI-powered basketball coaching platform with five specialized AI coaches that help you scout, analyze, strategize, and plan.">
+    <link rel="icon" href="{{ url_for('static', filename='img/logo_transparent.png') }}" type="image/png">
+    {% include "_pwa_meta.html" %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/welcome.css') }}">
+    <style>
+        /* Dynamic background images (require Jinja template rendering).
+           Mobile devices load the smaller -mobile.jpg variants by default
+           (~25% of desktop size); desktop overrides via @media below. */
+        :root {
+            --bg-img-hero: url("{{ url_for('static', filename='img/arena_bg5-mobile.jpg') }}");
+            --bg-img-how: url("{{ url_for('static', filename='img/arena_bg6-mobile.jpg') }}");
+            --bg-img-register: url("{{ url_for('static', filename='img/arena_bg2-mobile.jpg') }}");
+            --bg-img-pricing: url("{{ url_for('static', filename='img/arena_bg-mobile.jpg') }}");
+        }
+        @media (min-width: 768px) {
+            :root {
+                --bg-img-hero: url("{{ url_for('static', filename='img/arena_bg5.jpg') }}");
+                --bg-img-how: url("{{ url_for('static', filename='img/arena_bg6.jpg') }}");
+                --bg-img-register: url("{{ url_for('static', filename='img/arena_bg2.jpg') }}");
+                --bg-img-pricing: url("{{ url_for('static', filename='img/arena_bg.jpg') }}");
+            }
+        }
+
+        /* Google sign-in button — reused in register section and final CTA */
+        .google-signin-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            margin-top: 20px;
+        }
+        .google-signin-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(240, 243, 246, 0.45);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            width: 100%;
+            max-width: 360px;
+        }
+        .google-signin-divider::before,
+        .google-signin-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(240, 243, 246, 0.12);
+        }
+        .btn-google-signin {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 28px;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #1f1f1f;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+            min-width: 260px;
+        }
+        .btn-google-signin:hover {
+            background: #f8fafc;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 6px 18px rgba(0, 0, 0, 0.08);
+        }
+        .btn-google-signin:active { transform: translateY(0); }
+        .btn-google-signin svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+        /* Per-seat note for the Academy plan ("$24 per coach / month") */
+        .plan-per-seat {
+            font-size: 0.85rem;
+            color: rgba(240, 243, 246, 0.7);
+            margin-top: 6px;
+            margin-bottom: 18px;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+    </style>
+    <!-- OC9
+
+        .coaches-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+        }
+
+        .coach-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 22px 18px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .coach-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: var(--card-accent);
+        }
+
+        .coach-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--card-accent);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 40px color-mix(in srgb, var(--card-accent) 15%, transparent);
+        }
+
+        .coach-card-icon {
+            margin-bottom: 16px;
+        }
+        .coach-card-photo {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 16px;
+            border: 2px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .coach-card:hover .coach-card-photo {
+            transform: scale(1.08);
+            box-shadow: 0 0 20px color-mix(in srgb, var(--card-accent) 30%, transparent);
+        }
+
+        .coach-role-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 8px;
+            background: color-mix(in srgb, var(--card-accent) 15%, transparent);
+            color: var(--card-accent);
+        }
+
+        .coach-card h3 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .coach-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+
+        /* ==============================
+           FEATURES SHOWCASE
+        ============================== */
+        .features-section {
+            background: linear-gradient(180deg, #0f1520 0%, #111820 100%);
+        }
+
+        .feature-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+            margin-bottom: 80px;
+        }
+
+        .feature-row:last-child { margin-bottom: 0; }
+
+        .feature-row.reversed .feature-text { order: 2; }
+        .feature-row.reversed .feature-mockup { order: 1; }
+
+        .feature-text h3 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }
+
+        .feature-text p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .feature-label {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        /* Mockup Base */
+        .mockup {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mockup-dots {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .mockup-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-light);
+        }
+
+        .mockup-dots span:first-child { background: #ff5f57; }
+        .mockup-dots span:nth-child(2) { background: #ffbd2e; }
+        .mockup-dots span:nth-child(3) { background: #28c840; }
+
+        /* Chat Mockup */
+        .chat-bubble {
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+            max-width: 85%;
+            line-height: 1.5;
+        }
+
+        .chat-bubble.user {
+            background: rgba(255, 107, 53, 0.12);
+            color: var(--text);
+            margin-left: auto;
+            border-bottom-right-radius: 3px;
+        }
+
+        .chat-bubble.ai {
+            background: var(--bg-surface);
+            color: var(--text-muted);
+            border-bottom-left-radius: 3px;
+        }
+
+        .chat-bubble .badge-inline {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        /* ==============================
+           VIDEO ROOM MOCKUP (Detailed)
+        ============================== */
+        .video-room-mockup {
+            display: grid;
+            grid-template-columns: 44px 1fr 180px;
+            gap: 0;
+            background: #0a0e14;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            height: 280px;
+        }
+
+        /* Left toolbar */
+        .vr-toolbar {
+            background: #111620;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 0;
+            gap: 4px;
+        }
+
+        .vr-tool {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .vr-tool:hover { color: var(--text-muted); background: rgba(255,255,255,0.05); }
+
+        .vr-tool.active {
+            color: var(--accent);
+            background: rgba(255,107,53,0.12);
+        }
+
+        .vr-tool svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .vr-tool-divider {
+            width: 24px;
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        /* Center video area */
+        .vr-center {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .vr-screen {
+            flex: 1;
+            background: #080c12;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .vr-screen-court {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(30,40,56,0.3), rgba(15,21,32,0.5));
+        }
+
+        .vr-annotations {
+            position: absolute;
+            inset: 0;
+        }
+
+        .vr-annotations line {
+            stroke-width: 2.5;
+            stroke-linecap: round;
+        }
+
+        .vr-annotations .arrow-dash {
+            stroke-dasharray: 8 4;
+        }
+
+        .vr-annotations circle {
+            opacity: 0.8;
+        }
+
+        .vr-play-btn {
+            position: relative;
+            z-index: 2;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(255,107,53,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(255,107,53,0.4);
+        }
+
+        .vr-play-btn svg { fill: #fff; width: 20px; height: 20px; margin-left: 3px; }
+
+        /* Video controls bar */
+        .vr-controls {
+            height: 36px;
+            background: #111620;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 8px;
+        }
+
+        .vr-ctrl-btn {
+            width: 24px; height: 24px;
+            color: var(--text-muted);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .vr-ctrl-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+        .vr-time {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .vr-progress-bar {
+            flex: 1;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .vr-progress-fill {
+            height: 100%;
+            width: 38%;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        .vr-progress-bar .vr-clip-marker {
+            position: absolute;
+            top: -2px;
+            height: 8px;
+            width: 3px;
+            background: var(--info);
+            border-radius: 1px;
+        }
+
+        /* Timeline */
+        .vr-timeline {
+            height: 28px;
+            background: #0d1118;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 2px;
+        }
+
+        .vr-timeline-block {
+            height: 14px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        /* Right clips sidebar */
+        .vr-clips {
+            background: #111620;
+            border-left: 1px solid var(--border);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            overflow: hidden;
+        }
+
+        .vr-clips-title {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .vr-clip-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .vr-clip-thumb {
+            width: 48px;
+            height: 30px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .vr-clip-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .vr-clip-name {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .vr-clip-dur {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+        }
+
+        /* ==============================
+           PLAY DESIGNER MOCKUP
+        ============================== */
+        .court-mockup-enhanced {
+            position: relative;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            background: #1a2332;
+        }
+
+        .court-mockup-enhanced img {
+            width: 100%;
+            opacity: 0.85;
+        }
+
+        .court-player-e {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2.5px solid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: #fff;
+            z-index: 2;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .court-screen-indicator {
+            position: absolute;
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+            z-index: 2;
+        }
+
+        .court-mockup-enhanced svg.court-arrows {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .court-play-label {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            background: rgba(255,107,53,0.9);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 4px;
+            letter-spacing: 0.04em;
+            z-index: 3;
+        }
+
+        /* Notebook Mockup */
+        .notebook-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 14px;
+        }
+
+        .notebook-tab {
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--bg-surface);
+            color: var(--text-muted);
+        }
+
+        .notebook-tab.active {
+            background: rgba(255, 107, 53, 0.15);
+            color: var(--accent);
+        }
+
+        .notebook-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .notebook-item-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Roster Mockup */
+        .roster-player-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: var(--bg-surface);
+            padding: 14px;
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+        }
+
+        .roster-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #ff8c5a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .roster-info { flex: 1; }
+        .roster-info .name { font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; }
+
+        .roster-stat-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            margin-bottom: 4px;
+            overflow: hidden;
+        }
+
+        .roster-stat-bar .fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        /* Upload Mockup */
+        .upload-zone {
+            border: 2px dashed var(--border-light);
+            border-radius: var(--radius);
+            padding: 28px;
+            text-align: center;
+            transition: border-color var(--transition);
+        }
+
+        .upload-zone svg {
+            margin: 0 auto 12px;
+        }
+
+        .upload-zone p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+
+        .file-badges {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .file-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            background: var(--bg-surface);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        /* HOW_MARKER */
+        }
+
+        .how-section-bg {
+            position: absolute;
+            inset: 0;
+            background-image: url("{{ url_for('static', filename='img/arena_bg6.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+        }
+
+        .how-section-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 21, 32, 0.93);
+        }
+
+        .how-section .container {
+            position: relative;
+            z-index: 1;
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            position: relative;
+        }
+
+        /* Connecting line between steps */
+        .steps-grid::before {
+            content: '';
+            position: absolute;
+            top: 80px;
+            left: calc(16.66% + 12px);
+            right: calc(16.66% + 12px);
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), rgba(255,107,53,0.3), var(--accent));
+            z-index: 0;
+        }
+
+        /* Connector arrows */
+        .step-connector {
+            position: absolute;
+            top: 72px;
+            width: 20px;
+            height: 20px;
+            z-index: 1;
+        }
+
+        .step-connector-1 {
+            left: calc(33.33% - 10px);
+        }
+
+        .step-connector-2 {
+            left: calc(66.66% - 10px);
+        }
+
+        .step-connector svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--accent);
+        }
+
+        .step-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--accent);
+            border-radius: var(--radius-lg);
+            padding: 28px 28px 32px;
+            text-align: center;
+            z-index: 1;
+        }
+
+        .step-number {
+            font-family: 'Inter', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: rgba(255, 107, 53, 0.12);
+            line-height: 1;
+            margin-bottom: 8px;
+            pointer-events: none;
+        }
+
+        .step-card h3 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .step-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .step-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(255,107,53,0.2), rgba(255,107,53,0.08));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        .step-icon svg {
+            width: 28px;
+            height: 28px;
+            stroke: var(--accent);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* ==============================
+           REGISTER
+        ============================== */
+        .register-section {
+            position: relative;
+            padding: 100px 0;
+            overflow: hidden;
+        }
+
+        .register-bg {
+            position: absolute;
+            inset: 0;
+            background-image: url("{{ url_for('static', filename='img/arena_bg2.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+        }
+
+        .register-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(15,21,32,0.85), rgba(15,21,32,0.97));
+        }
+
+        .register-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+
+        .register-content h2 {
+            font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .register-content > p {
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            font-size: 1.05rem;
+        }
+
+        .register-card {
+            max-width: 480px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 36px 32px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .form-input-wrap {
+            position: relative;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 0.95rem;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-input::placeholder { color: var(--text-dim); }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+        }
+
+        .password-toggle svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .form-error {
+            color: #f85149;
+            font-size: 0.8rem;
+            margin-top: 6px;
+            display: none;
+        }
+
+        .form-error.visible { display: block; }
+
+        .register-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            background: var(--accent);
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+            margin-top: 8px;
+        }
+
+        .register-btn:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .register-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .register-links {
+            margin-top: 18px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .register-links a {
+            color: var(--accent);
+            font-weight: 600;
+            transition: color var(--transition);
+        }
+
+        .register-links a:hover { color: var(--accent-hover); }
+
+        .register-terms {
+            margin-top: 14px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .register-terms a {
+            color: var(--text-muted);
+            text-decoration: underline;
+        }
+
+        /* ==============================
+           PRICING (matches upgrade.html)
+        ============================== */
+        .pricing-section {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pricing-section-bg {
+            position: absolute;
+            inset: 0;
+            background-image: url("{{ url_for('static', filename='img/arena_bg.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+        }
+
+        .pricing-section-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 21, 32, 0.95);
+        }
+
+        .pricing-section .container {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Billing toggle (from upgrade.html) */
+        .billing-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 48px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            padding: 6px 8px;
+        }
+
+        .billing-toggle label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 6px 16px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            user-select: none;
+        }
+
+        .billing-toggle label.active {
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .billing-toggle .save-pill {
+            font-size: 11px;
+            font-weight: 600;
+            color: #22c55e;
+            background: rgba(34, 197, 94, 0.12);
+            padding: 3px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.02em;
+        }
+
+        .billing-toggle input[type="checkbox"] {
+            display: none;
+        }
+
+        .toggle-track {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 11px;
+            cursor: pointer;
+            transition: background 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.25s ease;
+        }
+
+        .toggle-track.yearly::after {
+            transform: translateX(18px);
+        }
+
+        .toggle-track.yearly {
+            background: var(--accent);
+        }
+
+        /* Plan cards */
+        .plan-cards {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            align-items: stretch;
+            flex-wrap: nowrap;
+        }
+
+        .plan-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px 22px 24px;
+            flex: 1 1 0;
+            min-width: 0;
+            max-width: 280px;
+            text-align: left;
+            position: relative;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .plan-card:hover {
+            border-color: rgba(255,255,255,0.12);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .plan-card.recommended {
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 40px rgba(255, 107, 53, 0.08);
+        }
+
+        .plan-card.recommended:hover {
+            border-color: var(--accent);
+            box-shadow: 0 8px 40px rgba(255, 107, 53, 0.15);
+        }
+
+        /* Most Popular plan — visually lifted, thick orange border, strong constant glow.
+           Kept simple to avoid background-clip / dual-gradient quirks across browsers. */
+        .plan-card.most-popular,
+        body .plan-card.most-popular {
+            border: 3px solid #ff8c00 !important;
+            background: var(--bg-surface) !important;
+            transform: translateY(-16px) scale(1.04) !important;
+            z-index: 2;
+            box-shadow:
+                0 0 40px rgba(255, 107, 53, 0.55),
+                0 0 80px rgba(255, 140, 0, 0.32),
+                0 12px 50px rgba(255, 69, 0, 0.25) !important;
+            animation: planPopularGlow 2.6s ease-in-out infinite !important;
+            position: relative;
+        }
+
+        .plan-card.most-popular:hover {
+            transform: translateY(-22px) scale(1.05) !important;
+            border-color: #ffd700 !important;
+            box-shadow:
+                0 0 60px rgba(255, 69, 0, 0.7),
+                0 0 110px rgba(255, 140, 0, 0.45),
+                0 18px 60px rgba(255, 69, 0, 0.35) !important;
+        }
+
+        @keyframes planPopularGlow {
+            0%, 100% {
+                box-shadow:
+                    0 0 32px rgba(255, 107, 53, 0.45),
+                    0 0 70px rgba(255, 140, 0, 0.25),
+                    0 12px 50px rgba(255, 69, 0, 0.22);
+            }
+            50% {
+                box-shadow:
+                    0 0 60px rgba(255, 107, 53, 0.8),
+                    0 0 120px rgba(255, 140, 0, 0.45),
+                    0 12px 60px rgba(255, 69, 0, 0.35);
+            }
+        }
+
+        /* Most-popular badge — bigger and brighter than the regular Recommended badge */
+        .plan-card.most-popular .recommended-badge {
+            background: linear-gradient(135deg, #ff4500, #ff8c00, #ffd700, #ff6347, #ff4500) !important;
+            background-size: 300% 300% !important;
+            animation: badgeFlameShift 4s ease infinite !important;
+            box-shadow: 0 4px 18px rgba(255, 107, 53, 0.65) !important;
+            font-size: 12px !important;
+            padding: 5px 18px !important;
+            top: -14px !important;
+        }
+
+        @keyframes badgeFlameShift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .recommended-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 4px 16px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .plan-card .plan-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .plan-card .plan-tagline {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .plan-pricing {
+            margin-bottom: 24px;
+        }
+
+        .plan-pricing .price {
+            font-size: 40px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            letter-spacing: -0.03em;
+        }
+
+        .plan-pricing .period {
+            font-size: 15px;
+            font-weight: 400;
+            color: var(--text-dim);
+        }
+
+        .plan-pricing .yearly-note {
+            display: block;
+            font-size: 13px;
+            color: #22c55e;
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        .plan-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 28px 0;
+            flex: 1;
+        }
+
+        .plan-features li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 14px;
+            color: #c8cdd4;
+            padding: 6px 0;
+            line-height: 1.5;
+        }
+
+        .plan-features li .icon {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+        }
+
+        .plan-features li .icon-check {
+            color: #22c55e;
+        }
+
+        .plan-features li .icon-x {
+            color: var(--text-dim);
+        }
+
+        .plan-features li.disabled-feature {
+            color: var(--text-dim);
+        }
+
+        .plan-card .plan-btn {
+            display: block;
+            width: 100%;
+            padding: 12px 0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+            text-align: center;
+            letter-spacing: 0.01em;
+            margin-top: auto;
+        }
+
+        .plan-btn.primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .plan-btn.primary:hover:not(:disabled) {
+            filter: brightness(1.1);
+            box-shadow: 0 4px 16px rgba(255,107,53,0.3);
+        }
+
+        .plan-btn.secondary {
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .plan-btn.secondary:hover:not(:disabled) {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .plan-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ==============================
+           FAQ
+        ============================== */
+        .faq-list {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .faq-item {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .faq-question {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 20px 0;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+            transition: color var(--transition);
+        }
+
+        .faq-question:hover { color: var(--accent); }
+
+        .faq-chevron {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+
+        .faq-item.open .faq-chevron { transform: rotate(180deg); }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, padding 0.35s ease;
+        }
+
+        .faq-item.open .faq-answer { max-height: 200px; }
+
+        .faq-answer p {
+            padding-bottom: 20px;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        /* ==============================
+           FINAL CTA
+        ============================== */
+        .final-cta {
+            padding: 80px 0;
+            text-align: center;
+            background: linear-gradient(to bottom, var(--bg), var(--bg-surface));
+        }
+
+        .final-cta h2 {
+            font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .final-cta p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            margin-bottom: 32px;
+        }
+
+        .final-cta-btns {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* ==============================
+           FOOTER
+        ============================== */
+        .footer {
+            background: var(--bg-deep);
+            padding: 60px 0 32px;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .footer-brand img { width: 28px; height: 28px; }
+
+        .footer-brand span {
+            font-family: 'Inter', sans-serif;
+            font-weight: 900;
+            font-size: 1rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .footer-desc {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .footer-copy {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        .footer-col h4 {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col li { margin-bottom: 10px; }
+
+        .footer-col a {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            transition: color var(--transition);
+        }
+
+        .footer-col a:hover { color: var(--text); }
+
+        .footer-bottom {
+            border-top: 1px solid var(--border);
+            padding-top: 24px;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        /* ==============================
+           SCROLL ANIMATIONS
+        ============================== */
+        .animate-on-scroll {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .animate-on-scroll.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ==============================
+           RESPONSIVE
+        ============================== */
+        @media (max-width: 1024px) {
+            .coaches-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .plan-cards {
+                flex-wrap: wrap;
+            }
+            .plan-card {
+                flex: 1 1 calc(50% - 16px);
+                max-width: none;
+            }
+
+            .feature-row {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+
+            .feature-row.reversed .feature-text { order: 1; }
+            .feature-row.reversed .feature-mockup { order: 2; }
+
+            .video-room-mockup {
+                grid-template-columns: 44px 1fr;
+                height: 240px;
+            }
+
+            .vr-clips { display: none; }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .nav-actions { display: none; }
+            .nav-hamburger { display: flex; }
+
+            .stats-strip .container {
+                flex-direction: column;
+                gap: 20px;
+                align-items: flex-start;
+            }
+
+            .coaches-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .steps-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .steps-grid::before { display: none; }
+            .step-connector { display: none; }
+
+            .plan-cards {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .plan-card {
+                flex: none;
+                width: 100%;
+                max-width: 360px;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+                gap: 28px;
+            }
+
+            .section { padding: 64px 0; }
+
+            .register-card { padding: 28px 20px; }
+
+            .hero-logo-icon {
+                width: 100px;
+                height: 100px;
+            }
+
+            .video-room-mockup {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .vr-toolbar {
+                flex-direction: row;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 6px 10px;
+                overflow-x: auto;
+            }
+
+            .vr-tool-divider {
+                width: 1px;
+                height: 20px;
+                margin: 0 4px;
+            }
+
+            .vr-screen { min-height: 160px; }
+        }
+
+        @media (max-width: 480px) {
+            .billing-toggle {
+                gap: 6px;
+                padding: 4px 6px;
+            }
+
+            .billing-toggle label {
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+
+LAST_ORPHAN_END -->
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar" id="navbar">
+        <div class="container">
+            <a href="/main" class="nav-brand">
+                <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+                <span>NEXTPLAY</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#coaches">Coaches</a></li>
+                <li><a href="#pricing">Pricing</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+            <div class="nav-actions">
+                <button type="button" class="btn-install-app" data-pwa-install
+                        aria-label="Install NEXTPLAY as an app">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span data-pwa-label>Install App</span>
+                </button>
+                <a href="/login" class="btn-ghost">Sign In</a>
+                <a href="#register" class="btn-primary">Start Free Trial</a>
+            </div>
+            <button class="nav-hamburger" id="hamburgerBtn" aria-label="Open menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MOBILE MENU -->
+    <div class="mobile-menu" id="mobileMenu">
+        <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">&times;</button>
+        <a href="#features" class="mobile-menu-link">Features</a>
+        <a href="#coaches" class="mobile-menu-link">Coaches</a>
+        <a href="#pricing" class="mobile-menu-link">Pricing</a>
+        <a href="#faq" class="mobile-menu-link">FAQ</a>
+        <button type="button" class="mobile-menu-link" data-pwa-install
+                style="background:transparent;border:0;text-align:inherit;font:inherit;padding:0;cursor:pointer;color:inherit;width:100%;">
+            <span data-pwa-label>📲 Install App</span>
+        </button>
+        <a href="/login" class="mobile-menu-link">Sign In</a>
+        <a href="#register" class="btn-primary btn-large">Start Free Trial</a>
+    </div>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-orb hero-orb-1"></div>
+        <div class="hero-orb hero-orb-2"></div>
+        <div class="hero-orb hero-orb-3"></div>
+        <div class="hero-content">
+            <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" class="hero-logo-icon">
+            <h1>Your <span class="accent-word">AI-Powered</span> Coaching Staff</h1>
+            <p class="hero-sub">Five specialized AI coaches ready to <strong>Scout</strong>, <strong>Analyze</strong>, <strong>Strategize</strong>, and <strong>Plan</strong> &mdash; so you can focus on winning.</p>
+            <div class="hero-ctas">
+                <a href="#register" class="btn-primary btn-large">Start Free Trial</a>
+                <a href="#features" class="btn-ghost btn-large">See Features</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- STATS STRIP -->
+    <section class="stats-strip">
+        <div class="container">
+            <div class="stat-item">
+                <div class="stat-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
+                </div>
+                <div class="stat-text">5 AI Coaches<small>Specialized experts</small></div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon">
+                    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+                <div class="stat-text">Video Editor<small>Tag, clip & compile game footage</small></div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon">
+                    <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                </div>
+                <div class="stat-text">FIBA Court Tools<small>Visual play designer</small></div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="stat-text">14-Day Free Trial<small>No credit card required</small></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI COACHING STAFF -->
+    <section class="section coaches-section" id="coaches">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">AI Coaching Staff</span>
+                <h2>Meet Your AI Coaching Staff</h2>
+                <p>Five specialized AI coaches, each an expert in their domain, working together as your complete coaching solution.</p>
+            </div>
+
+            <div class="coaches-grid" style="margin-bottom: 48px;">
+                <!-- GM -->
+                <div class="coach-card animate-on-scroll" style="--card-accent: #ff6b35;">
+                    <img class="coach-card-photo" src="/static/img/agents/brad_binn.png" alt="Brad Binn" loading="lazy" decoding="async">
+                    <span class="coach-role-badge">GM</span>
+                    <h3>Brad Binn</h3>
+                    <p>Routes queries to the right expert. Manages your entire coaching workflow.</p>
+                </div>
+                <!-- Scout -->
+                <div class="coach-card animate-on-scroll" style="--card-accent: #4da6ff;">
+                    <img class="coach-card-photo" src="/static/img/agents/jack_hunter.png" alt="Jack Hunter" loading="lazy" decoding="async">
+                    <span class="coach-role-badge">Scout</span>
+                    <h3>Jack Hunter</h3>
+                    <p>Fact-based scouting reports, player profiling, and talent evaluation.</p>
+                </div>
+                <!-- Analytics -->
+                <div class="coach-card animate-on-scroll" style="--card-accent: #3fb950;">
+                    <img class="coach-card-photo" src="/static/img/agents/dr_nexus.png" alt="Dr. Nexus" loading="lazy" decoding="async">
+                    <span class="coach-role-badge">Analytics</span>
+                    <h3>Dr. Nexus</h3>
+                    <p>Advanced statistics, performance metrics, and data-driven insights.</p>
+                </div>
+                <!-- Tactics -->
+                <div class="coach-card animate-on-scroll" style="--card-accent: #f0b429;">
+                    <img class="coach-card-photo" src="/static/img/agents/ed_vance.png" alt="Ed Vance" loading="lazy" decoding="async">
+                    <span class="coach-role-badge">Tactics</span>
+                    <h3>Ed Vance</h3>
+                    <p>Game planning, play design, offensive and defensive schemes.</p>
+                </div>
+                <!-- Training -->
+                <div class="coach-card animate-on-scroll" style="--card-accent: #bc8ff3;">
+                    <img class="coach-card-photo" src="/static/img/agents/duncan_bucket.png" alt="Duncan Bucket" loading="lazy" decoding="async">
+                    <span class="coach-role-badge">Training</span>
+                    <h3>Duncan Bucket</h3>
+                    <p>Practice plans, individual workouts, and skill development programs.</p>
+                </div>
+            </div>
+
+            <!-- Agents diagram (interactive) -->
+            <div class="agents-diagram-wrap animate-on-scroll">
+              <div class="ad-canvas">
+                <svg class="ad-svg ad-circuits" viewBox="0 0 800 800">
+                  <g stroke="#f48c25" stroke-width="0.8" fill="none">
+                    <line x1="0" y1="264" x2="304" y2="264"/><line x1="496" y1="264" x2="800" y2="264"/>
+                    <line x1="0" y1="536" x2="304" y2="536"/><line x1="496" y1="536" x2="800" y2="536"/>
+                    <line x1="264" y1="0" x2="264" y2="304"/><line x1="536" y1="0" x2="536" y2="304"/>
+                    <line x1="264" y1="496" x2="264" y2="800"/><line x1="536" y1="496" x2="536" y2="800"/>
+                    <path d="M80,80 L304,304"/><path d="M720,80 L496,304"/>
+                    <path d="M80,720 L304,496"/><path d="M720,720 L496,496"/>
+                  </g>
+                  <g stroke="#4da6ff" stroke-width="0.5" fill="none" opacity="0.5">
+                    <path d="M160,400 L304,400"/><path d="M496,400 L640,400"/>
+                    <path d="M400,160 L400,304"/><path d="M400,496 L400,640"/>
+                    <path d="M120,280 L280,360"/><path d="M680,280 L520,360"/>
+                    <path d="M120,520 L280,440"/><path d="M680,520 L520,440"/>
+                  </g>
+                  <g fill="#f48c25" opacity="0.8">
+                    <circle cx="264" cy="264" r="2"/><circle cx="536" cy="264" r="2"/>
+                    <circle cx="264" cy="536" r="2"/><circle cx="536" cy="536" r="2"/>
+                  </g>
+                </svg>
+                <svg class="ad-svg ad-conns" viewBox="0 0 800 800">
+                  <defs>
+                    <linearGradient id="adLG" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#4da6ff" stop-opacity="0.9"/>
+                      <stop offset="40%" stop-color="#7db8ff" stop-opacity="0.8"/>
+                      <stop offset="60%" stop-color="#f48c25" stop-opacity="0.95"/>
+                      <stop offset="100%" stop-color="#ffb77d" stop-opacity="0.9"/>
+                    </linearGradient>
+                    <linearGradient id="adLG2" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#4da6ff" stop-opacity="0.6"/>
+                      <stop offset="50%" stop-color="#f48c25" stop-opacity="0.7"/>
+                      <stop offset="100%" stop-color="#4da6ff" stop-opacity="0.6"/>
+                    </linearGradient>
+                    <linearGradient id="adLGB" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#4da6ff" stop-opacity="0.3"/>
+                      <stop offset="100%" stop-color="#4da6ff" stop-opacity="0.1"/>
+                    </linearGradient>
+                    <filter id="adLnGlow" x="-10%" y="-50%" width="120%" height="200%">
+                      <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                    <filter id="adPG" x="-200%" y="-200%" width="500%" height="500%">
+                      <feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                    <filter id="adPGO" x="-200%" y="-200%" width="500%" height="500%">
+                      <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                    <filter id="adPGW" x="-200%" y="-200%" width="500%" height="500%">
+                      <feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                  </defs>
+                  <!-- Primary lines -->
+                  <path d="M 400,145 C 400,240 400,320 400,375" class="ad-conn" stroke="url(#adLG)" filter="url(#adLnGlow)"/>
+                  <path d="M 120,170 C 224,264 320,344 384,384" class="ad-conn" stroke="url(#adLG)" filter="url(#adLnGlow)"/>
+                  <path d="M 680,170 C 576,264 480,344 416,384" class="ad-conn" stroke="url(#adLG)" filter="url(#adLnGlow)"/>
+                  <path d="M 140,625 C 240,544 320,464 384,416" class="ad-conn" stroke="url(#adLG)" filter="url(#adLnGlow)"/>
+                  <path d="M 660,625 C 560,544 480,464 416,416" class="ad-conn" stroke="url(#adLG)" filter="url(#adLnGlow)"/>
+                  <!-- Secondary lines -->
+                  <path d="M 408,140 C 406,248 404,328 403,380" class="ad-conn-s" stroke="url(#adLG2)"/>
+                  <path d="M 132,160 C 232,272 328,352 388,388" class="ad-conn-s" stroke="url(#adLG2)"/>
+                  <path d="M 668,160 C 568,272 472,352 412,388" class="ad-conn-s" stroke="url(#adLG2)"/>
+                  <path d="M 152,616 C 248,536 328,456 388,412" class="ad-conn-s" stroke="url(#adLG2)"/>
+                  <path d="M 648,616 C 552,536 472,456 412,412" class="ad-conn-s" stroke="url(#adLG2)"/>
+                  <!-- Ghost lines -->
+                  <path d="M 392,148 Q 396,272 398,376" class="ad-conn-g"/>
+                  <path d="M 112,176 Q 248,280 380,384" class="ad-conn-g"/>
+                  <path d="M 688,176 Q 552,280 420,384" class="ad-conn-g"/>
+                  <path d="M 132,632 Q 264,520 380,416" class="ad-conn-g"/>
+                  <path d="M 668,632 Q 536,520 420,416" class="ad-conn-g"/>
+                  <!-- Cross-connections -->
+                  <path d="M 160,192 Q 272,304 400,384 Q 528,304 640,192" class="ad-conn-t" stroke="url(#adLGB)"/>
+                  <path d="M 176,608 Q 288,496 400,416 Q 512,496 624,608" class="ad-conn-t" stroke="url(#adLGB)"/>
+                  <path d="M 128,200 Q 248,400 160,608" class="ad-conn-t" stroke="url(#adLGB)"/>
+                  <path d="M 672,200 Q 552,400 640,608" class="ad-conn-t" stroke="url(#adLGB)"/>
+                  <path d="M 400,148 Q 272,320 160,600" class="ad-conn-t" stroke="url(#adLGB)"/>
+                  <path d="M 400,148 Q 528,320 640,600" class="ad-conn-t" stroke="url(#adLGB)"/>
+                  <!-- Junctions -->
+                  <circle cx="400" cy="264" class="ad-jn active adj0"/><circle cx="400" cy="320" class="ad-jn bright adj2"/>
+                  <circle cx="248" cy="272" class="ad-jn active adj1"/><circle cx="320" cy="336" class="ad-jn bright adj3"/>
+                  <circle cx="552" cy="272" class="ad-jn active adj4"/><circle cx="480" cy="336" class="ad-jn bright adj5"/>
+                  <circle cx="264" cy="512" class="ad-jn active adj6"/><circle cx="320" cy="456" class="ad-jn bright adj7"/>
+                  <circle cx="536" cy="512" class="ad-jn active adj0"/><circle cx="480" cy="456" class="ad-jn bright adj2"/>
+                  <circle cx="368" cy="368" class="ad-jn bright adj1"/><circle cx="432" cy="368" class="ad-jn bright adj4"/>
+                  <circle cx="384" cy="416" class="ad-jn active adj6"/><circle cx="416" cy="416" class="ad-jn active adj3"/>
+                  <circle cx="400" cy="392" class="ad-jn bright adj5"/>
+                  <circle cx="280" cy="304" class="ad-jn active adj7"/><circle cx="520" cy="304" class="ad-jn active adj1"/>
+                  <circle cx="280" cy="480" class="ad-jn active adj3"/><circle cx="520" cy="480" class="ad-jn active adj5"/>
+                  <circle cx="200" cy="232" class="ad-jn active adj2"/><circle cx="600" cy="232" class="ad-jn active adj6"/>
+                  <circle cx="200" cy="568" class="ad-jn active adj0"/><circle cx="600" cy="568" class="ad-jn active adj4"/>
+                  <!-- Sparkles -->
+                  <circle cx="336" cy="280" class="ad-sp asd0"/><circle cx="464" cy="280" class="ad-sp asd1"/>
+                  <circle cx="304" cy="400" class="ad-sp asd2"/><circle cx="496" cy="400" class="ad-sp asd3"/>
+                  <circle cx="360" cy="352" class="ad-sp asd4"/><circle cx="440" cy="352" class="ad-sp asd5"/>
+                  <circle cx="400" cy="440" class="ad-sp asd6"/><circle cx="240" cy="384" class="ad-sp asd7"/>
+                  <circle cx="560" cy="384" class="ad-sp asd0"/><circle cx="344" cy="440" class="ad-sp asd3"/>
+                  <circle cx="456" cy="440" class="ad-sp asd6"/>
+                  <!-- Particles inbound -->
+                  <circle r="2.5" class="ad-pi adfi-gm"/><circle r="2.5" class="ad-pi adfi-sc"/>
+                  <circle r="2.5" class="ad-pi adfi-an"/><circle r="2.5" class="ad-pi adfi-ta"/>
+                  <circle r="2.5" class="ad-pi adfi-tr"/>
+                  <!-- Particles outbound -->
+                  <circle r="2" class="ad-po adfo-gm"/><circle r="2" class="ad-po adfo-sc"/>
+                  <circle r="2" class="ad-po adfo-an"/><circle r="2" class="ad-po adfo-ta"/>
+                  <circle r="2" class="ad-po adfo-tr"/>
+                  <!-- Particles wave 2 -->
+                  <circle r="2" class="ad-pi adfi-gm2"/><circle r="2" class="ad-pi adfi-sc2"/>
+                  <circle r="2" class="ad-pi adfi-an2"/><circle r="2" class="ad-pi adfi-ta2"/>
+                  <circle r="2" class="ad-pi adfi-tr2"/>
+                  <!-- Cross-flow -->
+                  <circle r="1.5" class="ad-pw adfx-sg"/><circle r="1.5" class="ad-pw adfx-ag"/>
+                  <circle r="1.5" class="ad-pw adfx-tt"/>
+                </svg>
+                <!-- Center Hub -->
+                <div class="ad-hub">
+                  <div class="ad-ring ad-ring-3"></div>
+                  <div class="ad-ring ad-ring-2"></div>
+                  <div class="ad-ring ad-ring-1"></div>
+                  <div class="ad-hub-logo"><img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay AI" loading="lazy" decoding="async"></div>
+                </div>
+                <!-- GM -->
+                <div class="ad-station ad-pos-gm"><div class="ad-card"><div class="ad-hdr"><div class="ad-dot"></div><span class="ad-lbl">General Manager</span></div><div class="ad-scr"><img src="{{ url_for('static', filename='img/team_setup_screenshot.png') }}" alt="Team Setup" loading="lazy" decoding="async"></div><div class="ad-ftr"><div class="ad-bar"></div><span class="ad-stxt">Roster Analysis</span></div></div></div>
+                <!-- Scout -->
+                <div class="ad-station ad-pos-scout"><div class="ad-card"><div class="ad-hdr"><div class="ad-dot"></div><span class="ad-lbl">Scout</span></div><div class="ad-scr"><img src="{{ url_for('static', filename='img/scout_player_screenshot.png') }}" alt="Player Scout" loading="lazy" decoding="async"></div><div class="ad-ftr"><div class="ad-bar"></div><span class="ad-stxt">Player Intel</span></div></div></div>
+                <!-- Analyst -->
+                <div class="ad-station ad-pos-analyst"><div class="ad-card"><div class="ad-hdr"><div class="ad-dot"></div><span class="ad-lbl">Analyst</span></div><div class="ad-scr"><img src="{{ url_for('static', filename='img/video_room_screenshot.png') }}" alt="Video Analysis" loading="lazy" decoding="async"></div><div class="ad-ftr"><div class="ad-bar"></div><span class="ad-stxt">Video Review</span></div></div></div>
+                <!-- Tactician -->
+                <div class="ad-station ad-pos-tactician"><div class="ad-card"><div class="ad-hdr"><div class="ad-dot"></div><span class="ad-lbl">Tactician</span></div><div class="ad-scr"><img src="{{ url_for('static', filename='img/play_creator_screenshot.png') }}" alt="Play Creator" loading="lazy" decoding="async"></div><div class="ad-ftr"><div class="ad-bar"></div><span class="ad-stxt">Play Design</span></div></div></div>
+                <!-- Trainer -->
+                <div class="ad-station ad-pos-trainer"><div class="ad-card"><div class="ad-hdr"><div class="ad-dot"></div><span class="ad-lbl">Trainer</span></div><div class="ad-scr"><img src="{{ url_for('static', filename='img/coaching_chat_screenshot.png') }}" alt="Coaching Chat" loading="lazy" decoding="async"></div><div class="ad-ftr"><div class="ad-bar"></div><span class="ad-stxt">Training Load</span></div></div></div>
+              </div>
+            </div>
+
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- FEATURES SHOWCASE -->
+    <section class="section features-section" id="features">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Platform Features</span>
+                <h2>Everything You Need to Coach Smarter</h2>
+                <p>A complete platform designed by coaches, for coaches.</p>
+            </div>
+
+            <!-- Feature 1: Chat -->
+            <div class="feature-row animate-on-scroll">
+                <div class="feature-text">
+                    <span class="feature-label">AI Chat</span>
+                    <h3>Talk to Your Coaching Staff</h3>
+                    <p>Ask questions in natural language and get expert answers routed to the right AI coach. The GM coordinates everything so you get comprehensive, multi-perspective responses.</p>
+                </div>
+                <div class="feature-mockup">
+                    <img src="{{ url_for('static', filename='img/coaching_chat_screenshot.png') }}" alt="Coaching Staff Chat" loading="lazy" decoding="async" style="width:100%;border-radius:var(--radius-lg);box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+                </div>
+            </div>
+
+            <!-- Feature 2: Video Hub -->
+            <div class="feature-row reversed animate-on-scroll">
+                <div class="feature-text">
+                    <span class="feature-label">Video Hub</span>
+                    <h3>Your Game Film Command Center</h3>
+                    <p>Upload footage, tag key moments, draw on screen, and compile highlight clips — all in one place. Every play is searchable, shareable, and ready for your next team session.</p>
+                </div>
+                <div class="feature-mockup">
+                    <img src="{{ url_for('static', filename='img/video_room_screenshot.png') }}" alt="Video Hub" loading="lazy" decoding="async" style="width:100%;border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+                </div>
+            </div>
+
+            <!-- Feature 3: Play Designer (enhanced court) -->
+            <div class="feature-row animate-on-scroll">
+                <div class="feature-text">
+                    <span class="feature-label">Play Creator</span>
+                    <h3>Visual Play Designer</h3>
+                    <p>Design plays on a FIBA court with drag-and-drop player positioning, movement paths, and screening actions. Save and organize your entire playbook.</p>
+                </div>
+                <div class="feature-mockup">
+                    <img src="{{ url_for('static', filename='img/play_creator_screenshot.png') }}" alt="Play Creator" loading="lazy" decoding="async" style="width:100%;border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+                </div>
+            </div>
+
+            <!-- Feature 4: Notebook -->
+            <div class="feature-row reversed animate-on-scroll">
+                <div class="feature-text">
+                    <span class="feature-label">Notebook</span>
+                    <h3>Your Digital Coaching Notebook</h3>
+                    <p>Organize game notes, scouting observations, and coaching ideas in a searchable digital notebook with categories and tags.</p>
+                </div>
+                <div class="feature-mockup">
+                    <img src="{{ url_for('static', filename='img/notebook_screenshot.png') }}" alt="Coaching Notebook" loading="lazy" decoding="async" style="width:100%;border-radius:var(--radius-lg);box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+                </div>
+            </div>
+
+            <!-- Feature 5: Roster -->
+            <div class="feature-row animate-on-scroll">
+                <div class="feature-text">
+                    <span class="feature-label">Team Management</span>
+                    <h3>Complete Roster Management</h3>
+                    <p>Track every player's stats, development, and availability. Build depth charts, manage minutes, and plan lineups with data-driven insights.</p>
+                </div>
+                <div class="feature-mockup">
+                    <img src="{{ url_for('static', filename='img/player_profile_screenshot.png') }}" alt="Player Profile" loading="lazy" decoding="async" style="width:100%;border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+                </div>
+            </div>
+
+            <!-- Feature 6: Import -->
+            <div class="feature-row reversed animate-on-scroll">
+                <div class="feature-text">
+                    <span class="feature-label">Data Import</span>
+                    <h3>Import Your Data</h3>
+                    <p>Drag and drop CSV, XLSX, or PDF files with game statistics, scouting reports, or play diagrams. Your AI coaches analyze imported data automatically.</p>
+                </div>
+                <div class="feature-mockup">
+                    <div class="mockup">
+                        <div class="mockup-dots"><span></span><span></span><span></span></div>
+                        <div class="upload-zone">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p>Drag &amp; drop files here or click to browse</p>
+                            <div class="file-badges">
+                                <span class="file-badge">CSV</span>
+                                <span class="file-badge">XLSX</span>
+                                <span class="file-badge">PDF</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- HOW IT WORKS -->
+    <section class="section how-section">
+        <div class="how-section-bg"></div>
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Getting Started</span>
+                <h2>How It Works</h2>
+                <p>Get started in three simple steps.</p>
+            </div>
+            <div class="steps-grid">
+                <!-- Connector arrows -->
+                <div class="step-connector step-connector-1">
+                    <svg viewBox="0 0 20 20"><polygon points="10,0 20,10 10,20" opacity="0.6"/></svg>
+                </div>
+                <div class="step-connector step-connector-2">
+                    <svg viewBox="0 0 20 20"><polygon points="10,0 20,10 10,20" opacity="0.6"/></svg>
+                </div>
+
+                <div class="step-card animate-on-scroll">
+                    <span class="step-number">01</span>
+                    <div class="step-icon">
+                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </div>
+                    <h3>Set Up Your Team</h3>
+                    <p>Create your team, add your roster, and configure your coaching preferences.</p>
+                </div>
+                <div class="step-card animate-on-scroll">
+                    <span class="step-number">02</span>
+                    <div class="step-icon">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <h3>Upload Your Data</h3>
+                    <p>Import game stats, scouting reports, and player data to power your coaching staff.</p>
+                </div>
+                <div class="step-card animate-on-scroll">
+                    <span class="step-number">03</span>
+                    <div class="step-icon">
+                        <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    </div>
+                    <h3>Start Coaching</h3>
+                    <p>Chat with your AI staff, design plays, plan practices, and make smarter decisions.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- FOUNDER STORY -->
+    <section class="section founder-section" id="founder">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Founder Story</span>
+                <h2>Built by a Coach, for Coaches</h2>
+            </div>
+            <div class="founder-card animate-on-scroll">
+                <div class="founder-photo-wrap">
+                    <picture>
+                        <source media="(max-width: 768px)" srcset="{{ url_for('static', filename='img/ohad-founder-mobile.webp') }}">
+                        <img src="{{ url_for('static', filename='img/ohad-founder.webp') }}"
+                             alt="Ohad — NextPlay founder"
+                             class="founder-photo"
+                             width="800" height="1200"
+                             loading="lazy" decoding="async">
+                    </picture>
+                </div>
+                <div class="founder-text">
+                    <p class="founder-greeting">Hi, I'm Ohad.</p>
+                    <p>After 18 years as a pro player &mdash; including a journey with my hometown club Hapoel Be'er Sheva from the third division to Israel's Premier League &mdash; and 16 years coaching every level, I've learned coaching is about <strong>people</strong>, not just X's and O's. But as a Solo Coach, it's hard to stay connected. When you're managing everything alone, players inevitably slip through the cracks. It's heartbreaking to miss a moment to support a player because you were buried in technicalities.</p>
+                    <p>I built NEXTPLAY to be the staff I never had &mdash; and the one you deserve. It handles the heavy lifting so you can lead with both <strong>precision</strong> and a <strong>personal touch</strong>.</p>
+                    <p>Top clubs have a room full of experts. NEXTPLAY gives that same power to the rest of us, turning the 2 AM grind into a professional workflow.</p>
+                    <p class="founder-closer">Focus on your players. We'll handle the rest.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- REGISTER -->
+    <section class="register-section" id="register">
+        <div class="register-bg"></div>
+        <div class="container register-content">
+            <h2>Start Your Free 14-Day Trial</h2>
+            <p>No credit card required.</p>
+            <div class="register-card">
+                <form id="registerForm" novalidate>
+                    <div class="form-group">
+                        <label for="reg-name">Full Name</label>
+                        <input type="text" id="reg-name" class="form-input" placeholder="Enter your full name" required>
+                        <div class="form-error" id="nameError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input type="email" id="reg-email" class="form-input" placeholder="you@example.com" required>
+                        <div class="form-error" id="emailError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Password</label>
+                        <div class="form-input-wrap">
+                            <input type="password" id="reg-password" class="form-input" placeholder="Minimum 8 characters" required minlength="8" style="padding-right:44px;">
+                            <button type="button" class="password-toggle" data-target="reg-password" aria-label="Show password">
+                                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <div class="form-error" id="passwordError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-confirm">Confirm Password</label>
+                        <div class="form-input-wrap">
+                            <input type="password" id="reg-confirm" class="form-input" placeholder="Repeat your password" required style="padding-right:44px;">
+                            <button type="button" class="password-toggle" data-target="reg-confirm" aria-label="Show password">
+                                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <div class="form-error" id="confirmError"></div>
+                    </div>
+                    <div class="form-error" id="serverError" style="margin-bottom:12px;"></div>
+                    <button type="submit" class="register-btn" id="registerBtn">Create Account</button>
+                </form>
+                {% if has_google %}
+                <div class="google-signin-wrap">
+                    <div class="google-signin-divider">or</div>
+                    <a href="/auth/google" class="btn-google-signin">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                    </a>
+                </div>
+                {% endif %}
+                <div class="register-links">Already have an account? <a href="/login">Sign in</a></div>
+                <div class="register-terms">By signing up, you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- PRICING -->
+    <section class="section pricing-section" id="pricing">
+        <div class="pricing-section-bg"></div>
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Plans</span>
+                <h2>Smart Coaching Starts Here</h2>
+                <p>All plans include a 14-day free trial.</p>
+            </div>
+
+            <!-- Billing toggle (matching upgrade.html) -->
+            <div style="text-align:center;" class="animate-on-scroll">
+                <div class="billing-toggle" id="billingToggle">
+                    <label id="lblMonthly" class="active" onclick="setBilling('monthly')">Monthly</label>
+                    <div class="toggle-track" id="toggleTrack" onclick="toggleBilling()"></div>
+                    <label id="lblYearly" onclick="setBilling('yearly')">Yearly</label>
+                    <span class="save-pill">2 months free</span>
+                </div>
+            </div>
+
+            <!-- Plan cards (matching upgrade.html structure) -->
+            <div class="plan-cards animate-on-scroll">
+
+                <!-- Basic -->
+                <div class="plan-card">
+                    <div class="plan-name">Basic</div>
+                    <div class="plan-tagline">Everything you need to coach smarter</div>
+                    <div class="plan-pricing">
+                        <span class="price" data-monthly="$19" data-yearly="$190">$19</span>
+                        <span class="period" data-monthly="/mo" data-yearly="/yr">/mo</span>
+                        <span class="yearly-note" data-monthly="" data-yearly="Save $38 — 2 months free" style="display:none;"></span>
+                    </div>
+                    <ul class="plan-features">
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            All coaching features
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Chat, Team Setup, Data Upload
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Play Creator &amp; History
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Up to 2 teams
+                        </li>
+                        <li class="disabled-feature">
+                            <svg class="icon icon-x" viewBox="0 0 18 18"><line x1="5" y1="5" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="5" x2="5" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            10 GB general storage
+                        </li>
+                        <li class="disabled-feature">
+                            <svg class="icon icon-x" viewBox="0 0 18 18"><line x1="5" y1="5" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="5" x2="5" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            Video Hub not included
+                        </li>
+                    </ul>
+                    <a href="#register" class="plan-btn secondary" style="text-decoration:none;">Try for Free</a>
+                </div>
+
+                <!-- Pro -->
+                <div class="plan-card most-popular">
+                    <div class="recommended-badge">Most Popular</div>
+                    <div class="plan-name">Pro</div>
+                    <div class="plan-tagline">The full coaching toolkit with video</div>
+                    <div class="plan-pricing">
+                        <span class="price" data-monthly="$29" data-yearly="$290">$29</span>
+                        <span class="period" data-monthly="/mo" data-yearly="/yr">/mo</span>
+                        <span class="yearly-note" data-monthly="" data-yearly="Save $58 — 2 months free" style="display:none;"></span>
+                    </div>
+                    <ul class="plan-features">
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Everything in Basic
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Video Hub included
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Up to 5 teams
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            10 GB video storage (expandable)
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Priority support
+                        </li>
+                    </ul>
+                    <a href="#register" class="plan-btn primary" style="text-decoration:none;">Try for Free</a>
+                </div>
+
+                <!-- Academy -->
+                <div class="plan-card">
+                    <div class="recommended-badge">Best for Clubs</div>
+                    <div class="plan-name">Academy</div>
+                    <div class="plan-tagline">For clubs with 5+ coaches</div>
+                    <div class="plan-pricing">
+                        <span class="price" data-monthly="$120" data-yearly="$1,200">$120</span>
+                        <span class="period" data-monthly="/mo" data-yearly="/yr">/mo</span>
+                        <span class="yearly-note" data-monthly="Starting at 5 coaches" data-yearly="Starting at 5 coaches — 2 months free">Starting at 5 coaches</span>
+                    </div>
+                    <div class="plan-per-seat" data-monthly="$24 per coach / month" data-yearly="$240 per coach / year">$24 per coach / month</div>
+                    <ul class="plan-features">
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Minimum 5 coaches — add as many as you need
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            All coaches get full Pro features
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Designed for academies and basketball clubs
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            One unified bill for the entire club
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Priority support
+                        </li>
+                    </ul>
+                    <a href="/contact-sales?plan=academy&from=welcome" class="plan-btn primary" style="text-decoration:none;">Contact Us</a>
+                </div>
+
+                <!-- Enterprise -->
+                <div class="plan-card">
+                    <div class="plan-name">Enterprise</div>
+                    <div class="plan-tagline">Tailored for large organizations</div>
+                    <div class="plan-pricing">
+                        <span class="price" data-monthly="Custom" data-yearly="Custom">Custom</span>
+                        <span class="period" data-monthly="" data-yearly=""></span>
+                        <span class="yearly-note" data-monthly="" data-yearly="" style="display:none;"></span>
+                    </div>
+                    <ul class="plan-features">
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Unlimited coach seats
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            500 GB+ custom storage
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Dedicated account manager
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Custom onboarding
+                        </li>
+                        <li>
+                            <svg class="icon icon-check" viewBox="0 0 18 18"><polyline points="3.5 9 7.5 13 14.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            SLA &amp; priority support
+                        </li>
+                    </ul>
+                    <a href="/contact-sales?plan=enterprise&from=welcome" class="plan-btn secondary" style="text-decoration:none;">Contact Us</a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Support</span>
+                <h2>Frequently Asked Questions</h2>
+            </div>
+            <div class="faq-list">
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        What is NextPlay?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>NextPlay is an AI-powered basketball coaching platform with five specialized AI coaches that help you scout opponents, analyze statistics, design plays, plan practices, and manage your team.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        How does the AI coaching staff work?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Each AI coach specializes in a different area. When you ask a question, the GM automatically routes it to the right specialist — scouting, analytics, tactics, or training.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Can I upload game footage?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Yes! The Video Hub lets you upload, annotate, clip, and compare game footage with a full drawing toolkit for frame-by-frame analysis.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        What file formats can I import?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>CSV, XLSX, PDF, and image files (JPG, PNG) containing game statistics, scouting reports, play diagrams, and court screenshots. Your AI coaches analyze imported data automatically.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Is there a free trial?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Yes, every new account gets a 14-day free trial with full access. No credit card required.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Can I manage multiple teams?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Yes! Depending on your plan, you can manage 2-5 teams or more with separate rosters and coaching data for each.</p></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="final-cta">
+        <div class="container animate-on-scroll">
+            <h2>Ready to Transform Your Coaching?</h2>
+            <p>Join the next generation of basketball coaching with AI-powered tools built for real coaches.</p>
+            <div class="final-cta-btns">
+                <a href="#register" class="btn-primary btn-large">Start Free Trial</a>
+                <a href="/login" class="btn-ghost btn-large">Sign In</a>
+            </div>
+            {% if has_google %}
+            <div class="google-signin-wrap">
+                <div class="google-signin-divider">or</div>
+                <a href="/auth/google" class="btn-google-signin">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    Sign in with Google
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-brand">
+                        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" loading="lazy" decoding="async">
+                        <span>NEXTPLAY</span>
+                    </div>
+                    <p class="footer-desc">AI-powered basketball coaching platform. Five specialized AI coaches working together to help you scout, analyze, strategize, and plan.</p>
+                    <p class="footer-copy">&copy; 2024&ndash;2026 NextPlay. All rights reserved.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                        <li><a href="#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/terms">Terms of Service</a></li>
+                        <li><a href="/privacy">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">Built with passion for the game.</div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/welcome.js') }}"></script>
+</body>
+</html>

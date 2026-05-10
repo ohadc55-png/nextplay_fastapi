@@ -1,0 +1,339 @@
+/* ══════════════════════════════════════════════════════════════
+   NextPlay — Mobile Overrides
+   Loaded AFTER style.css — cascade order handles specificity.
+   Only @media rules here. No base/desktop rules.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (1024px) ─────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .main { padding: 28px 24px 36px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .agents-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+}
+
+/* ── Mobile (768px) ──────────────────────────────────────── */
+@media (max-width: 768px) {
+    /* === Prevent page overflow & zoom === */
+    html, body { overflow-x: hidden; max-width: 100vw; }
+    * { max-width: 100vw; }
+    .app-layout { overflow-x: hidden; max-width: 100vw; }
+
+    /* === Safe areas for notched phones === */
+    .main { padding-bottom: env(safe-area-inset-bottom, 16px); }
+    .sidebar { padding-top: env(safe-area-inset-top, 0); }
+    .mobile-menu-toggle { top: calc(12px + env(safe-area-inset-top, 0)); }
+
+    /* === Touch targets — minimum 44px === */
+    .btn-sm, .btn-ghost, .btn-icon, .tag-btn, .filter-btn,
+    .tool-btn {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+    .sidebar-nav a {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* === Layout === */
+    .sidebar { transform: translateX(-100%); }
+    [dir="rtl"] .sidebar { transform: translateX(100%); }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.active { display: block; }
+    .mobile-menu-toggle { display: flex; }
+    .main {
+        margin-inline-start: 0;
+        padding: 64px 14px 20px;
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+        overflow-x: hidden;
+        max-width: 100vw;
+        box-sizing: border-box;
+    }
+
+    /* === Hero === */
+    .hero { min-height: 180px; padding: 28px 16px 24px; border-radius: var(--radius); }
+    .hero h1 { font-size: 1.25rem; }
+    .hero p { font-size: 0.88rem; }
+    .hero-content { padding: 28px 16px 24px; }
+    .hero-stats { gap: 16px; margin-top: 18px; }
+    .hero-stat .hs-value { font-size: 1rem; }
+    .hero-court-overlay { width: 130px; height: 130px; }
+
+    /* === Typography === */
+    .page-header h1 { font-size: 1.1rem; }
+    .page-header { gap: 12px; margin-bottom: 24px; }
+
+    /* === Stats & Cards === */
+    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .stat-card { padding: 16px 10px; }
+    .stat-card .number { font-size: 1.4rem; }
+    .agents-grid { grid-template-columns: 1fr; }
+    .agent-card { padding: 18px 16px; }
+    .card { padding: 20px; }
+
+    /* === Forms === */
+    .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    .form-input, .form-textarea, .form-select {
+        min-height: 44px; padding: 10px 14px; font-size: 16px;
+    }
+    .profile-info-grid { grid-template-columns: 1fr; }
+
+    /* === Modals === */
+    .modal { width: 92vw; max-height: 90vh; }
+    .modal-header { padding: 16px 18px; }
+    .modal-header h2, .modal-header h3 { font-size: 1rem; }
+    .modal-body, .modal-footer { padding: 16px 18px; }
+
+    /* === Touch targets (44px min) === */
+    .btn { min-height: 44px; padding: 10px 22px; }
+    .btn-sm { min-height: 44px; padding: 10px 16px; }
+    .tab { min-height: 44px; padding: 10px 16px; }
+    .sidebar-nav a { min-height: 44px; padding: 10px 16px; }
+    .session-item { min-height: 44px; }
+    .modal-close { min-width: 44px; min-height: 44px; }
+
+    /* === Chat — compact header (below hamburger menu) === */
+    .chat-container .page-header {
+        padding: 8px 0; padding-top: 48px;
+        margin-bottom: 0; gap: 6px; border-bottom: none;
+        flex-wrap: nowrap; overflow: hidden;
+    }
+    .chat-container .page-header .page-header-icon { display: none; }
+    .chat-container .page-header p { display: none; }
+    .chat-container .page-header h1 {
+        font-size: 1rem; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .chat-container .page-header .btn-sm {
+        white-space: nowrap; flex-shrink: 0;
+        padding: 6px 10px; font-size: 0.72rem;
+    }
+
+    /* === Chat — container === */
+    .chat-container {
+        height: calc(100dvh - 60px); height: calc(100vh - 60px);
+        position: relative; overflow: hidden;
+    }
+
+    /* === Chat — input bar (fixed above keyboard) === */
+    .chat-input-bar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: var(--bg); z-index: 10;
+        padding: 8px 14px max(8px, env(safe-area-inset-bottom));
+        gap: 6px; border-top: 1px solid var(--border);
+    }
+    .chat-messages { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+    .chat-input-bar input {
+        border-radius: 24px; padding: 10px 16px;
+        min-width: 0; font-size: 16px;
+    }
+    .chat-input-bar .btn-send {
+        width: 42px; height: 42px; min-width: 42px; flex-shrink: 0;
+    }
+    .chat-input-bar .btn-attach {
+        flex-shrink: 0; width: 36px; min-width: 36px;
+    }
+
+    /* === Chat — bubbles === */
+    .chat-msg .bubble {
+        max-width: min(92%, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 60px));
+        padding: 12px 16px;
+    }
+    .chat-msg .avatar { width: 36px; height: 36px; }
+
+    /* === Chat — feedback buttons (WCAG AA 44px tap target) === */
+    .feedback-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 8px;
+        justify-content: center;
+    }
+
+    /* === Agent strip — edge-to-edge scroll with fade hint === */
+    .quick-actions {
+        display: flex; flex-wrap: nowrap;
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        gap: 8px; padding: 8px 14px;
+        scrollbar-width: none; flex-shrink: 0;
+        margin: 0 -14px;
+        border-bottom: 1px solid var(--border);
+        position: relative;
+        mask-image: linear-gradient(to right, black 85%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    }
+    .quick-actions::-webkit-scrollbar { display: none; }
+    .quick-action {
+        flex-shrink: 0; padding: 8px 16px; font-size: 0.8rem;
+        gap: 6px; border-radius: 20px; white-space: nowrap;
+    }
+    .quick-action svg { width: 14px; height: 14px; }
+
+    /* === Player rows === */
+    .player-row { padding: 12px 14px; }
+    .player-number { font-size: 1.1rem; min-width: 36px; }
+    .player-mini-radar canvas { width: 80px; height: 80px; }
+
+    /* === Chat welcome === */
+    .chat-welcome { padding: 24px 16px; }
+    .chat-welcome .welcome-icon {
+        width: 56px; height: 56px; border-radius: 16px; margin-bottom: 14px;
+    }
+    .chat-welcome .welcome-icon img,
+    .chat-welcome .welcome-icon svg { width: 36px; height: 36px; }
+    .chat-welcome h2 { font-size: 1.05rem; }
+    .chat-welcome p { font-size: 0.82rem; max-width: 280px; }
+
+    /* === Tabs — horizontal scroll === */
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* === Sidebar stats === */
+    .sidebar-stats { gap: 6px; }
+    .sidebar-stat { font-size: 0.7rem; padding: 3px 10px; }
+
+    /* === Edit textarea — prevent overflow === */
+    .edit-textarea { min-width: 0; width: 100%; }
+
+    /* === Toast — full width === */
+    .toast { inset-inline-start: 12px; inset-inline-end: 12px; }
+
+    /* === Notebook filters — wrap on mobile === */
+    .nb-filters { flex-wrap: wrap; gap: 8px; }
+    .nb-filters select, .nb-filters input { max-width: 100%; min-width: 0; }
+}
+
+/* ── Small phones (480px) — only edge cases ──────────────── */
+@media (max-width: 480px) {
+    .main { padding: 64px 12px 16px; }
+
+    /* Stats */
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stat-card { padding: 14px 8px; }
+    .stat-card .number { font-size: 1.2rem; }
+
+    /* Hero */
+    .hero { min-height: 160px; }
+    .hero-content { padding: 22px 12px 20px; }
+    .hero h1 { font-size: 1.1rem; }
+    .hero-stats { gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .hero-court-overlay { width: 100px; height: 100px; }
+
+    /* Page header */
+    .page-header { flex-wrap: wrap; gap: 10px; margin-bottom: 18px; padding-bottom: 14px; }
+    .page-header h1 { font-size: 1rem; }
+
+    /* Player profile — stack vertically */
+    .player-profile-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .player-profile-number { font-size: 2rem; min-width: auto; }
+    .player-profile-name { font-size: 1.1rem; }
+    .player-profile-stats { gap: 6px; font-size: 0.78rem; }
+
+    /* Player rows — compact horizontal layout on mobile */
+    .player-row {
+        gap: 10px;
+        padding: 12px;
+        flex-wrap: wrap;
+    }
+    .player-number { font-size: 1.1rem; min-width: 32px; }
+    .player-name { font-size: 0.9rem; margin-bottom: 0; }
+    .player-info { flex: 1; min-width: 0; }
+    .player-details .player-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+    /* Hide strengths/weaknesses on mobile — show only in player profile page */
+    .player-details .strength-tag,
+    .player-details .weakness-tag { display: none; }
+    /* Radar chart below the row */
+    .player-mini-radar {
+        order: 10;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+    .player-mini-radar canvas { width: 100px; height: 100px; }
+    .player-actions { gap: 6px; }
+    .player-actions .btn { width: 44px; height: 44px; min-width: 44px; padding: 0; }
+
+    /* Team stats — horizontal scroll */
+    #teamStatsCard .card,
+    #teamStatsCard > div > div {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Card header wrap */
+    .card-header { flex-wrap: wrap; gap: 8px; }
+    .card-header .btn-sm { padding: 6px 10px; font-size: 0.75rem; }
+    .card { padding: 18px; }
+
+    /* Metrics — compact */
+    .metric-category { padding: 14px; }
+    .metric-item { gap: 8px; }
+    .metric-item label { font-size: 0.78rem; }
+
+    /* Radar */
+    .radar-card { padding: 14px 8px; }
+    .radar-legend { gap: 10px; }
+    .radar-legend-item { font-size: 0.72rem; }
+
+    /* Modals — full width buttons */
+    .modal-footer { flex-direction: column; }
+    .modal-footer .btn { width: 100%; }
+
+    /* Chat container */
+    .chat-container {
+        height: calc(100dvh - 56px); height: calc(100vh - 56px);
+    }
+
+    /* Agent strip — tighter on small phones */
+    .quick-actions { gap: 6px; margin: 0 -12px; padding: 8px 12px; }
+    .quick-action { padding: 8px 12px; font-size: 0.74rem; min-height: 38px; }
+
+    /* Chat input — compact */
+    .chat-input-bar { gap: 6px; }
+    .chat-input-bar input { padding: 10px 14px; border-radius: 22px; min-height: 40px; }
+    .chat-input-bar .btn-send { width: 40px; height: 40px; min-width: 40px; }
+    .chat-input-bar .btn-attach { width: 34px; min-width: 34px; }
+
+    /* Chat welcome — compact */
+    .chat-welcome { padding: 20px 12px; }
+    .chat-welcome h2 { font-size: 1rem; }
+    .chat-welcome p { font-size: 0.8rem; max-width: 260px; }
+
+    /* Session items */
+    .session-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .session-count { align-self: flex-end; }
+
+    /* File items */
+    .file-item { padding: 12px 14px; gap: 10px; }
+    .file-item .file-name { font-size: 0.85rem; }
+
+    /* Empty state */
+    .empty-state { padding: 40px 16px; }
+    .empty-state img, .empty-state svg { width: 48px; height: 48px; }
+
+    /* Sidebar brand */
+    .sidebar-brand { padding: 20px 18px 16px; }
+    .sidebar-brand img, .sidebar-brand svg.brand-basketball-icon { width: 70px; height: 70px; }
+
+    /* Back link */
+    .back-link { min-height: 44px; display: inline-flex; align-items: center; }
+}
+
+/* ── Tiny phones (380px) ─────────────────────────────────── */
+@media (max-width: 380px) {
+    .agents-grid { grid-template-columns: 1fr; }
+    .sidebar-brand img, .sidebar-brand svg.brand-basketball-icon { width: 60px; height: 60px; }
+}
+
+/* ── Accessibility ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

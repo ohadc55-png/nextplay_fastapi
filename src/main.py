@@ -8,12 +8,14 @@ later phases.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from sqlalchemy import text
@@ -21,6 +23,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from src.api import admin as admin_router
 from src.api import admin_emails as admin_emails_router
+from src.api import admin_orgs as admin_orgs_router
+from src.api import admin_pages as admin_pages_router
 from src.api import admin_tasks as admin_tasks_router
 from src.api import auth as auth_router
 from src.api import chat as chat_router
@@ -29,6 +33,10 @@ from src.api import composite as composite_router
 from src.api import email_auth as email_auth_router
 from src.api import notebook as notebook_router
 from src.api import oauth as oauth_router
+from src.api import onboarding as onboarding_router
+from src.api import org as org_router
+from src.api import org_pages as org_pages_router
+from src.api import pages as pages_router
 from src.api import players as players_router
 from src.api import plays as plays_router
 from src.api import push as push_router
@@ -41,6 +49,8 @@ from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import AppError
 from src.middleware.csrf import CSRFMiddleware
+from src.middleware.org_context import OrgContextMiddleware
+from src.middleware.rate_limit import RateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
 
 logger = logging.getLogger("nextplay")
@@ -73,11 +83,25 @@ async def lifespan(_app: FastAPI):
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
         logger.info("Database connection verified (%s)", _scrub_db_url(settings.database_url_async))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("Database connectivity check failed at startup: %s", exc)
         # Don't raise — let the app boot so /healthz can report degraded state.
 
-    # ChromaDB / S3 / migrations init will be wired in Phases 1, 5, 6.
+    # ChromaDB knowledge base — best-effort. Empty collection is fine
+    # (the tool wrapper degrades to "no matches"); a missing persist
+    # dir or a chromadb import error logs and continues. Cold-start
+    # cost is the persistent client opening a SQLite file on disk.
+    try:
+        from src.crew.knowledge_base import get_kb
+
+        kb = get_kb()
+        n = await kb.count()
+        logger.info(
+            "Knowledge base ready (%s docs, persist=%s)",
+            n, settings.CHROMA_PERSIST_DIR,
+        )
+    except Exception as exc:
+        logger.warning("Knowledge base init failed: %s", exc)
 
     yield
 
@@ -116,6 +140,12 @@ app = FastAPI(
 # CSRF must run before the route handler.
 # SessionMiddleware is required by Authlib OAuth (state storage).
 
+# OrgContextMiddleware must run AFTER SessionMiddleware on the request path so
+# it can read `request.session`. Starlette wraps in REVERSE-add order, so
+# adding it BEFORE SessionMiddleware (here) makes it INNERMOST in the stack
+# = it runs LAST before the route handler, i.e., AFTER SessionMiddleware.
+app.add_middleware(OrgContextMiddleware)
+
 # Authlib's OAuth client needs Starlette's SessionMiddleware to round-trip
 # the OAuth `state` between `/auth/<provider>` and `/<provider>/callback`.
 # A long random secret is used so a forged session cookie can't impersonate
@@ -128,6 +158,10 @@ app.add_middleware(
 )
 
 app.add_middleware(CSRFMiddleware)
+# Rate limiter MUST run before CSRF so a flood of bad CSRF requests
+# still gets capped. Starlette wraps in REVERSE-add order, so adding
+# RateLimitMiddleware AFTER CSRFMiddleware makes RateLimit run FIRST.
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
@@ -161,11 +195,25 @@ async def healthz() -> dict:
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
-    except Exception:  # noqa: BLE001
+    except Exception:
         db_ok = False
+
+    # KB readiness — "ready" if the persistent client connects (even
+    # with 0 documents); "empty" specifically calls out an empty
+    # collection so deploys notice when ingestion hasn't run yet.
+    chroma_status = "ready"
+    try:
+        from src.crew.knowledge_base import get_kb
+
+        n = await get_kb().count()
+        chroma_status = "ready" if n > 0 else "empty"
+    except Exception:
+        chroma_status = "unavailable"
+
     return {
         "status": "ok" if db_ok else "degraded",
         "db": "connected" if db_ok else "disconnected",
+        "chroma": chroma_status,
         "version": app.version,
         "environment": settings.RAILWAY_ENVIRONMENT or "local",
     }
@@ -188,7 +236,12 @@ app.include_router(push_router.router)
 app.include_router(admin_router.router)
 app.include_router(admin_tasks_router.router)
 app.include_router(admin_emails_router.router)
+app.include_router(admin_orgs_router.router)
+app.include_router(admin_pages_router.router)
+app.include_router(org_router.router)
+app.include_router(org_pages_router.router)
 app.include_router(notebook_router.router)
+app.include_router(onboarding_router.router)
 app.include_router(plays_router.router)
 app.include_router(scouting_router.router)
 app.include_router(coach_router.router)
@@ -203,3 +256,61 @@ app.include_router(uploads_router.router)
 # RAG + research land in subsequent batches)
 # ---------------------------------------------------------------------------
 app.include_router(chat_router.router)
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Frontend integration: static files, service workers, page routes
+# ---------------------------------------------------------------------------
+
+_FRONTEND_STATIC = "frontend/static"
+
+
+# Service workers MUST be served from the site root (not /static/) so the
+# browser grants them a `/` scope. Cache-Control: no-cache forces the
+# browser to revalidate the SW on every page load — without it, SW
+# updates can lag by hours. Mirrors v1 frontend/routes.py:15-44.
+
+@app.get("/sw.js", tags=["frontend"], include_in_schema=False)
+async def main_service_worker() -> FileResponse:
+    """Main SW — combines uploads + offline cache + push handlers."""
+    return FileResponse(
+        os.path.join(_FRONTEND_STATIC, "sw.js"),
+        media_type="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache, must-revalidate",
+        },
+    )
+
+
+@app.get("/upload-sw.js", tags=["frontend"], include_in_schema=False)
+async def upload_service_worker() -> FileResponse:
+    """Upload SW — `importScripts()`-able from /sw.js. Lives at root for
+    the same scope reason."""
+    return FileResponse(
+        os.path.join(_FRONTEND_STATIC, "js", "upload-sw.js"),
+        media_type="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache, must-revalidate",
+        },
+    )
+
+
+# StaticFiles must mount AFTER the explicit /sw.js + /upload-sw.js routes
+# above — they need first dibs on those paths. Everything under
+# `frontend/static/` is otherwise served at /static/...
+if os.path.isdir(_FRONTEND_STATIC):
+    app.mount(
+        "/static",
+        StaticFiles(directory=_FRONTEND_STATIC, follow_symlink=False),
+        name="static",
+    )
+else:
+    logger.warning(
+        "Frontend static dir not found at %s — page templates will fail.",
+        _FRONTEND_STATIC,
+    )
+
+# Page routes register LAST so the static + service-worker handlers win
+# at path collision time (e.g. if a template route ever shadowed /sw.js).
+app.include_router(pages_router.router)

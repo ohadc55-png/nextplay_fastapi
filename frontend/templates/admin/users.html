@@ -1,0 +1,127 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Users Overview</h2>
+    <p>{{ total }} registered users</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value">{{ total }}</div>
+        <div class="stat-sub">+{{ new_today }} today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">New This Week</div>
+        <div class="stat-value blue">{{ new_week }}</div>
+        <div class="stat-sub">{{ new_month }} this month</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active (7 days)</div>
+        <div class="stat-value green">{{ active_7d }}</div>
+        <div class="stat-sub">{% if total > 0 %}{{ (active_7d / total * 100) | round(1) }}% of total{% endif %}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Paying Users</div>
+        <div class="stat-value green">{{ plan_map.get('pro', 0) + plan_map.get('basic', 0) }}</div>
+        <div class="stat-sub">{{ plan_map.get('pro', 0) }} pro, {{ plan_map.get('basic', 0) }} basic</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Trial Users</div>
+        <div class="stat-value accent">{{ plan_map.get('trial', 0) }}</div>
+        <div class="stat-sub">{{ plan_map.get('expired', 0) }} expired</div>
+    </div>
+</div>
+
+<!-- Plan Distribution -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Plan Distribution</h3>
+    </div>
+    <div class="plan-bar">
+        {% for plan, count in plan_map.items() %}
+        <div class="plan-item">
+            <span class="plan-dot {{ plan }}"></span>
+            <span>{{ plan | capitalize }}: <strong>{{ count }}</strong></span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- User Table -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>All Users</h3>
+        <span class="card-subtitle">{{ users | length }} users</span>
+    </div>
+
+    <div class="search-wrapper">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" id="userSearch" placeholder="Search by email or name..." oninput="filterUsers()">
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table" id="usersTable">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Plan</th>
+                    <th>Trial Ends</th>
+                    <th>Last Login</th>
+                    <th class="text-right">Teams</th>
+                    <th class="text-right">Chats</th>
+                    <th class="text-right">Videos</th>
+                    <th class="text-right">Plays</th>
+                    <th>Joined</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr class="user-row">
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.display_name or '---' }}</td>
+                    <td>
+                        {% set plan = u.subscription_plan or 'none' %}
+                        <span class="badge badge-{{ plan }}">{{ plan }}</span>
+                    </td>
+                    <td class="text-muted">{{ (u.trial_ends_at|string)[:10] if u.trial_ends_at else '---' }}</td>
+                    <td class="text-muted">{{ (u.last_login_at|string)[:16] if u.last_login_at else 'Never' }}</td>
+                    <td class="text-right mono">{{ u.team_count }}</td>
+                    <td class="text-right mono">{{ u.chat_count }}</td>
+                    <td class="text-right mono">{{ u.video_count }}</td>
+                    <td class="text-right mono">{{ u.play_count }}</td>
+                    <td class="text-muted">{{ (u.created_at|string)[:10] if u.created_at else '---' }}</td>
+                </tr>
+                {% endfor %}
+                {% if not users %}
+                <tr>
+                    <td colspan="10">
+                        <div class="empty-state">
+                            <h4>No users yet</h4>
+                            <p>Users will appear here once they register.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+function filterUsers() {
+    const q = document.getElementById('userSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#usersTable tbody .user-row');
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

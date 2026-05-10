@@ -17,7 +17,6 @@ from httpx import AsyncClient
 
 from src.core.config import settings
 
-
 ADMIN_EMAIL = "admin@test.com"
 ADMIN_PASSWORD = "AdminPass1"
 

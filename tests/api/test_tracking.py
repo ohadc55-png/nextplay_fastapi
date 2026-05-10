@@ -12,12 +12,10 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.models.analytics import OnboardingEvent, PageView
 from src.models.teams import TeamProfile
 from src.models.users import User
-
 
 PV_BODY = {
     "session_id": "sess-abc",

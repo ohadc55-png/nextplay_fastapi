@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Play — NextPlay</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/play-creator.css') }}?v={{ config.get('CSS_VERSION', '2') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f1923;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header (matches clip_share) ── */
+    .share-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      background: rgba(15, 25, 35, 0.95);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .share-logo { height: 40px; border-radius: 8px; }
+    .share-brand {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #f48c25;
+      letter-spacing: 0.12em;
+    }
+    .share-badge {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ── Main content ── */
+    .share-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      max-width: 960px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── Court + controls layout ── */
+    .play-viewer-wrap {
+      width: 100%;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .play-court-area {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Hide ALL editing UI from play-creator ── */
+    .play-court-area .pc-toolbar,
+    .play-court-area .pc-sidebar,
+    .play-court-area .pc-step-actions,
+    .play-court-area .pc-tools,
+    .play-court-area [data-a="save"],
+    .play-court-area [data-a="share"],
+    .play-court-area [data-a="newPlay"],
+    .play-court-area [data-a="pmode"],
+    .play-court-area [data-a="toggleCourt"] { display: none !important; }
+
+    /* ── Playback controls panel ── */
+    .play-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(22, 29, 40, 0.95);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+    .play-ctrl-btn {
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      color: #94a3b8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .play-ctrl-btn .material-symbols-outlined {
+      font-size: 24px;
+    }
+    .play-ctrl-btn:hover {
+      background: rgba(255,107,53,0.15);
+      color: #f48c25;
+    }
+    .play-ctrl-btn.active {
+      background: rgba(255,107,53,0.2);
+      color: #f48c25;
+    }
+
+    /* ── Progress bar ── */
+    .play-progress-wrap {
+      width: 100%;
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+    }
+    .play-progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .play-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f48c25, #ff6b35);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.15s linear;
+    }
+    .play-progress-label {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 0.72rem;
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── CTA (matches clip_share) ── */
+    .share-cta {
+      width: 100%;
+      margin-top: 24px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(244,140,37,0.1), rgba(244,140,37,0.05));
+      border: 1px solid rgba(244,140,37,0.2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .share-cta-text { font-size: 0.95rem; color: #cbd5e1; }
+    .share-cta-text strong { color: #f48c25; }
+    .share-cta-btn {
+      padding: 10px 24px;
+      background: #f48c25;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .share-cta-btn:hover { background: #e07b1a; }
+
+    /* ── Error state ── */
+    .share-error {
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .share-error .material-symbols-outlined { font-size: 64px; color: #475569; display: block; margin-bottom: 16px; }
+    .share-error h2 { color: #94a3b8; font-size: 1.3rem; margin-bottom: 8px; }
+    .share-error p { color: #64748b; }
+
+    /* ── Mobile ── */
+    @media (max-width: 640px) {
+      .share-main { padding: 12px 8px; }
+      .play-viewer-wrap { flex-direction: column; }
+      .play-controls {
+        flex-direction: row;
+        justify-content: center;
+        width: 100%;
+      }
+      .play-ctrl-btn { width: 44px; height: 44px; }
+      .share-cta { flex-direction: column; text-align: center; }
+      .share-cta-btn { width: 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="share-header">
+    <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" class="share-logo">
+    <span class="share-brand">NEXTPLAY</span>
+    <span class="share-badge">
+      <span class="material-symbols-outlined">share</span> Shared Play
+    </span>
+  </header>
+
+  <main class="share-main">
+    {% if not play_data %}
+    <div class="share-error">
+      <span class="material-symbols-outlined">link_off</span>
+      <h2>Play not found</h2>
+      <p>This share link is invalid or has been removed.</p>
+    </div>
+    {% else %}
+
+    <div class="play-viewer-wrap">
+      <div class="play-court-area">
+        <div id="playCreatorRoot"></div>
+      </div>
+
+      <div class="play-controls">
+        <button class="play-ctrl-btn" id="btnPlay" onclick="togglePlay()" title="Play">
+          <span class="material-symbols-outlined">play_arrow</span>
+        </button>
+        <button class="play-ctrl-btn" id="btnRestart" onclick="restartPlay()" title="Restart">
+          <span class="material-symbols-outlined">replay</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="play-progress-wrap">
+      <div class="play-progress-bar">
+        <div class="play-progress-fill" id="progressFill"></div>
+      </div>
+      <div class="play-progress-label">
+        <span id="progressTime">0.0s</span>
+        <span id="progressDuration">0.0s</span>
+      </div>
+    </div>
+
+    <div class="share-cta">
+      <div class="share-cta-text"><strong>NextPlay</strong> — AI Basketball Coaching Platform</div>
+      <a href="/register" class="share-cta-btn">Try NextPlay Free</a>
+    </div>
+
+    {% endif %}
+  </main>
+
+  {% if play_data %}
+  <script src="{{ url_for('static', filename='js/play-creator.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+  <script nonce="{{ g.csp_nonce }}">
+    const pc = new PlayCreator(document.getElementById('playCreatorRoot'));
+    let isPlaying = false;
+    let progressInterval = null;
+
+    try {
+      pc.loadPlay({{ play_data | tojson }});
+    } catch(e) { console.error('Failed to load shared play:', e); }
+
+    // Update duration label
+    const durLabel = document.getElementById('progressDuration');
+    if (durLabel && pc.duration) durLabel.textContent = pc.duration.toFixed(1) + 's';
+
+    function togglePlay() {
+      const btn = document.getElementById('btnPlay');
+      const icon = btn.querySelector('.material-symbols-outlined');
+      if (isPlaying) {
+        pc.pause();
+        isPlaying = false;
+        icon.textContent = 'play_arrow';
+        btn.classList.remove('active');
+        stopProgress();
+      } else {
+        pc.play();
+        isPlaying = true;
+        icon.textContent = 'pause';
+        btn.classList.add('active');
+        startProgress();
+      }
+    }
+
+    function restartPlay() {
+      pc.stop();
+      isPlaying = false;
+      const btn = document.getElementById('btnPlay');
+      const icon = btn.querySelector('.material-symbols-outlined');
+      icon.textContent = 'play_arrow';
+      btn.classList.remove('active');
+      document.getElementById('progressFill').style.width = '0%';
+      document.getElementById('progressTime').textContent = '0.0s';
+      stopProgress();
+      // Auto-play after restart
+      setTimeout(() => togglePlay(), 300);
+    }
+
+    function startProgress() {
+      stopProgress();
+      progressInterval = setInterval(() => {
+        if (!pc.duration) return;
+        const pct = Math.min(100, (pc.progress / pc.duration) * 100);
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressTime').textContent = pc.progress.toFixed(1) + 's';
+        if (pc.progress >= pc.duration) {
+          isPlaying = false;
+          const btn = document.getElementById('btnPlay');
+          btn.querySelector('.material-symbols-outlined').textContent = 'play_arrow';
+          btn.classList.remove('active');
+          stopProgress();
+        }
+      }, 100);
+    }
+
+    function stopProgress() {
+      if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+    }
+
+    // Auto-play on load
+    setTimeout(() => togglePlay(), 800);
+  </script>
+  {% endif %}
+</body>
+</html>

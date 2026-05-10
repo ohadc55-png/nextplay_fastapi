@@ -1,0 +1,214 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Feature Usage{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Feature Usage</h2>
+    <p>How users engage with NextPlay features</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Chats</div>
+        <div class="stat-value accent">{{ '{:,}'.format(total_chats) }}</div>
+        <div class="stat-sub">unique sessions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Videos</div>
+        <div class="stat-value blue">{{ '{:,}'.format(total_videos) }}</div>
+        <div class="stat-sub">scouting uploads</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Plays</div>
+        <div class="stat-value green">{{ '{:,}'.format(total_plays) }}</div>
+        <div class="stat-sub">plays created</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Uploads</div>
+        <div class="stat-value">{{ '{:,}'.format(total_uploads) }}</div>
+        <div class="stat-sub">data files</div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="admin-grid-2">
+    <!-- Agent Usage -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Agent Usage</h3>
+            <span class="card-subtitle">messages per agent</span>
+        </div>
+        {% if agent_usage %}
+        <div class="chart-container">
+            <canvas id="agentUsageChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h4>No conversations yet</h4>
+            <p>Agent usage breakdown will appear after users start chatting.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Daily Messages -->
+    <div class="admin-card">
+        <div class="admin-card-header">
+            <h3>Daily Messages (30 days)</h3>
+        </div>
+        {% if daily_messages %}
+        <div class="chart-container">
+            <canvas id="dailyMessagesChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h4>No messages yet</h4>
+            <p>Daily message trend will appear after users start chatting.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Feature Adoption -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Feature Adoption</h3>
+        <span class="card-subtitle">% of {{ total_users }} users who used each feature</span>
+    </div>
+
+    <div class="adoption-list">
+        <div class="adoption-row">
+            <span class="adoption-label">Chat</span>
+            <div class="adoption-track">
+                <div class="adoption-fill" style="width: {{ adoption.chat }}%"></div>
+            </div>
+            <span class="adoption-pct">{{ adoption.chat }}%</span>
+        </div>
+        <div class="adoption-row">
+            <span class="adoption-label">Videos</span>
+            <div class="adoption-track">
+                <div class="adoption-fill blue" style="width: {{ adoption.video }}%"></div>
+            </div>
+            <span class="adoption-pct">{{ adoption.video }}%</span>
+        </div>
+        <div class="adoption-row">
+            <span class="adoption-label">Plays</span>
+            <div class="adoption-track">
+                <div class="adoption-fill green" style="width: {{ adoption.play }}%"></div>
+            </div>
+            <span class="adoption-pct">{{ adoption.play }}%</span>
+        </div>
+        <div class="adoption-row">
+            <span class="adoption-label">Uploads</span>
+            <div class="adoption-track">
+                <div class="adoption-fill purple" style="width: {{ adoption.upload }}%"></div>
+            </div>
+            <span class="adoption-pct">{{ adoption.upload }}%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Usage Table -->
+{% if agent_usage %}
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Agent Breakdown</h3>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th class="text-right">Messages</th>
+                    <th class="text-right">Share</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set total_msgs = agent_usage | sum(attribute='cnt') %}
+                {% for a in agent_usage %}
+                <tr>
+                    <td>{{ a.agent_used or 'default' }}</td>
+                    <td class="text-right mono">{{ '{:,}'.format(a.cnt) }}</td>
+                    <td class="text-right mono">{{ '%.1f' | format(a.cnt / total_msgs * 100 if total_msgs else 0) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+Chart.defaults.color = '#9ba4b0';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+
+// Agent Usage Bar Chart
+const agentData = {{ agent_usage | tojson }};
+if (agentData.length > 0 && document.getElementById('agentUsageChart')) {
+    const colors = ['#ff6b35', '#4da6ff', '#3fb950', '#f0b429', '#bc8ff3', '#f85149', '#e6edf3', '#ff9a6c'];
+    new Chart(document.getElementById('agentUsageChart'), {
+        type: 'bar',
+        data: {
+            labels: agentData.map(d => d.agent_used || 'default'),
+            datasets: [{
+                label: 'Messages',
+                data: agentData.map(d => d.cnt),
+                backgroundColor: agentData.map((_, i) => colors[i % colors.length] + '99'),
+                borderColor: agentData.map((_, i) => colors[i % colors.length]),
+                borderWidth: 1,
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Daily Messages Line Chart
+const dailyData = {{ daily_messages | tojson }};
+if (dailyData.length > 0 && document.getElementById('dailyMessagesChart')) {
+    new Chart(document.getElementById('dailyMessagesChart'), {
+        type: 'line',
+        data: {
+            labels: dailyData.map(d => d.day),
+            datasets: [{
+                label: 'Messages',
+                data: dailyData.map(d => d.cnt),
+                borderColor: '#4da6ff',
+                backgroundColor: 'rgba(77, 166, 255, 0.08)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#4da6ff',
+                pointBorderColor: '#161d28',
+                pointBorderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { maxTicksLimit: 10 }
+                },
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

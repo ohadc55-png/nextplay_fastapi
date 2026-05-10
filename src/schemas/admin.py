@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date as Date
+from datetime import date as Date  # noqa: N812 — capitalized as a type alias
 
 from pydantic import BaseModel, Field
 
@@ -74,12 +74,12 @@ class AdminTaskCommentResponse(ORMModel):
 
 
 __all__ = [
-    "AdminTaskCreate",
-    "AdminTaskUpdate",
-    "AdminTaskResponse",
-    "AdminTaskSubtaskCreate",
-    "AdminTaskSubtaskUpdate",
-    "AdminTaskSubtaskResponse",
     "AdminTaskCommentCreate",
     "AdminTaskCommentResponse",
+    "AdminTaskCreate",
+    "AdminTaskResponse",
+    "AdminTaskSubtaskCreate",
+    "AdminTaskSubtaskResponse",
+    "AdminTaskSubtaskUpdate",
+    "AdminTaskUpdate",
 ]

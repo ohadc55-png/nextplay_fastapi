@@ -6,8 +6,15 @@ depends on continue to work.
 
 CSP nonce: a per-request random token is exposed via `request.state.csp_nonce`
 so Jinja2 templates can render `<script nonce="{{ csp_nonce }}">` for inline
-scripts that must execute. The CSP header includes that nonce in
-`script-src 'nonce-...'`.
+scripts that explicitly need it. The CSP header itself uses
+`'unsafe-inline'` (matches v1) so unmarked inline scripts still execute —
+v1's templates have many such scripts (loader fade-out, OAuth callback
+flow, Service Worker registration) and the migration plan §1 says
+"frontend unchanged". A `'nonce-...'` would override `'unsafe-inline'`
+in modern browsers, so we deliberately omit the nonce from script-src
+to keep v1 compatibility. Templates that DO want a nonce can still read
+it from `g.csp_nonce` for defense-in-depth on dynamically-injected
+script blocks (none in current code).
 """
 
 from __future__ import annotations
@@ -22,13 +29,16 @@ from starlette.types import ASGIApp
 from src.core.config import settings
 
 
-def _build_csp(nonce: str) -> str:
+def _build_csp(_nonce: str) -> str:
     """Render the CSP header value. Allowlist matches v1.0-flask
     (`backend/auth/middleware.py:43-58`) — Google OAuth, Apple, Facebook,
-    YouTube, Vimeo, Video.js CDN, fonts, S3 (eu-central-1), CloudFront."""
+    YouTube, Vimeo, Video.js CDN, fonts, S3 (eu-central-1), CloudFront.
+
+    `nonce` is accepted for forward compatibility but deliberately NOT
+    inserted into `script-src` — see module docstring."""
     return (
         "default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline' 'nonce-{nonce}' "
+        "script-src 'self' 'unsafe-inline' "
         "https://accounts.google.com "
         "https://appleid.cdn-apple.com https://connect.facebook.net "
         "https://vjs.zencdn.net https://www.youtube.com https://s.ytimg.com "
@@ -70,7 +80,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.hsts_in_production = hsts_in_production
 
-    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001
+    async def dispatch(self, request: Request, call_next) -> Response:
         # Generate the nonce BEFORE the response is built so templates /
         # downstream code can read it.
         nonce = secrets.token_urlsafe(16)

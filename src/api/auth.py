@@ -31,12 +31,16 @@ from src.schemas.common import StatusResponse
 from src.schemas.users import UserMeResponse
 from src.services.auth_service import (
     authenticate,
-    change_password as svc_change_password,
-    delete_account as svc_delete_account,
     issue_token_pair,
     register_user,
     revoke_refresh,
     rotate_refresh,
+)
+from src.services.auth_service import (
+    change_password as svc_change_password,
+)
+from src.services.auth_service import (
+    delete_account as svc_delete_account,
 )
 
 logger = logging.getLogger(__name__)

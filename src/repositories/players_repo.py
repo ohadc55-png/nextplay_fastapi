@@ -12,7 +12,6 @@ keeps it atomic at the DB level.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from sqlalchemy import select, update
@@ -116,7 +115,7 @@ class PlayerGameStatsRepository(TeamScopedRepository[PlayerGameStat]):
 
 
 __all__ = [
-    "PlayersRepository",
-    "PlayerMetricsRepository",
     "PlayerGameStatsRepository",
+    "PlayerMetricsRepository",
+    "PlayersRepository",
 ]

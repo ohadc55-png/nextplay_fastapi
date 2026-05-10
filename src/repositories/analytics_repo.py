@@ -61,8 +61,8 @@ class ResearchUrlLogRepository(BaseRepository[ResearchUrlLog]):
 
 
 __all__ = [
-    "PageViewsRepository",
-    "OnboardingEventsRepository",
     "ApiUsageLogsRepository",
+    "OnboardingEventsRepository",
+    "PageViewsRepository",
     "ResearchUrlLogRepository",
 ]

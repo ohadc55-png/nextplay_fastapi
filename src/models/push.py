@@ -56,4 +56,4 @@ class PushLog(Base):
     )
 
 
-__all__ = ["PushSubscription", "PushLog"]
+__all__ = ["PushLog", "PushSubscription"]

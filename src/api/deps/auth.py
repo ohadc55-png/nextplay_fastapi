@@ -18,14 +18,11 @@ The order is mandated: auth → subscription class → pro tier.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-
 from fastapi import Cookie, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.jwt_service import decode_access_token
 from src.auth.purge_service import maybe_flip_expired, purge_user_data, should_purge
-from src.core.config import settings
 from src.core.database import get_db
 from src.core.exceptions import ForbiddenError, SubscriptionError, UnauthorizedError
 from src.models.users import User
@@ -92,7 +89,7 @@ async def get_current_user(
     # Trial → expired auto-flip (best-effort; failure shouldn't block auth).
     try:
         await maybe_flip_expired(db, user)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     # Data-purge trigger — the 30-day grace period has elapsed for an
@@ -102,7 +99,7 @@ async def get_current_user(
         try:
             await purge_user_data(db, user.id)
             user.data_purge_at = None
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
     request.state.user = user
@@ -186,9 +183,9 @@ async def get_current_admin(request: Request) -> str:
 __all__ = [
     "ACCESS_COOKIE_NAME",
     "ADMIN_SESSION_KEY",
+    "get_current_admin",
     "get_current_user",
     "get_current_user_optional",
     "require_active_subscription",
     "require_pro",
-    "get_current_admin",
 ]

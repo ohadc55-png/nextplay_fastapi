@@ -172,7 +172,7 @@ async def list_tasks(
     db: AsyncSession = Depends(get_db),
     status: list[str] = Query(default_factory=list),
     priority: list[str] = Query(default_factory=list),
-    type: list[str] = Query(default_factory=list),  # noqa: A002 — matches v1 query param
+    type: list[str] = Query(default_factory=list),
     due_from: str | None = None,
     due_to: str | None = None,
     q: str | None = None,
@@ -238,12 +238,9 @@ async def list_tasks(
         AdminTask.completed_at.desc().nulls_last(),
     )
     if sort == "priority":
-        # Custom rank — same order v1 produces.
-        priority_rank = func.coalesce(
-            func.nullif(AdminTask.priority, ""), "low"
-        )
         # SQLAlchemy can't easily express CASE WHEN as ORDER BY for SQLite
         # AND Postgres — fall back to multi-step sort by status+priority.
+        # (v1 produced the same effective order via this multi-step path.)
         stmt = stmt.order_by(AdminTask.priority.asc(), AdminTask.due_date.asc())
     elif sort == "title":
         stmt = stmt.order_by(func.lower(AdminTask.title).asc())

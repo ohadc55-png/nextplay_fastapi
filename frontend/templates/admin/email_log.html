@@ -1,0 +1,113 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Email Log{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+        <h2>Email Log</h2>
+        <p>Audit trail of every outbound email — last 200</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a href="{{ url_for('admin.email_compose_view') }}" class="btn-primary" style="text-decoration:none;padding:8px 16px;border-radius:8px;background:var(--admin-accent);color:#fff;font-weight:600;font-size:13px;">+ Compose</a>
+        <a href="{{ url_for('admin.mailing_lists_view') }}" class="btn-secondary" style="text-decoration:none;padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.06);color:var(--admin-text);font-weight:600;font-size:13px;border:1px solid var(--admin-border-2);">Mailing Lists</a>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Sent (24h)</div>
+        <div class="stat-value">{{ total_24h }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Sent (7d)</div>
+        <div class="stat-value blue">{{ total_7d }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Sent (30d)</div>
+        <div class="stat-value">{{ total_30d }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Failed (30d)</div>
+        <div class="stat-value" style="color:{% if failed_30d > 0 %}#ff6b6b{% else %}var(--admin-text){% endif %};">{{ failed_30d }}</div>
+    </div>
+</div>
+
+<div class="admin-card" style="margin-top:24px;">
+    <h3 style="margin:0 0 14px 0;font-size:1rem;">By template (30d)</h3>
+    {% if by_template %}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for t in by_template %}
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--admin-bg-2);border:1px solid var(--admin-border-2);border-radius:999px;font-size:13px;color:var(--admin-text-2);">
+            <strong style="color:var(--admin-text);">{{ t.template }}</strong>
+            <span style="color:var(--admin-text-3);">{{ t.cnt }}</span>
+        </span>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--admin-text-3);font-size:0.88rem;">No emails sent in the last 30 days.</p>
+    {% endif %}
+</div>
+
+<div class="admin-card" style="margin-top:24px;">
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:16px;">
+        <div>
+            <label style="display:block;font-size:0.72rem;color:var(--admin-text-2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Email contains</label>
+            <input type="text" name="email" value="{{ filter_email }}" placeholder="coach@…" class="form-input" style="width:240px;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.72rem;color:var(--admin-text-2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Template</label>
+            <select name="template" class="form-input" style="width:200px;">
+                <option value="">All</option>
+                {% for t in templates %}
+                <option value="{{ t }}" {% if t == filter_template %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label style="display:block;font-size:0.72rem;color:var(--admin-text-2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Status</label>
+            <select name="status" class="form-input" style="width:140px;">
+                <option value="">All</option>
+                <option value="sent" {% if filter_status == 'sent' %}selected{% endif %}>Sent</option>
+                <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Failed</option>
+                <option value="suppressed" {% if filter_status == 'suppressed' %}selected{% endif %}>Suppressed</option>
+            </select>
+        </div>
+        <button type="submit" class="btn-primary" style="padding:9px 18px;border-radius:8px;background:var(--admin-accent);color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;">Filter</button>
+        <a href="{{ url_for('admin.email_log_view') }}" style="padding:9px 14px;color:var(--admin-text-2);text-decoration:none;font-size:13px;">Reset</a>
+    </form>
+
+    {% if rows %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Recipient</th>
+                <th>Template</th>
+                <th>Lang</th>
+                <th>Status</th>
+                <th>Subject</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td style="font-size:0.78rem;color:var(--admin-text-2);white-space:nowrap;">{{ (r.sent_at or r.created_at)|string|truncate(16, True, '') }}</td>
+                <td style="font-size:0.82rem;">{{ r.to_email }}</td>
+                <td style="font-size:0.82rem;color:var(--admin-text-2);">{{ r.template }}</td>
+                <td style="font-size:0.78rem;color:var(--admin-text-3);">{{ r.language or '—' }}</td>
+                <td>
+                    {% if r.status == 'sent' %}<span style="color:#3fb68b;font-weight:600;font-size:0.78rem;">SENT</span>
+                    {% elif r.status == 'failed' %}<span style="color:#ff6b6b;font-weight:600;font-size:0.78rem;" title="{{ r.error or '' }}">FAILED</span>
+                    {% elif r.status == 'suppressed' %}<span style="color:#d4a14a;font-weight:600;font-size:0.78rem;">SUPPRESSED</span>
+                    {% else %}<span style="color:var(--admin-text-3);font-size:0.78rem;">{{ r.status|upper }}</span>{% endif %}
+                </td>
+                <td style="font-size:0.82rem;color:var(--admin-text);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.subject or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--admin-text-3);font-size:0.88rem;text-align:center;padding:32px;">No emails match your filters.</p>
+    {% endif %}
+</div>
+{% endblock %}

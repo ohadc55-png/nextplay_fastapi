@@ -11,6 +11,7 @@ fetch on every navigation / first-use milestone, so the router must be:
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,13 +69,13 @@ async def log_onboarding_event(
     ):
         return StatusResponse(status="ok", detail="already recorded")
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     row = OnboardingEvent(
         user_id=user.id,
         team_id=user.active_team_id,
         event=body.event,
-        first_seen=datetime.now(timezone.utc).isoformat(),
+        first_seen=datetime.now(UTC).isoformat(),
     )
     await repo.create(row)
     return StatusResponse(status="ok")

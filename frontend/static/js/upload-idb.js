@@ -1,0 +1,85 @@
+/* ══════════ NextPlay Upload IDB Helper ══════════
+ * Shared by upload-client.js (page) and upload-sw.js (Service Worker).
+ * Two stores: 'jobs' (metadata) and 'blobs' (File contents).
+ * Exposes self.NextPlayUploadIDB for both window and ServiceWorker scopes.
+ */
+(function(scope) {
+  'use strict';
+
+  var DB_NAME = 'nextplay-uploads';
+  var DB_VERSION = 1;
+  var JOBS_STORE = 'jobs';
+  var BLOBS_STORE = 'blobs';
+
+  var _dbPromise = null;
+
+  function openDB() {
+    if (_dbPromise) return _dbPromise;
+    _dbPromise = new Promise(function(resolve, reject) {
+      var req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = function(e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(JOBS_STORE)) {
+          db.createObjectStore(JOBS_STORE, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(BLOBS_STORE)) {
+          db.createObjectStore(BLOBS_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+    return _dbPromise;
+  }
+
+  function tx(storeName, mode) {
+    return openDB().then(function(db) {
+      return db.transaction(storeName, mode).objectStore(storeName);
+    });
+  }
+
+  function wrap(req) {
+    return new Promise(function(resolve, reject) {
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  var IDB = {
+    async putJob(job) {
+      var store = await tx(JOBS_STORE, 'readwrite');
+      return wrap(store.put(job));
+    },
+    async getJob(id) {
+      var store = await tx(JOBS_STORE, 'readonly');
+      return wrap(store.get(id));
+    },
+    async listJobs() {
+      var store = await tx(JOBS_STORE, 'readonly');
+      return wrap(store.getAll());
+    },
+    async deleteJob(id) {
+      var store = await tx(JOBS_STORE, 'readwrite');
+      return wrap(store.delete(id));
+    },
+    async putBlob(id, blob) {
+      var store = await tx(BLOBS_STORE, 'readwrite');
+      return wrap(store.put({ id: id, blob: blob }));
+    },
+    async getBlob(id) {
+      var store = await tx(BLOBS_STORE, 'readonly');
+      var rec = await wrap(store.get(id));
+      return rec ? rec.blob : null;
+    },
+    async deleteBlob(id) {
+      var store = await tx(BLOBS_STORE, 'readwrite');
+      return wrap(store.delete(id));
+    },
+    async deleteJobAndBlob(id) {
+      await IDB.deleteJob(id);
+      await IDB.deleteBlob(id);
+    }
+  };
+
+  scope.NextPlayUploadIDB = IDB;
+})(typeof self !== 'undefined' ? self : this);

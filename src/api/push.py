@@ -166,11 +166,11 @@ async def push_set_preferences(
 async def push_test(
     _body: PushTestRequest | None = None,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Fire a test push to self. Bypasses daily cap + quiet hours so a
-    coach can verify their device during onboarding. Real delivery lands
-    in Phase 7; for now we ack so the UI flow works."""
-    return await push_service.send_test_push(user_id=user.id)
+    coach can verify their device during onboarding."""
+    return await push_service.send_test_push(db, user_id=user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -181,12 +181,9 @@ async def push_test(
 async def push_run_jobs(
     x_cron_secret: str | None = Header(default=None, alias="X-Cron-Secret"),
 ) -> dict:
-    """External cron hits this hourly. The runner that decides who's due
-    for which reminder (48h-inactive / roster-incomplete) lands in Phase 7.
-
-    Auth is fail-closed: if `CRON_SECRET` isn't configured the endpoint
-    refuses all calls (503), so an unconfigured prod can never silently
-    expose this."""
+    """External cron hits this hourly. Fail-closed: when `CRON_SECRET`
+    isn't configured the endpoint refuses all calls (503), so an
+    unconfigured prod can never silently expose this."""
     expected = (settings.CRON_SECRET or "").strip()
     if not expected:
         raise HTTPException(status_code=503, detail="CRON_SECRET not configured")
@@ -194,6 +191,5 @@ async def push_run_jobs(
     if presented != expected:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Phase 7 will wire `run_all_due_jobs()` here.
-    logger.info("[push] cron tick — STUB (Phase 7 will wire scheduler)")
-    return {"ok": True, "stats": {"stub": True}}
+    stats = await push_service.run_push_jobs()
+    return {"ok": True, "stats": stats}

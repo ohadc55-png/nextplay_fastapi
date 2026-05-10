@@ -1,10 +1,9 @@
-"""Scouting Room — async port of the non-S3 portion of v1's scouting routes.
+"""Scouting Room — async port of v1's scouting routes.
 
-Phase 4 scope (this batch): CRUD for videos, clips, annotations, playlists,
-scouting-players, compile-cards, plus quota readback and public clip-share
-viewer. The S3 plumbing — upload-config, presigned uploads, multipart
-completion, video proxy, photo upload, asset signing — is deferred to
-Phase 6 alongside the aioboto3 client wiring.
+Phase 4 + 6 combined: CRUD for videos, clips, annotations, playlists,
+scouting-players, compile-cards, plus quota readback, public clip-share
+viewer, AND the S3 plumbing — upload-config, presigned uploads, multipart
+completion, video proxy.
 
 Endpoints (all under /api/scouting unless noted):
 
@@ -38,7 +37,6 @@ from __future__ import annotations
 
 import json
 import logging
-import secrets
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
@@ -57,7 +55,6 @@ from src.models.scouting import (
     PlaylistItem,
     ScoutingPlayer,
     ScoutingVideo,
-    StorageQuota,
     VideoAnnotation,
     VideoClip,
 )
@@ -170,6 +167,101 @@ class _VideoUpdateBody(BaseModel):
     opponent: str | None = None
     game_date: str | None = None
     keep_forever: bool | None = None
+
+
+# ---------------------------------------------------------------------------
+# S3 plumbing — upload config, presigned uploads, multipart, playback URL
+# (Phase 6 batch 2/3)
+# ---------------------------------------------------------------------------
+
+class _PresignUploadBody(BaseModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    file_size: int = Field(gt=0, le=10 * 1024 * 1024 * 1024)  # cap 10 GB
+    content_type: str = Field(min_length=1, max_length=100)
+
+
+class _MultipartCompleteBody(BaseModel):
+    key: str = Field(min_length=1, max_length=512)
+    upload_id: str = Field(min_length=1, max_length=200)
+    parts: list[dict[str, Any]] = Field(min_length=1, max_length=500)
+
+
+@router.get("/upload-config")
+async def upload_config(_user: User = Depends(require_pro)) -> dict:
+    """Frontend-safe upload config. Returns provider="local" when AWS
+    credentials are missing — the SPA falls back to /api/scouting/local/upload."""
+    from src.services import s3 as s3_module
+
+    return s3_module.get_upload_config()
+
+
+@router.post("/s3/presign-upload")
+async def presign_upload(
+    body: _PresignUploadBody,
+    user: User = Depends(require_pro),
+) -> dict:
+    """Issue presigned URL(s) so the browser can upload directly to S3.
+
+    Returns single-PUT for files ≤100MB, multipart for larger. The S3
+    key embeds `user_id` server-side — the client never controls it,
+    so a coach cannot stash a file under another coach's prefix."""
+    from src.services import s3 as s3_module
+
+    if not s3_module.is_configured():
+        raise HTTPException(status_code=503, detail="S3 is not configured on this server")
+    try:
+        return await s3_module.create_presigned_upload(
+            file_name=body.file_name,
+            file_size=body.file_size,
+            content_type=body.content_type,
+            user_id=user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/s3/complete-multipart")
+async def s3_complete_multipart(
+    body: _MultipartCompleteBody,
+    user: User = Depends(require_pro),
+) -> dict:
+    """Finalize a multipart upload — `parts` is the etag-list the
+    browser collected after each PUT. Tenant guard: the `key` must be
+    in this user's prefix (videos/<user_id>/...) otherwise we refuse —
+    a coach cannot finalize an upload to another coach's prefix even
+    if they somehow got the upload_id."""
+    expected_prefix = f"videos/{user.id}/"
+    if not body.key.startswith(expected_prefix):
+        raise HTTPException(status_code=403, detail="Cross-tenant upload key")
+    from src.services import s3 as s3_module
+
+    try:
+        await s3_module.complete_multipart(
+            key=body.key, upload_id=body.upload_id, parts=body.parts,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@router.get("/video-proxy/{video_id}")
+async def video_proxy(
+    video_id: int,
+    user: User = Depends(require_pro),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return a fresh playback URL for a video. CloudFront URL when
+    configured, otherwise a presigned GET valid for 1 hour. Tenant-
+    scoped — only the owning coach can request the URL."""
+    v = await _video_owned_by(db, video_id, user.id)
+    if not v:
+        raise HTTPException(status_code=404, detail="Not found")
+    from src.services import s3 as s3_module
+
+    url = await s3_module.get_video_url(v.s3_key or "")
+    if not url:
+        raise HTTPException(status_code=404, detail="Video has no playback source")
+    return {"url": url, "expires_in": s3_module.PRESIGN_EXPIRY_GET}
 
 
 @router.post("/videos", status_code=201)
@@ -320,7 +412,23 @@ async def delete_video(
     v = await _video_owned_by(db, video_id, user.id)
     if not v:
         raise HTTPException(status_code=404, detail="Not found")
-    # S3 object cleanup happens in Phase 6 (deferred until aioboto3 lands).
+    # Delete the S3 object first, then the DB row. Order matters: if S3
+    # delete fails, the DB row stays so a sweep job can retry. The
+    # opposite order would orphan the S3 object on the first failure.
+    s3_key = v.s3_key or ""
+    if s3_key and not s3_key.startswith("local/"):
+        from src.services import s3 as s3_module
+
+        ok = await s3_module.delete_object(s3_key)
+        if not ok:
+            logger.warning(
+                "[scouting] S3 delete failed for video=%s key=%s — DB row kept",
+                video_id, s3_key,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Could not delete video file. Try again in a moment.",
+            )
     await db.execute(delete(ScoutingVideo).where(ScoutingVideo.id == video_id))
     await db.flush()
     return {"ok": True}

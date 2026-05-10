@@ -13,9 +13,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -113,8 +113,8 @@ def _trial_days_left(trial_ends_at: str | None) -> int:
     except (ValueError, TypeError):
         return 0
     if ends.tzinfo is None:
-        ends = ends.replace(tzinfo=timezone.utc)
-    delta = ends - datetime.now(timezone.utc)
+        ends = ends.replace(tzinfo=UTC)
+    delta = ends - datetime.now(UTC)
     return max(0, delta.days)
 
 

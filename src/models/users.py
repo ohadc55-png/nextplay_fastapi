@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, SmallInteger, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -27,6 +27,7 @@ from src.core.database import Base
 if TYPE_CHECKING:
     from src.models.clubs import Club
     from src.models.teams import TeamProfile
+    from src.models.user_organizations import UserOrganization
 
 
 class User(Base):
@@ -82,10 +83,23 @@ class User(Base):
     # Data purge (from add_data_purge_at)
     data_purge_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Multi-org Enterprise (Phase 0): the org context the user is currently "in".
+    # NULL for private coaches.
+    active_organization_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships — populated as their target models land in later batches.
-    club: Mapped["Club | None"] = relationship("Club", back_populates="members", lazy="raise")
-    teams: Mapped[list["TeamProfile"]] = relationship(
+    club: Mapped[Club | None] = relationship("Club", back_populates="members", lazy="raise")
+    teams: Mapped[list[TeamProfile]] = relationship(
         "TeamProfile", back_populates="owner", lazy="raise", foreign_keys="TeamProfile.user_id"
+    )
+    organizations: Mapped[list[UserOrganization]] = relationship(
+        "UserOrganization",
+        back_populates="user",
+        lazy="raise",
+        foreign_keys="UserOrganization.user_id",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (

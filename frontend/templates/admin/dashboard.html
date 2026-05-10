@@ -1,0 +1,899 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Dashboard</h2>
+    <p>Tasks, priorities, and key metrics</p>
+</div>
+
+<!-- ── Top Metrics ─────────────────────────────────────────── -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value">{{ total_users }}</div>
+        <div class="stat-sub">Registered accounts</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">New This Week</div>
+        <div class="stat-value blue">{{ new_7d }}</div>
+        <div class="stat-sub">Last 7 days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">New This Month</div>
+        <div class="stat-value green">{{ new_30d }}</div>
+        <div class="stat-sub">Last 30 days</div>
+    </div>
+</div>
+
+<!-- ── Growth Chart (small) ───────────────────────────────── -->
+<div class="admin-card dashboard-chart-card">
+    <div class="admin-card-header">
+        <h3>User Growth — last 30 days</h3>
+    </div>
+    <div class="dashboard-chart-wrap">
+        <canvas id="growthChart"></canvas>
+    </div>
+</div>
+
+<!-- ── Priority Strip ─────────────────────────────────────── -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>Open Tasks</h3>
+        <span class="card-subtitle">{{ open_total }} open · {{ overdue }} overdue</span>
+    </div>
+    <div class="priority-strip">
+        <button class="priority-chip priority-critical" data-filter-priority="critical" type="button">
+            <span class="priority-dot"></span>
+            <span class="priority-label">Critical</span>
+            <span class="priority-count">{{ task_counts.critical }}</span>
+        </button>
+        <button class="priority-chip priority-high" data-filter-priority="high" type="button">
+            <span class="priority-dot"></span>
+            <span class="priority-label">High</span>
+            <span class="priority-count">{{ task_counts.high }}</span>
+        </button>
+        <button class="priority-chip priority-medium" data-filter-priority="medium" type="button">
+            <span class="priority-dot"></span>
+            <span class="priority-label">Medium</span>
+            <span class="priority-count">{{ task_counts.medium }}</span>
+        </button>
+        <button class="priority-chip priority-low" data-filter-priority="low" type="button">
+            <span class="priority-dot"></span>
+            <span class="priority-label">Low</span>
+            <span class="priority-count">{{ task_counts.low }}</span>
+        </button>
+        <div class="priority-strip-spacer"></div>
+        <button class="btn-primary" id="newTaskBtn" type="button">+ New Task</button>
+    </div>
+</div>
+
+<!-- ── Filters ────────────────────────────────────────────── -->
+<div class="admin-card">
+    <div class="admin-card-header">
+        <h3>All Tasks</h3>
+        <span class="card-subtitle" id="taskCountLabel">— tasks</span>
+    </div>
+
+    <!-- Quick presets -->
+    <div class="filter-row preset-row">
+        <button class="filter-preset" data-preset="" type="button">All</button>
+        <button class="filter-preset" data-preset="overdue" type="button">📌 Overdue</button>
+        <button class="filter-preset" data-preset="this_week" type="button">🔥 Due this week</button>
+        <button class="filter-preset" data-preset="completed_this_week" type="button">✅ Completed this week</button>
+    </div>
+
+    <!-- Detail filters -->
+    <div class="filter-row">
+        <div class="filter-group">
+            <label>Search</label>
+            <input type="text" id="filterQuery" class="filter-input" placeholder="Title or description…">
+        </div>
+
+        <div class="filter-group">
+            <label>Status</label>
+            <div class="filter-dropdown" data-filter="status">
+                <button type="button" class="filter-dropdown-btn">
+                    <span class="filter-dropdown-text">All</span>
+                    <span class="filter-dropdown-badge" hidden>0</span>
+                    <svg class="filter-dropdown-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="filter-dropdown-panel" hidden>
+                    {% for s in TASK_STATUSES %}
+                    <label class="filter-option">
+                        <input type="checkbox" value="{{ s }}">
+                        <span class="filter-option-box"></span>
+                        <span class="filter-option-label">{{ s.replace('_', ' ') | capitalize }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>Priority</label>
+            <div class="filter-dropdown" data-filter="priority">
+                <button type="button" class="filter-dropdown-btn">
+                    <span class="filter-dropdown-text">All</span>
+                    <span class="filter-dropdown-badge" hidden>0</span>
+                    <svg class="filter-dropdown-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="filter-dropdown-panel" hidden>
+                    {% for p in TASK_PRIORITIES %}
+                    <label class="filter-option">
+                        <input type="checkbox" value="{{ p }}">
+                        <span class="filter-option-box"></span>
+                        <span class="filter-option-label priority-tag priority-tag-{{ p }}">{{ p | capitalize }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>Type</label>
+            <div class="filter-dropdown" data-filter="type">
+                <button type="button" class="filter-dropdown-btn">
+                    <span class="filter-dropdown-text">All</span>
+                    <span class="filter-dropdown-badge" hidden>0</span>
+                    <svg class="filter-dropdown-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="filter-dropdown-panel" hidden>
+                    {% for t in TASK_TYPES %}
+                    <label class="filter-option">
+                        <input type="checkbox" value="{{ t }}">
+                        <span class="filter-option-box"></span>
+                        <span class="filter-option-label">{{ t | capitalize }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>Due From</label>
+            <input type="date" id="filterDueFrom" class="filter-input">
+        </div>
+        <div class="filter-group">
+            <label>Due To</label>
+            <input type="date" id="filterDueTo" class="filter-input">
+        </div>
+        <div class="filter-group">
+            <label>Sort</label>
+            <select id="filterSort" class="filter-input filter-input-sort">
+                <option value="due_date">Due date</option>
+                <option value="priority">Priority</option>
+                <option value="created_at">Created</option>
+                <option value="title">Title (A-Z)</option>
+            </select>
+        </div>
+        <div class="filter-group filter-actions">
+            <button class="btn-secondary" id="resetFiltersBtn" type="button">Reset</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table" id="tasksTable">
+            <thead>
+                <tr>
+                    <th style="width:32px"></th>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Type</th>
+                    <th>Tags</th>
+                    <th>Due</th>
+                    <th class="text-right">Created</th>
+                </tr>
+            </thead>
+            <tbody id="tasksTbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── Task Modal ─────────────────────────────────────────── -->
+<div class="task-modal-backdrop" id="taskModalBackdrop" hidden>
+    <div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+        <div class="task-modal-header">
+            <h3 id="taskModalTitle">New Task</h3>
+            <button class="modal-close" id="modalCloseBtn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="task-modal-body">
+            <div class="form-row">
+                <label class="form-label">Title</label>
+                <input type="text" id="taskTitle" class="form-input" placeholder="What needs to be done?">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Description</label>
+                <textarea id="taskDescription" class="form-input form-input-lg" rows="10" placeholder="Details…"></textarea>
+            </div>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label class="form-label">Status</label>
+                    <select id="taskStatus" class="form-input">
+                        {% for s in TASK_STATUSES %}<option value="{{ s }}">{{ s.replace('_', ' ') | capitalize }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Priority</label>
+                    <select id="taskPriority" class="form-input">
+                        {% for p in TASK_PRIORITIES %}<option value="{{ p }}" {% if p == 'medium' %}selected{% endif %}>{{ p | capitalize }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Type</label>
+                    <select id="taskType" class="form-input">
+                        {% for t in TASK_TYPES %}<option value="{{ t }}">{{ t | capitalize }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" id="taskDueDate" class="form-input">
+                </div>
+            </div>
+            <div class="form-row">
+                <label class="form-label">Link</label>
+                <input type="url" id="taskLink" class="form-input" placeholder="https://…">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Tags</label>
+                <div class="tag-picker" id="taskTags">
+                    {% for tag in TASK_TAGS %}
+                    <label class="tag-chip">
+                        <input type="checkbox" value="{{ tag }}">
+                        <span>{{ tag }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Subtasks (only shown when editing) -->
+            <div class="form-row" id="subtasksRow" hidden>
+                <label class="form-label">Checklist</label>
+                <ul class="subtask-list" id="subtaskList"></ul>
+                <div class="subtask-add">
+                    <input type="text" id="subtaskInput" class="form-input" placeholder="Add a checklist item…">
+                    <button class="btn-secondary" id="addSubtaskBtn" type="button">Add</button>
+                </div>
+            </div>
+
+            <!-- Comments (only shown when editing) -->
+            <div class="form-row" id="commentsRow" hidden>
+                <label class="form-label">Notes / Comments</label>
+                <ul class="comment-list" id="commentList"></ul>
+                <div class="comment-add">
+                    <textarea id="commentInput" class="form-input" rows="2" placeholder="Add a note…"></textarea>
+                    <button class="btn-secondary" id="addCommentBtn" type="button">Add</button>
+                </div>
+            </div>
+        </div>
+        <div class="task-modal-footer">
+            <button class="btn-danger" id="deleteTaskBtn" type="button" hidden>Delete</button>
+            <button class="btn-success" id="markDoneBtn" type="button" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg>
+                <span id="markDoneLabel">Mark Done</span>
+            </button>
+            <div class="task-modal-footer-spacer"></div>
+            <button class="btn-secondary" id="cancelTaskBtn" type="button">Cancel</button>
+            <button class="btn-primary" id="saveTaskBtn" type="button">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    'use strict';
+
+    // ── Constants from backend ───────────────────────────────────
+    const STATUS_LABEL = { backlog: 'Backlog', in_progress: 'In Progress', done: 'Done' };
+
+    // ── State ────────────────────────────────────────────────────
+    let currentEditingId = null;
+    let activeFilters = {
+        statuses: [], priorities: [], types: [],
+        q: '', due_from: '', due_to: '',
+        preset: '', sort: 'due_date',
+    };
+
+    // ── DOM helpers (textContent / createElement only — XSS-safe) ──
+    const $ = (id) => document.getElementById(id);
+
+    function el(tag, opts = {}) {
+        const e = document.createElement(tag);
+        if (opts.cls) e.className = opts.cls;
+        if (opts.text != null) e.textContent = opts.text;
+        if (opts.id) e.id = opts.id;
+        if (opts.attrs) for (const k in opts.attrs) e.setAttribute(k, opts.attrs[k]);
+        return e;
+    }
+
+    function clearChildren(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+    function fmtDate(s) {
+        if (!s) return '';
+        return s.length > 10 ? s.slice(0, 10) : s;
+    }
+
+    function isOverdue(t) {
+        return t.status !== 'done' && t.due_date && t.due_date < new Date().toISOString().slice(0, 10);
+    }
+
+    // ── API ──────────────────────────────────────────────────────
+    async function api(path, opts = {}) {
+        const res = await fetch(path, {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+            ...opts,
+        });
+        if (!res.ok) {
+            let msg = 'Request failed';
+            try { const j = await res.json(); msg = j.error || msg; } catch (e) {}
+            throw new Error(msg);
+        }
+        return res.json();
+    }
+
+    // ── Growth Chart ─────────────────────────────────────────────
+    async function loadGrowthChart() {
+        try {
+            const data = await api('/admin/api/dashboard/growth');
+            const labels = data.series.map(p => p.day.slice(5));
+            const counts = data.series.map(p => p.cnt);
+            const ctx = $('growthChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'New users',
+                        data: counts,
+                        borderColor: 'rgb(100, 180, 255)',
+                        backgroundColor: 'rgba(100, 180, 255, 0.18)',
+                        fill: true, tension: 0.3, pointRadius: 2,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } }
+                    }
+                }
+            });
+        } catch (err) {
+            console.warn('[dashboard] growth chart failed:', err);
+        }
+    }
+
+    // ── Tasks list ───────────────────────────────────────────────
+    function buildQueryString() {
+        const p = new URLSearchParams();
+        activeFilters.statuses.forEach(s => p.append('status', s));
+        activeFilters.priorities.forEach(s => p.append('priority', s));
+        activeFilters.types.forEach(s => p.append('type', s));
+        if (activeFilters.q) p.set('q', activeFilters.q);
+        if (activeFilters.due_from) p.set('due_from', activeFilters.due_from);
+        if (activeFilters.due_to) p.set('due_to', activeFilters.due_to);
+        if (activeFilters.preset) p.set('preset', activeFilters.preset);
+        if (activeFilters.sort) p.set('sort', activeFilters.sort);
+        return p.toString();
+    }
+
+    function renderEmptyTasksRow(message) {
+        const tbody = $('tasksTbody');
+        clearChildren(tbody);
+        const tr = el('tr');
+        const td = el('td', { attrs: { colspan: '8' } });
+        const empty = el('div', { cls: 'empty-state' });
+        empty.appendChild(el('p', { text: message }));
+        td.appendChild(empty);
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+    }
+
+    async function loadTasks() {
+        renderEmptyTasksRow('Loading…');
+        try {
+            const qs = buildQueryString();
+            const data = await api('/admin/api/tasks' + (qs ? '?' + qs : ''));
+            renderTasks(data.tasks || []);
+        } catch (err) {
+            renderEmptyTasksRow('Failed to load: ' + err.message);
+        }
+    }
+
+    function renderTasks(tasks) {
+        const tbody = $('tasksTbody');
+        $('taskCountLabel').textContent = tasks.length + ' task' + (tasks.length === 1 ? '' : 's');
+        clearChildren(tbody);
+        if (!tasks.length) {
+            const tr = el('tr');
+            const td = el('td', { attrs: { colspan: '8' } });
+            const empty = el('div', { cls: 'empty-state' });
+            empty.appendChild(el('h4', { text: 'No tasks match these filters' }));
+            empty.appendChild(el('p', { text: 'Reset filters or create a new task.' }));
+            td.appendChild(empty); tr.appendChild(td); tbody.appendChild(tr);
+            return;
+        }
+        for (const t of tasks) {
+            const tr = el('tr', { cls: 'task-row' + (t.status === 'done' ? ' task-done' : '') });
+            tr.dataset.taskId = String(t.id);
+
+            // Done toggle (status dot is now a clickable button)
+            const tdDot = el('td');
+            const isDone = t.status === 'done';
+            const toggleBtn = el('button', {
+                cls: 'done-toggle' + (isDone ? ' is-done' : ''),
+                text: '\u2713',  // unicode check; CSS hides it when not done, shows on hover/done
+                attrs: {
+                    type: 'button',
+                    'aria-label': isDone ? 'Reopen task' : 'Mark as done',
+                    title: isDone ? 'Reopen task' : 'Mark as done',
+                },
+            });
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                quickToggleDone(t.id, !isDone);
+            });
+            tdDot.appendChild(toggleBtn);
+            tr.appendChild(tdDot);
+
+            // Title + description preview
+            const tdTitle = el('td', { cls: 'task-title-cell' });
+            tdTitle.appendChild(el('div', { cls: 'task-title', text: t.title || '' }));
+            if (t.description) {
+                const preview = t.description.length > 110 ? t.description.slice(0, 110) + '…' : t.description;
+                tdTitle.appendChild(el('div', { cls: 'task-desc-preview', text: preview }));
+            }
+            tr.appendChild(tdTitle);
+
+            // Status badge
+            const tdStatus = el('td');
+            tdStatus.appendChild(el('span', { cls: 'badge badge-status-' + t.status, text: STATUS_LABEL[t.status] || t.status }));
+            tr.appendChild(tdStatus);
+
+            // Priority badge
+            const tdPrio = el('td');
+            tdPrio.appendChild(el('span', { cls: 'badge badge-priority-' + t.priority, text: t.priority }));
+            tr.appendChild(tdPrio);
+
+            // Type
+            const tdType = el('td');
+            tdType.appendChild(el('span', { cls: 'task-type', text: t.type || '' }));
+            tr.appendChild(tdType);
+
+            // Tags
+            const tdTags = el('td');
+            if ((t.tags || []).length) {
+                for (const tag of t.tags) tdTags.appendChild(el('span', { cls: 'task-tag', text: tag }));
+            } else {
+                tdTags.appendChild(el('span', { cls: 'text-muted', text: '—' }));
+            }
+            tr.appendChild(tdTags);
+
+            // Due
+            const tdDue = el('td', { cls: 'task-due' + (isOverdue(t) ? ' overdue' : '') });
+            tdDue.textContent = fmtDate(t.due_date) || '—';
+            if (!t.due_date) { tdDue.textContent = ''; tdDue.appendChild(el('span', { cls: 'text-muted', text: '—' })); }
+            tr.appendChild(tdDue);
+
+            // Created
+            const tdCreated = el('td', { cls: 'text-right text-muted', text: fmtDate(t.created_at) });
+            tr.appendChild(tdCreated);
+
+            tr.addEventListener('click', () => openEditModal(t.id));
+            tbody.appendChild(tr);
+        }
+    }
+
+    // ── Filter wiring (custom dropdowns) ──────────────────────────
+    function getDropdownChecks(name) {
+        const dd = document.querySelector('.filter-dropdown[data-filter="' + name + '"]');
+        if (!dd) return [];
+        return Array.from(dd.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+    }
+
+    function clearDropdownChecks(name) {
+        const dd = document.querySelector('.filter-dropdown[data-filter="' + name + '"]');
+        if (!dd) return;
+        Array.from(dd.querySelectorAll('input[type="checkbox"]')).forEach(c => c.checked = false);
+        updateDropdownLabel(dd);
+    }
+
+    function toggleDropdownCheck(name, value) {
+        const dd = document.querySelector('.filter-dropdown[data-filter="' + name + '"]');
+        if (!dd) return;
+        const cb = dd.querySelector('input[type="checkbox"][value="' + value + '"]');
+        if (cb) {
+            cb.checked = !cb.checked;
+            updateDropdownLabel(dd);
+        }
+    }
+
+    function updateDropdownLabel(dd) {
+        const checked = Array.from(dd.querySelectorAll('input[type="checkbox"]:checked'));
+        const text = dd.querySelector('.filter-dropdown-text');
+        const badge = dd.querySelector('.filter-dropdown-badge');
+        if (checked.length === 0) {
+            text.textContent = 'All';
+            badge.hidden = true;
+        } else if (checked.length === 1) {
+            text.textContent = checked[0].parentElement.querySelector('.filter-option-label').textContent;
+            badge.hidden = true;
+        } else {
+            text.textContent = 'Multiple';
+            badge.textContent = String(checked.length);
+            badge.hidden = false;
+        }
+        dd.classList.toggle('has-selection', checked.length > 0);
+    }
+
+    function closeAllDropdowns(except) {
+        document.querySelectorAll('.filter-dropdown').forEach(dd => {
+            if (dd === except) return;
+            dd.classList.remove('open');
+            const panel = dd.querySelector('.filter-dropdown-panel');
+            if (panel) panel.hidden = true;
+        });
+    }
+
+    function readFilters() {
+        activeFilters.q = $('filterQuery').value.trim();
+        activeFilters.statuses = getDropdownChecks('status');
+        activeFilters.priorities = getDropdownChecks('priority');
+        activeFilters.types = getDropdownChecks('type');
+        activeFilters.due_from = $('filterDueFrom').value;
+        activeFilters.due_to = $('filterDueTo').value;
+        activeFilters.sort = $('filterSort').value;
+    }
+
+    function setupFilterListeners() {
+        const debounced = debounce(() => { readFilters(); loadTasks(); }, 250);
+        $('filterQuery').addEventListener('input', debounced);
+        ['filterDueFrom', 'filterDueTo', 'filterSort'].forEach(id => {
+            $(id).addEventListener('change', () => { readFilters(); loadTasks(); });
+        });
+
+        // Custom dropdowns: open/close, checkbox change updates label + filters
+        document.querySelectorAll('.filter-dropdown').forEach(dd => {
+            const btn = dd.querySelector('.filter-dropdown-btn');
+            const panel = dd.querySelector('.filter-dropdown-panel');
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const willOpen = panel.hidden;
+                closeAllDropdowns(dd);
+                panel.hidden = !willOpen;
+                dd.classList.toggle('open', willOpen);
+            });
+            dd.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    updateDropdownLabel(dd);
+                    readFilters();
+                    loadTasks();
+                });
+            });
+        });
+        // Click outside any dropdown closes all
+        document.addEventListener('click', () => closeAllDropdowns(null));
+
+        document.querySelectorAll('.filter-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const p = btn.dataset.preset || '';
+                activeFilters.preset = (activeFilters.preset === p) ? '' : p;
+                document.querySelectorAll('.filter-preset').forEach(b =>
+                    b.classList.toggle('active', b.dataset.preset === activeFilters.preset && activeFilters.preset !== ''));
+                loadTasks();
+            });
+        });
+        document.querySelectorAll('[data-filter-priority]').forEach(chip => {
+            chip.addEventListener('click', () => {
+                toggleDropdownCheck('priority', chip.dataset.filterPriority);
+                readFilters(); loadTasks();
+            });
+        });
+        $('resetFiltersBtn').addEventListener('click', () => {
+            $('filterQuery').value = '';
+            ['status', 'priority', 'type'].forEach(name => clearDropdownChecks(name));
+            $('filterDueFrom').value = '';
+            $('filterDueTo').value = '';
+            $('filterSort').value = 'due_date';
+            activeFilters.preset = '';
+            document.querySelectorAll('.filter-preset').forEach(b => b.classList.remove('active'));
+            readFilters(); loadTasks();
+        });
+    }
+
+    function debounce(fn, ms) {
+        let h;
+        return (...args) => { clearTimeout(h); h = setTimeout(() => fn(...args), ms); };
+    }
+
+    // ── Modal: New / Edit ─────────────────────────────────────────
+    function resetSubtasksAndComments() {
+        clearChildren($('subtaskList'));
+        clearChildren($('commentList'));
+    }
+
+    function openNewModal() {
+        currentEditingId = null;
+        $('taskModalTitle').textContent = 'New Task';
+        $('taskTitle').value = '';
+        $('taskDescription').value = '';
+        $('taskStatus').value = 'backlog';
+        $('taskPriority').value = 'medium';
+        $('taskType').value = 'feature';
+        $('taskDueDate').value = '';
+        $('taskLink').value = '';
+        Array.from($('taskTags').querySelectorAll('input')).forEach(c => c.checked = false);
+        $('subtasksRow').hidden = true;
+        $('commentsRow').hidden = true;
+        $('deleteTaskBtn').hidden = true;
+        $('markDoneBtn').hidden = true;
+        resetSubtasksAndComments();
+        $('taskModalBackdrop').hidden = false;
+        setTimeout(() => $('taskTitle').focus(), 50);
+    }
+
+    async function openEditModal(taskId) {
+        currentEditingId = taskId;
+        $('taskModalTitle').textContent = 'Edit Task';
+        $('taskModalBackdrop').hidden = false;
+        try {
+            const data = await api('/admin/api/tasks/' + taskId);
+            const t = data.task;
+            $('taskTitle').value = t.title || '';
+            $('taskDescription').value = t.description || '';
+            $('taskStatus').value = t.status || 'backlog';
+            $('taskPriority').value = t.priority || 'medium';
+            $('taskType').value = t.type || 'feature';
+            $('taskDueDate').value = t.due_date || '';
+            $('taskLink').value = t.link || '';
+            Array.from($('taskTags').querySelectorAll('input')).forEach(c => {
+                c.checked = (t.tags || []).indexOf(c.value) >= 0;
+            });
+            renderSubtasks(t.subtasks || []);
+            renderComments(t.comments || []);
+            $('subtasksRow').hidden = false;
+            $('commentsRow').hidden = false;
+            $('deleteTaskBtn').hidden = false;
+            $('markDoneBtn').hidden = false;
+            updateMarkDoneBtn(t.status || 'backlog');
+        } catch (err) {
+            alert('Failed to load: ' + err.message);
+            closeModal();
+        }
+    }
+
+    function closeModal() {
+        $('taskModalBackdrop').hidden = true;
+        currentEditingId = null;
+    }
+
+    function readModalForm() {
+        const tags = Array.from($('taskTags').querySelectorAll('input:checked')).map(c => c.value);
+        return {
+            title: $('taskTitle').value.trim(),
+            description: $('taskDescription').value.trim(),
+            status: $('taskStatus').value,
+            priority: $('taskPriority').value,
+            type: $('taskType').value,
+            due_date: $('taskDueDate').value || null,
+            link: $('taskLink').value.trim(),
+            tags: tags,
+        };
+    }
+
+    async function saveTask() {
+        const payload = readModalForm();
+        if (!payload.title) { alert('Title is required'); return; }
+        try {
+            if (currentEditingId) {
+                await api('/admin/api/tasks/' + currentEditingId, { method: 'PATCH', body: JSON.stringify(payload) });
+            } else {
+                await api('/admin/api/tasks', { method: 'POST', body: JSON.stringify(payload) });
+            }
+            closeModal();
+            await loadTasks();
+        } catch (err) {
+            alert('Save failed: ' + err.message);
+        }
+    }
+
+    async function quickToggleDone(taskId, markDone) {
+        try {
+            await api('/admin/api/tasks/' + taskId, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: markDone ? 'done' : 'in_progress' }),
+            });
+            await loadTasks();
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    async function modalMarkDone() {
+        if (!currentEditingId) return;
+        const wasDone = $('taskStatus').value === 'done';
+        const newStatus = wasDone ? 'in_progress' : 'done';
+        try {
+            await api('/admin/api/tasks/' + currentEditingId, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus }),
+            });
+            // Reflect in the modal's UI without a reload
+            $('taskStatus').value = newStatus;
+            updateMarkDoneBtn(newStatus);
+            await loadTasks();
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    function updateMarkDoneBtn(status) {
+        const btn = $('markDoneBtn');
+        const label = $('markDoneLabel');
+        if (status === 'done') {
+            btn.classList.add('is-done');
+            label.textContent = 'Reopen';
+        } else {
+            btn.classList.remove('is-done');
+            label.textContent = 'Mark Done';
+        }
+    }
+
+    async function deleteTask() {
+        if (!currentEditingId) return;
+        if (!confirm('Delete this task? This cannot be undone.')) return;
+        try {
+            await api('/admin/api/tasks/' + currentEditingId, { method: 'DELETE' });
+            closeModal();
+            await loadTasks();
+        } catch (err) {
+            alert('Delete failed: ' + err.message);
+        }
+    }
+
+    // ── Subtasks ──────────────────────────────────────────────────
+    function renderSubtasks(items) {
+        const ul = $('subtaskList');
+        clearChildren(ul);
+        if (!items.length) {
+            ul.appendChild(el('li', { cls: 'subtask-empty', text: 'No checklist items yet.' }));
+            return;
+        }
+        for (const s of items) {
+            const li = el('li', { cls: 'subtask-item' + (s.done ? ' done' : '') });
+            li.dataset.subtaskId = String(s.id);
+            const cb = el('input', { cls: 'sub-toggle', attrs: { type: 'checkbox' } });
+            if (s.done) cb.checked = true;
+            const span = el('span', { cls: 'subtask-content', text: s.content });
+            const btn = el('button', { cls: 'subtask-del', text: '×', attrs: { type: 'button', 'aria-label': 'Delete' } });
+            cb.addEventListener('change', (e) => toggleSubtask(s.id, e.target.checked, li));
+            btn.addEventListener('click', () => deleteSubtask(s.id, li));
+            li.appendChild(cb); li.appendChild(span); li.appendChild(btn);
+            ul.appendChild(li);
+        }
+    }
+
+    async function addSubtask() {
+        if (!currentEditingId) return;
+        const content = $('subtaskInput').value.trim();
+        if (!content) return;
+        try {
+            await api('/admin/api/tasks/' + currentEditingId + '/subtasks', {
+                method: 'POST', body: JSON.stringify({ content })
+            });
+            $('subtaskInput').value = '';
+            const data = await api('/admin/api/tasks/' + currentEditingId);
+            renderSubtasks(data.task.subtasks || []);
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    async function toggleSubtask(subId, done, liEl) {
+        try {
+            await api('/admin/api/tasks/' + currentEditingId + '/subtasks/' + subId, {
+                method: 'PATCH', body: JSON.stringify({ done })
+            });
+            liEl.classList.toggle('done', done);
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    async function deleteSubtask(subId, liEl) {
+        try {
+            await api('/admin/api/tasks/' + currentEditingId + '/subtasks/' + subId, { method: 'DELETE' });
+            liEl.remove();
+            if (!$('subtaskList').children.length) {
+                $('subtaskList').appendChild(el('li', { cls: 'subtask-empty', text: 'No checklist items yet.' }));
+            }
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    // ── Comments ──────────────────────────────────────────────────
+    function renderComments(items) {
+        const ul = $('commentList');
+        clearChildren(ul);
+        if (!items.length) {
+            ul.appendChild(el('li', { cls: 'comment-empty', text: 'No comments yet.' }));
+            return;
+        }
+        for (const c of items) {
+            const li = el('li', { cls: 'comment-item' });
+            li.dataset.commentId = String(c.id);
+            const meta = el('div', { cls: 'comment-meta' });
+            meta.appendChild(el('strong', { text: c.author || 'admin' }));
+            meta.appendChild(el('span', { cls: 'text-muted', text: fmtDate(c.created_at) }));
+            const del = el('button', { cls: 'comment-del', text: '×', attrs: { type: 'button', 'aria-label': 'Delete' } });
+            del.addEventListener('click', () => deleteComment(c.id, li));
+            meta.appendChild(del);
+            const body = el('div', { cls: 'comment-body', text: c.content });
+            li.appendChild(meta); li.appendChild(body);
+            ul.appendChild(li);
+        }
+    }
+
+    async function addComment() {
+        if (!currentEditingId) return;
+        const content = $('commentInput').value.trim();
+        if (!content) return;
+        try {
+            await api('/admin/api/tasks/' + currentEditingId + '/comments', {
+                method: 'POST', body: JSON.stringify({ content })
+            });
+            $('commentInput').value = '';
+            const data = await api('/admin/api/tasks/' + currentEditingId);
+            renderComments(data.task.comments || []);
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    async function deleteComment(cId, liEl) {
+        if (!confirm('Delete this comment?')) return;
+        try {
+            await api('/admin/api/tasks/' + currentEditingId + '/comments/' + cId, { method: 'DELETE' });
+            liEl.remove();
+            if (!$('commentList').children.length) {
+                $('commentList').appendChild(el('li', { cls: 'comment-empty', text: 'No comments yet.' }));
+            }
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        }
+    }
+
+    // ── Bootstrap ─────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        loadGrowthChart();
+        loadTasks();
+        setupFilterListeners();
+
+        $('newTaskBtn').addEventListener('click', openNewModal);
+        $('saveTaskBtn').addEventListener('click', saveTask);
+        $('cancelTaskBtn').addEventListener('click', closeModal);
+        $('modalCloseBtn').addEventListener('click', closeModal);
+        $('deleteTaskBtn').addEventListener('click', deleteTask);
+        $('markDoneBtn').addEventListener('click', modalMarkDone);
+        $('addSubtaskBtn').addEventListener('click', addSubtask);
+        $('addCommentBtn').addEventListener('click', addComment);
+        $('subtaskInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); addSubtask(); }
+        });
+        $('taskModalBackdrop').addEventListener('click', (e) => {
+            if (e.target.id === 'taskModalBackdrop') closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !$('taskModalBackdrop').hidden) closeModal();
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -9,7 +9,8 @@ all verified.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -17,7 +18,6 @@ from fastapi import Depends, FastAPI, Request
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
-from unittest.mock import patch
 
 import src.models  # noqa: F401 — register all models
 from src.api.deps.auth import (
@@ -25,7 +25,6 @@ from src.api.deps.auth import (
     require_active_subscription,
     require_pro,
 )
-from src.auth.cookies import set_auth_cookies
 from src.auth.jwt_service import create_access_token
 from src.core.config import settings
 from src.core.database import Base, get_db
@@ -294,7 +293,7 @@ class TestAutoFlipExpired:
         DB persistence of the flip is verified separately by
         test_purge_service (the unit-test path doesn't have to fight the
         request/transaction lifecycle)."""
-        past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         u = await seed_user(
             email="just-expired@x.com",
             subscription_plan="trial",
