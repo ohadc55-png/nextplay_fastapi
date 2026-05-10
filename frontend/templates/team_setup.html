@@ -353,6 +353,10 @@
 {% block scripts %}
 <style nonce="{{ g.csp_nonce }}">
 /* CSV import progress UI — replaces the upload-zone in-place during import. */
+.csv-progress[hidden],
+.csv-result[hidden] {
+    display: none !important;
+}
 .csv-progress {
     display: flex;
     flex-direction: column;
