@@ -27,8 +27,63 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import AsyncIterator
 from typing import Any
+
+# Character ranges → ISO 639-1 language code. Order matters: a script
+# unique to one family wins over a generic match. Used by
+# `_detect_message_language` to enforce reply-language parity in the
+# system prompt (GPT obeys the persona's "match the coach's language"
+# rule unreliably without an in-context hint, especially on the first
+# turn after an English opener).
+_LANG_SCRIPTS: tuple[tuple[str, str, str], ...] = (
+    ("he", "Hebrew",          r"[֐-׿]"),
+    ("ar", "Arabic",          r"[؀-ۿ]"),
+    ("ru", "Russian",         r"[Ѐ-ӿ]"),
+    ("el", "Greek",           r"[Ͱ-Ͽ]"),
+    ("ja", "Japanese",        r"[぀-ゟ゠-ヿ]"),
+    ("ko", "Korean",          r"[가-힯]"),
+    ("zh", "Chinese",         r"[一-鿿]"),
+)
+
+
+def _detect_message_language(text: str) -> tuple[str, str] | None:
+    """Cheap, dependency-free language sniff. Returns (iso_code, name) or
+    None when only ASCII/Latin is present — in which case we leave the
+    persona's default behaviour alone (English-leaning)."""
+    if not text:
+        return None
+    for code, name, pattern in _LANG_SCRIPTS:
+        if re.search(pattern, text):
+            return code, name
+    return None
+
+
+def _language_directive(user_message: str, history: list[dict]) -> str:
+    """Build a strong system-prompt suffix that forces the LLM to reply
+    in the coach's language. Looks at the current turn first, then walks
+    back through recent coach messages so a single English follow-up
+    inside a Hebrew thread doesn't flip the model."""
+    sample = user_message or ""
+    if not _detect_message_language(sample):
+        for h in reversed(history):
+            if h.get("role") == "user" and h.get("content"):
+                sample = h["content"]
+                if _detect_message_language(sample):
+                    break
+    hit = _detect_message_language(sample)
+    if not hit:
+        return ""
+    _code, name = hit
+    return (
+        "\n\nLANGUAGE LOCK (highest priority — overrides any conflicting "
+        f"persona example):\n- The coach is writing in {name}. Your entire "
+        f"reply MUST be in {name}. Do not switch to English mid-reply, do "
+        "not translate basketball terms back to English, do not preface in "
+        "English. Match the coach's language for every word, including "
+        "headers, bullet labels, and follow-up questions."
+    )
 
 from openai import APIError
 from sqlalchemy import select
@@ -349,6 +404,17 @@ async def send_message(
         )
         if ob_ctx:
             system_prompt = f"{system_prompt}\n\n{ob_ctx}"
+
+    # Force reply-language to match the coach's language. The persona's
+    # built-in "respond in the same language" rule isn't reliable enough on
+    # its own — a fresh thread that opens in English (Brad's static opener)
+    # often pulls the model back to English even after the coach types in
+    # Hebrew. This directive is dynamic per-turn and goes LAST in the
+    # system prompt so it sits closest to the LLM's attention.
+    lang_directive = _language_directive(message, history)
+    if lang_directive:
+        system_prompt = f"{system_prompt}{lang_directive}"
+
     response_text = ""
 
     if mode == "full":
@@ -494,6 +560,12 @@ async def stream_message(
         )
         if ob_ctx:
             system_prompt = f"{system_prompt}\n\n{ob_ctx}"
+
+    # Reply-language lock — see send_message for rationale.
+    lang_directive = _language_directive(message, history)
+    if lang_directive:
+        system_prompt = f"{system_prompt}{lang_directive}"
+
     # Tools — same factory closures as fast-mode `send_message` so the
     # LLM can do real work (e.g. Scout calls research_external_team to
     # fetch web data instead of just pretending it searched).

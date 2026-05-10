@@ -304,9 +304,12 @@ async def player_profile(
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    metrics = (await db.execute(
+    metric_row = (await db.execute(
         select(PlayerMetric).where(PlayerMetric.player_id == player_id)
     )).scalar_one_or_none()
+    # Template does `{{ metrics | tojson }}` to seed the slider JS — pass the
+    # raw dict, not the ORM object (which `tojson` can't serialize).
+    metrics = (metric_row.metrics_json or {}) if metric_row else {}
 
     photo_url = None
     if player.photo_url and player.photo_url.startswith("players/"):
