@@ -2604,12 +2604,19 @@ a:hover { color: var(--accent-bright); }
 }
 .no-team-actions .btn { min-width: 130px; }
 
-/* ══════════ Welcome Spotlight (welcome-spotlight.js) ═══════════════ */
+/* ══════════ Welcome Spotlight (welcome-spotlight.js) ═══════════════
+   Goal: dim the whole UI, leave a bright halo around the Daisy panel,
+   and put a strong orange ring on the message bubble so the eye lands
+   straight on her greeting. We use box-shadow:0 0 0 9999px to "invert"
+   the spotlight (panel stays at original brightness, everything outside
+   it darkens) — no overlay layer needed for the dim. The standalone
+   overlay (.np-welcome-overlay) is kept only for click-to-dismiss.
+   ═════════════════════════════════════════════════════════════════ */
 .np-welcome-overlay {
     position: fixed;
     inset: 0;
-    z-index: 99998;       /* below Daisy panel (which is ~99999) */
-    background: radial-gradient(circle at bottom right, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.88) 70%);
+    z-index: 99997;       /* below panel + toggle; click target only */
+    background: transparent;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.4s ease;
@@ -2618,16 +2625,69 @@ a:hover { color: var(--accent-bright); }
     opacity: 1;
     pointer-events: auto;
 }
-/* Lift Daisy's toggle + panel above the overlay during the first visit. */
+
+/* Lift Daisy above everything while spotlight is active. */
 .np-welcome-active #nicoToggle,
 .np-welcome-active #nicoPanel {
     z-index: 99999 !important;
 }
-/* Pulse the toggle so the eye is drawn to her. */
+
+/* The inverse-spotlight: huge dark box-shadow around the panel dims
+   the rest of the UI in a single step. Orange outer halo + soft inner
+   glow give the panel a bright, premium look. */
+.np-welcome-active #nicoPanel {
+    box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.78),
+        0 0 0 3px rgba(255, 107, 53, 0.65),
+        0 0 60px 8px rgba(255, 107, 53, 0.45),
+        0 24px 64px rgba(0, 0, 0, 0.6) !important;
+    border-color: rgba(255, 107, 53, 0.55) !important;
+}
+
+/* Same treatment on the toggle when the panel is closed (rare during
+   spotlight, but covers the edge case where Daisy hasn't auto-opened
+   yet). Slightly smaller halo. */
+.np-welcome-active #nicoPanel:not(.open) ~ #nicoToggle,
 .np-welcome-active #nicoToggle {
+    box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.78),
+        0 0 0 3px rgba(255, 107, 53, 0.65),
+        0 0 36px 4px rgba(255, 107, 53, 0.55) !important;
     animation: npWelcomePulse 1.6s ease-in-out infinite;
 }
-@keyframes npWelcomePulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.55); }
-    50%      { box-shadow: 0 0 0 18px rgba(255, 107, 53, 0); }
+.np-welcome-active #nicoPanel.open ~ #nicoToggle {
+    /* When the panel is open the inverse-shadow on the panel already
+       covers the screen — drop the toggle's huge shadow so they don't
+       paint the dark layer twice. Keep only the orange pulse halo. */
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.65),
+                0 0 24px 4px rgba(255, 107, 53, 0.45) !important;
 }
+@keyframes npWelcomePulse {
+    0%, 100% { box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.78),
+        0 0 0 3px rgba(255, 107, 53, 0.65),
+        0 0 36px 4px rgba(255, 107, 53, 0.55) !important; }
+    50%      { box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.78),
+        0 0 0 5px rgba(255, 107, 53, 0.85),
+        0 0 48px 8px rgba(255, 107, 53, 0.7) !important; }
+}
+
+/* The actual greeting bubble — bigger, brighter, and ringed in orange
+   so the message itself is the eye magnet. Falls back to the default
+   style after dismissal. */
+.np-welcome-active #nicoPanel .nico-msg.assistant {
+    background: linear-gradient(160deg, rgba(255, 107, 53, 0.18), rgba(255, 107, 53, 0.06));
+    border: 1px solid rgba(255, 107, 53, 0.55);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow:
+        0 0 0 1px rgba(255, 107, 53, 0.25),
+        0 8px 22px rgba(255, 107, 53, 0.18);
+    color: #ffffff;
+}
+.np-welcome-active #nicoPanel .nico-msg.assistant p {
+    color: #ffffff;
+    margin: 0 0 8px;
+}
+.np-welcome-active #nicoPanel .nico-msg.assistant p:last-child { margin-bottom: 0; }
