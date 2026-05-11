@@ -345,6 +345,7 @@ async def send_message(
     background: Any | None = None,
     mode: str = "fast",
     onboarding_mode: str | None = None,
+    _bypass_length_check: bool = False,
 ) -> dict:
     """Send a single user message, return the assistant reply.
 
@@ -361,12 +362,17 @@ async def send_message(
         `backend/crew/manager.py:_build_onboarding_scouting_context`.
       - None → normal chat.
 
+    `_bypass_length_check`: internal flag used by `send_chat_with_uploads`
+    where the enriched payload (file text + Stage-2 instruction) routinely
+    exceeds the UI-level 5000-char limit. Coach-typed input is still
+    capped by the Pydantic schema on /api/chat.
+
     Persists both messages to `conversations` and logs cost. Errors are
     caught and surfaced as a friendly response — the chat must never
     500 on the user."""
     if not message:
         raise ValueError("Message is required")
-    if len(message) > 5000:
+    if not _bypass_length_check and len(message) > 5000:
         raise ValueError("Message too long (max 5000 characters)")
 
     # Save user message FIRST so the row exists even if the LLM call fails.
@@ -874,11 +880,16 @@ async def send_chat_with_uploads(
     enriched_message = "\n".join(blocks)
 
     # Hand off to send_message — it owns the persistence + tool loop +
-    # cost logging + memory-extraction-task scheduling.
+    # cost logging + memory-extraction-task scheduling. Bypass the 5000-
+    # char UI cap because the enriched payload (file text + Stage-2
+    # instruction + coach question) routinely exceeds it; the Pydantic
+    # schema on /api/chat-upload caps the *coach-typed* part at the form
+    # boundary already.
     result = await send_message(
         db, user=user, session_id=session_id,
         message=enriched_message, agent=agent,
         background=background,
+        _bypass_length_check=True,
     )
     # Tag the response with the filenames so the SPA can show what was processed.
     result["filenames"] = [f for f, _ in files]
