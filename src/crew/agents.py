@@ -198,6 +198,11 @@ AGENTS: dict[str, dict] = {
         "role": "Assistant Coach",
         "specialty": "Practice plans, drills, development",
     },
+    "guide": {
+        "name": "Daisy Chain",
+        "role": "Platform Guide",
+        "specialty": "How to use the NextPlay app — pages, features, settings, troubleshooting",
+    },
 }
 
 # Default fallback when no agent is specified — same as v1 routes
@@ -247,6 +252,13 @@ def build_agent_prompt(
     key = (agent_key or DEFAULT_AGENT).strip().lower()
     if key not in AGENTS:
         key = DEFAULT_AGENT
+
+    # Daisy Chain (the platform guide) is NOT a basketball coach — she's
+    # a how-to-use-the-app specialist. Skip every basketball-flavoured
+    # rule block + team context so the LLM doesn't drift into coaching
+    # advice. Her prompt is fully self-contained.
+    if key == "guide":
+        return key, SPECIALIST_PROMPTS["guide"]
 
     if key == "gm":
         persona = GM_SYSTEM_PROMPT
