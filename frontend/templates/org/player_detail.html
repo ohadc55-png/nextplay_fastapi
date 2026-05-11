@@ -1,0 +1,127 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'players' %}
+{% block title %}פרטי שחקן — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <a href="/org/players" class="org-text-sm org-text-muted" style="display: inline-block; margin-block-end: var(--org-space-2);">
+      ← חזרה לשחקנים
+    </a>
+    <h1 class="org-page-title" data-player-name>טוען…</h1>
+    <p class="org-page-subtitle" data-player-meta></p>
+  </div>
+  <div class="org-page-actions">
+    {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager', 'coach'] %}
+    <button type="button" class="org-btn org-btn--secondary" data-action="edit-player" disabled>
+      <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('edit') }}</span>
+      <span>עריכה</span>
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="org-card">
+  <div class="org-card-title">פרטים</div>
+  <div class="org-card-body">
+    <dl class="org-flex" style="flex-wrap: wrap; gap: var(--org-space-6); margin: 0;">
+      <div><dt class="org-text-sm org-text-muted">מס׳ חולצה</dt><dd data-stat-number>—</dd></div>
+      <div><dt class="org-text-sm org-text-muted">תפקיד</dt><dd data-stat-position>—</dd></div>
+      <div><dt class="org-text-sm org-text-muted">גיל</dt><dd data-stat-age>—</dd></div>
+      <div><dt class="org-text-sm org-text-muted">גובה</dt><dd data-stat-height>—</dd></div>
+      <div><dt class="org-text-sm org-text-muted">משקל</dt><dd data-stat-weight>—</dd></div>
+      <div><dt class="org-text-sm org-text-muted">יד דומיננטית</dt><dd data-stat-hand>—</dd></div>
+    </dl>
+  </div>
+</div>
+
+<!-- Contact panel — sensitive PII. Hidden by default; one click reveals + audits. -->
+<div class="org-card org-mt-6" id="contact-panel">
+  <div class="org-flex org-items-center org-justify-between">
+    <div class="org-card-title" style="margin: 0;">פרטי קשר ובריאות</div>
+    <button type="button" class="org-btn org-btn--secondary" id="reveal-contact-btn">
+      הצג פרטי קשר
+    </button>
+  </div>
+  <p class="org-text-sm org-text-muted org-mt-4">
+    הפרטים מוצפנים במאגר. כל צפייה נרשמת ביומן הביקורת של הארגון.
+  </p>
+
+  <div class="org-hidden org-mt-6" data-contact-fields>
+    <dl class="org-flex" style="flex-wrap: wrap; gap: var(--org-space-6); margin: 0;">
+      <div style="flex: 1; min-width: 240px;"><dt class="org-text-sm org-text-muted">שם הורה</dt><dd data-c-parent-name>—</dd></div>
+      <div style="flex: 1; min-width: 240px;"><dt class="org-text-sm org-text-muted">אימייל</dt><dd data-c-parent-email dir="ltr">—</dd></div>
+      <div style="flex: 1; min-width: 240px;"><dt class="org-text-sm org-text-muted">טלפון</dt><dd data-c-parent-phone dir="ltr">—</dd></div>
+      <div style="flex: 1; min-width: 240px;"><dt class="org-text-sm org-text-muted">ת.ז.</dt><dd data-c-national-id dir="ltr">—</dd></div>
+      <div style="flex: 1; min-width: 100%;"><dt class="org-text-sm org-text-muted">כתובת</dt><dd data-c-address>—</dd></div>
+      <div style="flex: 1; min-width: 100%;"><dt class="org-text-sm org-text-muted">הערות רפואיות</dt><dd data-c-medical-notes>—</dd></div>
+    </dl>
+    {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager', 'coach'] %}
+    <div class="org-mt-6">
+      <button type="button" class="org-btn org-btn--secondary" data-action="edit-contact">
+        <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('edit') }}</span>
+        <span>עריכת פרטי קשר</span>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Contact edit modal -->
+<div class="org-modal-backdrop" id="contact-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="contact-modal-title">עריכת פרטי קשר</div>
+      <button type="button" class="org-modal-close" data-action="close-contact" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="contact-form">
+      <div class="org-modal-body">
+        <p class="org-text-sm org-text-muted">השדות המוצפנים נשמרים מוצפנים במאגר.</p>
+        <div class="org-form-group">
+          <label class="org-form-label" for="cf-parent-name">שם הורה</label>
+          <input class="org-input" type="text" id="cf-parent-name" name="parent_name" maxlength="200">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="cf-parent-email">אימייל הורה</label>
+          <input class="org-input" type="email" id="cf-parent-email" name="parent_email" dir="ltr">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="cf-parent-phone">טלפון הורה <span class="org-pill" style="font-size:10px;">מוצפן</span></label>
+          <input class="org-input" type="tel" id="cf-parent-phone" name="parent_phone" dir="ltr" maxlength="40">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="cf-national-id">ת.ז. <span class="org-pill" style="font-size:10px;">מוצפן</span></label>
+          <input class="org-input" type="text" id="cf-national-id" name="national_id" dir="ltr" maxlength="20">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="cf-address">כתובת <span class="org-pill" style="font-size:10px;">מוצפן</span></label>
+          <input class="org-input" type="text" id="cf-address" name="address" maxlength="500">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="cf-medical">הערות רפואיות <span class="org-pill" style="font-size:10px;">מוצפן</span></label>
+          <textarea class="org-textarea" id="cf-medical" name="medical_notes" rows="3" maxlength="1000"></textarea>
+        </div>
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-contact">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary">שמירה</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_PLAYER_ID = {{ player_id | tojson }};
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/org-player-detail.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+{% endblock %}

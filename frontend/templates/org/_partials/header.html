@@ -1,0 +1,64 @@
+{% from "org/_partials/icons.html" import icon %}
+{# /org/* header partial.
+   - Brand on the LEFT (force LTR so the NEXTPLAY mark is always logo→text).
+   - Context switcher dropdown on the right (Phase 1.7) replaces the simple
+     user button. The dropdown fetches /org/api/roles lazily on first open.
+#}
+<header class="org-header" role="banner">
+  <div class="org-flex org-items-center org-gap-3">
+    <button class="org-sidebar-toggle"
+            type="button"
+            aria-controls="org-sidebar"
+            aria-expanded="false"
+            aria-label="פתח תפריט">
+      {{ icon('menu') }}
+    </button>
+    <div class="org-header-brand">
+      <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+      <div>
+        <div class="org-header-org-name">{{ org_ctx.organization_name or 'NEXTPLAY Enterprise' }}</div>
+        {% if org_ctx and org_ctx.role %}
+        <div class="org-header-org-tag">{{ org_ctx.role_label_he or org_ctx.role }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="org-header-actions" id="org-context-switcher">
+    {% if org_ctx and org_ctx.user_display_name %}
+    <button type="button"
+            class="org-header-user"
+            data-switcher-toggle
+            aria-haspopup="true"
+            aria-expanded="false">
+      <span class="org-avatar">
+        {{ (org_ctx.user_display_name or org_ctx.user_email or '?')[:1] | upper }}
+      </span>
+      <span class="org-header-user-name">
+        {{ org_ctx.user_display_name or org_ctx.user_email }}
+      </span>
+      <span class="org-header-user-chev">{{ icon('chevron-down') }}</span>
+    </button>
+    <div class="org-switcher-dropdown" data-switcher-menu hidden>
+      <div class="org-switcher-current">
+        <div class="org-switcher-current-org">{{ org_ctx.organization_name }}</div>
+        <div class="org-switcher-current-role">{{ org_ctx.role_label_he or org_ctx.role }}</div>
+      </div>
+      <div class="org-switcher-section" data-switcher-others-section hidden>
+        <div class="org-switcher-section-label">החלף תפקיד</div>
+        <div data-switcher-others></div>
+      </div>
+      <div class="org-switcher-section">
+        <a class="org-switcher-link" href="/org/settings">
+          <span class="org-switcher-link-icon">{{ icon('cog') }}</span>
+          <span>הגדרות</span>
+        </a>
+        <a class="org-switcher-link" href="/org/logout">
+          <span class="org-switcher-link-icon">{{ icon('logout') }}</span>
+          <span>יציאה</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</header>

@@ -1,0 +1,17 @@
+{% extends "public/_base.html" %}
+
+{% block title %}שגיאה{% endblock %}
+
+{% block content %}
+<div class="public-sign__error">
+  {% if error_kind == 'expired' %}
+    <h2>הקישור פג תוקף</h2>
+    <p class="org-text-muted">המסמך הזה כבר לא זמין לחתימה.</p>
+    <p class="org-text-sm org-text-muted">פנה לארגון כדי לקבל קישור חדש.</p>
+  {% else %}
+    <h2>הקישור לא תקין</h2>
+    <p class="org-text-muted">לא מצאנו את המסמך שביקשת.</p>
+    <p class="org-text-sm org-text-muted">ודא שהעתקת את הכתובת המלאה מהאימייל / SMS.</p>
+  {% endif %}
+</div>
+{% endblock %}

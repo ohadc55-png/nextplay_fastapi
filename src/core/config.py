@@ -111,6 +111,22 @@ class Settings(BaseSettings):
     # === Internal cron auth ===
     CRON_SECRET: str = ""
 
+    # === Field-level encryption (Phase 1.6) ===
+    # Url-safe base64 32-byte Fernet key. Generate ONCE with
+    # `python -c "from cryptography.fernet import Fernet;
+    #             print(Fernet.generate_key().decode())"`.
+    # Save to .env locally + Railway secret + a password manager.
+    # Losing this key = losing every encrypted PII column (no recovery).
+    ENCRYPTION_KEY: str = ""
+    # Optional rotation slot. When non-empty, MultiFernet decrypts using both
+    # primary and previous; the rotation script then re-writes every row.
+    ENCRYPTION_KEY_PREVIOUS: str = ""
+
+    # === SMS provider (Phase 2.3) ===
+    # "mock"   → src.services.sms.mock.MockSMSProvider (logs only; dev/test)
+    # "inforu" → reserved for Part B / Sub-Phase 2.7
+    SMS_PROVIDER: str = "mock"
+
     # === Monitoring ===
     SENTRY_DSN: str = ""
 

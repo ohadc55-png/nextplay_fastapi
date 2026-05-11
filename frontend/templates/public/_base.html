@@ -1,0 +1,41 @@
+{# Public-flow base layout. No auth, no sidebar — just a centered card.
+   Loads org.css for the design tokens; the signing page also loads its
+   own public-sign.css for canvas/signature-pad specifics. #}
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}NEXTPLAY{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/org.css') }}?v={{ config.get('CSS_VERSION', '8') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/public-sign.css') }}?v={{ config.get('CSS_VERSION', '8') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="org-body">
+
+<div class="org-public">
+  <div class="org-public-card org-public-card--wide">
+    <div class="org-public-brand">
+      <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+      <h1>NEXTPLAY <span class="org-brand-tag">Enterprise</span></h1>
+      {% block subtitle %}{% endblock %}
+    </div>
+
+    {% block content %}{% endblock %}
+
+    <div class="org-public-footer">
+      מופעל ע"י NEXTPLAY
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>

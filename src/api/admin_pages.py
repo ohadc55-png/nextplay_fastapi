@@ -548,4 +548,50 @@ async def admin_email_compose_page(request: Request) -> Any:
     )
 
 
+# ---------------------------------------------------------------------------
+# Phase 1.8 — Org Creation Wizard pages
+# ---------------------------------------------------------------------------
+
+
+@router.get("/admin/orgs", response_class=HTMLResponse)
+async def admin_orgs_list_page(
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Table of all organizations. JSON data comes from /admin/api/orgs
+    (Phase 0). This page just renders the shell + the JS that hydrates."""
+    guard = _require_admin(request)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    return templates.TemplateResponse(
+        "admin/orgs/list.html",
+        _admin_context(request, active_tab="orgs"),
+    )
+
+
+@router.get("/admin/orgs/wizard", response_class=HTMLResponse)
+async def admin_orgs_wizard_page(request: Request) -> Any:
+    """4-step Org Creation Wizard. POSTs to /admin/api/orgs/wizard/commit."""
+    guard = _require_admin(request)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    return templates.TemplateResponse(
+        "admin/orgs/wizard.html",
+        _admin_context(request, active_tab="orgs"),
+    )
+
+
+@router.get("/admin/orgs/{org_id}", response_class=HTMLResponse)
+async def admin_orgs_detail_page(
+    org_id: int, request: Request, db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Single-org admin view. Driven by /admin/api/orgs/{id} (Phase 0)."""
+    guard = _require_admin(request)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    return templates.TemplateResponse(
+        "admin/orgs/detail.html",
+        _admin_context(request, active_tab="orgs", extra={"org_id": org_id}),
+    )
+
+
 __all__ = ["router"]

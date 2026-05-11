@@ -1,0 +1,196 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'users' %}
+{% block title %}אנשים — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">אנשים</h1>
+    <p class="org-page-subtitle">חברי הארגון, תפקידיהם וההזמנות הממתינות.</p>
+  </div>
+  {% if org_ctx.role in ['org_admin', 'region_manager'] %}
+  <div class="org-page-actions">
+    <button type="button" class="org-btn org-btn--primary" data-action="open-invite">
+      <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
+      <span>הזמן משתמש</span>
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="org-flex org-items-center org-gap-3" style="margin-block-end: var(--org-space-4); flex-wrap: wrap;">
+  <input class="org-input" type="search" id="users-search"
+         placeholder="חיפוש לפי שם, אימייל, תפקיד, מחוז, סניף או קבוצה…"
+         style="max-width: 360px;" autocomplete="off" dir="auto">
+  {% if org_ctx.role == 'org_admin' %}
+  <label class="org-text-sm org-text-muted" for="users-region-filter">מחוז:</label>
+  <select class="org-select" id="users-region-filter" style="max-width: 240px;">
+    <option value="">כל המחוזות</option>
+  </select>
+  {% endif %}
+  <span class="org-text-sm org-text-muted" data-users-count style="margin-inline-start: auto;"></span>
+</div>
+
+<!-- Active members -->
+<div class="org-table-wrap">
+  <table class="org-table" id="users-table">
+    <thead>
+      <tr>
+        <th style="width: 36%;">שם</th>
+        <th>תפקיד</th>
+        <th>סקופ</th>
+        <th>סטטוס</th>
+        {% if org_ctx.role == 'org_admin' %}<th style="width: 100px; text-align:end;">פעולות</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody data-members-rows>
+      <tr><td colspan="5" class="org-table-empty">טוען…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Pending invites -->
+<div class="org-mt-8">
+  <h2 class="org-page-title" style="font-size: var(--org-text-xl); margin-block-end: var(--org-space-3);">
+    הזמנות ממתינות
+  </h2>
+  <div class="org-table-wrap">
+    <table class="org-table" id="invites-table">
+      <thead>
+        <tr>
+          <th style="width: 40%;">אימייל</th>
+          <th>תפקיד</th>
+          <th>נשלח</th>
+          {% if org_ctx.role in ['org_admin', 'region_manager'] %}<th style="width: 140px; text-align:end;">פעולות</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody data-invites-rows>
+        <tr><td colspan="4" class="org-table-empty">טוען…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Invite modal -->
+<div class="org-modal-backdrop" id="invite-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="invite-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="invite-modal-title">הזמנת משתמש חדש</div>
+      <button type="button" class="org-modal-close" data-action="close-invite" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="invite-form">
+      <div class="org-modal-body">
+        <div class="org-form-group">
+          <label class="org-form-label" for="invite-email">אימייל</label>
+          <input class="org-input" type="email" id="invite-email" name="email"
+                 required autocomplete="email" dir="ltr">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="invite-role">תפקיד</label>
+          <select class="org-select" id="invite-role" name="role" required>
+            <!-- options populated by JS based on actor's role -->
+          </select>
+        </div>
+        <div class="org-form-group" data-region-group>
+          <label class="org-form-label" for="invite-region">מחוז</label>
+          <select class="org-select" id="invite-region" name="region_id">
+            <option value="">— ללא מחוז —</option>
+          </select>
+          <div class="org-form-help">חובה ל-מנהל מחוז</div>
+        </div>
+        <div class="org-form-group" data-branch-group>
+          <label class="org-form-label" for="invite-branch">סניף</label>
+          <select class="org-select" id="invite-branch" name="branch_id">
+            <option value="">— ללא סניף —</option>
+          </select>
+          <div class="org-form-help">חובה ל-מנהל סניף, אופציונלי ל-מאמן</div>
+        </div>
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-invite">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary">שלח הזמנה</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit member modal (org_admin only) -->
+{% if org_ctx.role == 'org_admin' %}
+<div class="org-modal-backdrop" id="member-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="member-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="member-modal-title">עריכת חבר</div>
+      <button type="button" class="org-modal-close" data-action="close-member" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="member-form">
+      <div class="org-modal-body">
+        <input type="hidden" name="membership_id" value="">
+        <div class="org-form-group">
+          <label class="org-form-label">משתמש</label>
+          <div class="org-text-sm org-text-muted" data-member-email></div>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="member-role">תפקיד</label>
+          <select class="org-select" id="member-role" name="role" required></select>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="member-region">מחוז</label>
+          <select class="org-select" id="member-region" name="region_id">
+            <option value="">— ללא מחוז —</option>
+          </select>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="member-branch">סניף</label>
+          <select class="org-select" id="member-branch" name="branch_id">
+            <option value="">— ללא סניף —</option>
+          </select>
+        </div>
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-member">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary">שמירה</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Generic confirm modal -->
+<div class="org-modal-backdrop" id="confirm-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true">
+    <div class="org-modal-header">
+      <div class="org-modal-title" data-confirm-title>אישור</div>
+      <button type="button" class="org-modal-close" data-action="close-confirm" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <p data-confirm-message></p>
+      <div class="org-form-error org-hidden org-mt-4" data-confirm-error></div>
+    </div>
+    <div class="org-modal-footer">
+      <button type="button" class="org-btn org-btn--secondary" data-action="close-confirm">ביטול</button>
+      <button type="button" class="org-btn org-btn--danger" data-action="do-confirm">אישור</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-users.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+{% endblock %}

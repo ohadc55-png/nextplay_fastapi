@@ -2224,3 +2224,72 @@ input { font-family: inherit; }
         font-size: 15px;
     }
 }
+
+/* ===========================================================================
+   Phase 2 — Floating install CTA (sticky on the welcome page)
+   Conversion-critical: stays in viewport at every scroll position. Hidden
+   inside the standalone PWA via the matchMedia gate at the bottom.
+   =========================================================================== */
+.floating-install-cta {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9000; /* below modals (99999) but above all page content */
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 999px;
+
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #fff;
+    cursor: pointer;
+
+    background: linear-gradient(135deg, #ff4500, #ff8c00, #ffd700, #ff6347, #ff4500);
+    background-size: 300% 300%;
+    animation: floatingInstallFlame 3.2s ease infinite;
+    box-shadow: 0 8px 24px rgba(255,69,0,0.45), 0 0 30px rgba(255,140,0,0.28);
+    transition: transform 0.18s, box-shadow 0.25s;
+}
+.floating-install-cta:hover {
+    transform: translateY(-2px);
+    animation-duration: 1.4s;
+    box-shadow: 0 12px 34px rgba(255,69,0,0.6), 0 0 40px rgba(255,140,0,0.4);
+}
+.floating-install-cta:active {
+    transform: translateY(0);
+}
+.floating-install-cta__icon {
+    flex-shrink: 0;
+    color: #fff;
+}
+.floating-install-cta__flame {
+    font-size: 1.05rem;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+}
+@keyframes floatingInstallFlame {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Mobile — same look, slightly tighter so it doesn't crowd the thumb zone. */
+@media (max-width: 640px) {
+    .floating-install-cta {
+        bottom: 16px;
+        right: 12px;
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Already running inside the installed app → hide the CTA entirely.
+   The pwa-install-banner.js click handler also re-labels it, but a sticky
+   "you're inside the app" button on the welcome page is noise — kill it. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+    .floating-install-cta { display: none; }
+}

@@ -1,0 +1,91 @@
+{% extends "public/_base.html" %}
+
+{% block title %}חתימה — {{ organization_name or 'NEXTPLAY' }}{% endblock %}
+
+{% block subtitle %}
+<p>{{ organization_name or "" }}</p>
+{% if delivery.player_name %}<p class="public-sign__player">עבור: {{ delivery.player_name }}</p>{% endif %}
+{% endblock %}
+
+{% block content %}
+<h2 class="public-sign__doc-title">{{ template.name }}</h2>
+
+{# OTP step (only when template requires signature) #}
+{% if template.requires_signature %}
+<section class="public-sign__section" data-step="otp" id="otp-section">
+  <h3>אימות זהות</h3>
+  <p class="org-text-sm org-text-muted">נשלח אליך קוד SMS לאישור החתימה.</p>
+
+  <div data-otp-stage="request">
+    <div class="org-form-group">
+      <label class="org-form-label" for="otp-phone">מספר טלפון</label>
+      <input class="org-input" type="tel" id="otp-phone" autocomplete="tel" inputmode="numeric" dir="ltr" placeholder="050-1234567">
+    </div>
+    <button type="button" class="org-btn org-btn--primary org-btn--full" data-action="otp-request">שלח קוד</button>
+  </div>
+
+  <div data-otp-stage="verify" hidden>
+    <div class="org-form-group">
+      <label class="org-form-label" for="otp-code">קוד אימות (6 ספרות)</label>
+      <input class="org-input" type="text" id="otp-code" autocomplete="one-time-code" inputmode="numeric" dir="ltr" maxlength="6" pattern="\d{6}">
+      <div class="org-form-help">לא הגיע? המתן דקה ולחץ "שלח קוד שוב".</div>
+    </div>
+    <button type="button" class="org-btn org-btn--primary org-btn--full" data-action="otp-verify">אישור קוד</button>
+    <button type="button" class="org-btn org-btn--secondary org-btn--full" data-action="otp-resend" style="margin-block-start: var(--org-space-2);">שלח קוד שוב</button>
+  </div>
+
+  <div class="org-public-error org-hidden" data-otp-error role="alert"></div>
+</section>
+{% endif %}
+
+{# Form-fill + signature step — hidden until OTP verified (or shown immediately if no sig required) #}
+<section class="public-sign__section" data-step="form" id="form-section" {% if template.requires_signature %}hidden{% endif %}>
+  <form id="sign-form" novalidate>
+    <h3>פרטים</h3>
+
+    <div class="public-sign__fields" data-form-fields>
+      <!-- Form fields rendered by public-sign.js from template.form_fields -->
+    </div>
+
+    {% if template.requires_signature %}
+    <h3>חתימה</h3>
+    <div class="public-sign__sig-tabs" role="tablist">
+      <button type="button" class="public-sign__sig-tab is-active" data-sig-tab="drawn" role="tab" aria-selected="true">צייר חתימה</button>
+      <button type="button" class="public-sign__sig-tab" data-sig-tab="typed" role="tab" aria-selected="false">הקלד חתימה</button>
+    </div>
+
+    <div class="public-sign__sig-pane" data-sig-pane="drawn">
+      <canvas id="signature-canvas" class="public-sign__canvas" width="600" height="200"></canvas>
+      <div class="org-flex org-gap-2">
+        <button type="button" class="org-btn org-btn--secondary" data-action="clear-sig">נקה</button>
+      </div>
+    </div>
+    <div class="public-sign__sig-pane" data-sig-pane="typed" hidden>
+      <div class="org-form-group">
+        <label class="org-form-label" for="typed-sig">החתימה שלך</label>
+        <input class="org-input public-sign__typed" type="text" id="typed-sig" maxlength="200" placeholder="הקלד את שמך המלא">
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="org-public-error org-hidden" data-form-error role="alert"></div>
+
+    <button type="submit" class="org-btn org-btn--primary org-btn--full" style="margin-block-start: var(--org-space-4);">שלח</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ g.csp_nonce }}">
+  window.SIGN_CTX = {
+    token: {{ token | tojson }},
+    template: {
+      id: {{ template.id }},
+      name: {{ template.name | tojson }},
+      requires_signature: {{ template.requires_signature | tojson }},
+      form_fields: {{ template.form_fields | tojson }},
+    },
+  };
+</script>
+<script src="{{ url_for('static', filename='js/public-sign.js') }}?v={{ config.get('CSS_VERSION', '8') }}" defer></script>
+{% endblock %}

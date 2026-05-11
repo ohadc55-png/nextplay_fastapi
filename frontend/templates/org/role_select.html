@@ -1,41 +1,52 @@
+{# /org/role-select — multi-role picker.
+   Form contract preserved:
+   - method=POST action=/org/switch-role
+   - hidden inputs: organization_id, role
+   org_role_select_page in src/api/org_pages.py builds `roles` list.
+#}
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0a0e14">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Select role - NextPlay Enterprise</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="robots" content="noindex, nofollow">
+  <title>בחירת תפקיד — NEXTPLAY Enterprise</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/org.css') }}?v={{ config.get('CSS_VERSION', '3') }}">
 </head>
-<body class="admin-body admin-login-page">
+<body class="org-body">
 
-<div class="admin-login-card" style="max-width: 520px;">
-    <div class="login-brand">
-        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="56" height="56" style="border-radius: 12px;">
-        <h1>NEXTPLAY <span class="brand-tag">Enterprise</span></h1>
-        <p>Welcome back, {{ user_email }}. Choose a role to continue.</p>
+<div class="org-public">
+  <div class="org-public-card org-public-card--wide">
+    <div class="org-public-brand">
+      <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+      <h1>NEXTPLAY <span class="org-brand-tag">Enterprise</span></h1>
+      <p>שלום {{ user_email }}, בחר תפקיד להמשך</p>
     </div>
 
-    <ul class="role-list" style="list-style: none; padding: 0; margin: 0;">
-        {% for r in roles %}
-        <li style="margin-bottom: 12px;">
-            <form method="POST" action="/org/switch-role">
-                <input type="hidden" name="organization_id" value="{{ r.organization_id }}">
-                <input type="hidden" name="role" value="{{ r.role }}">
-                <button type="submit" class="login-btn" style="width: 100%; text-align: left;">
-                    <strong>{{ r.organization_name }}</strong>
-                    <span style="opacity: .8; margin-left: 8px;">{{ r.role }}</span>
-                </button>
-            </form>
-        </li>
-        {% endfor %}
+    <ul class="org-role-list">
+      {% for r in roles %}
+      <li>
+        <form method="POST" action="/org/switch-role">
+          <input type="hidden" name="organization_id" value="{{ r.organization_id }}">
+          <input type="hidden" name="role" value="{{ r.role }}">
+          <button type="submit" class="org-role-card">
+            <span class="org-role-card-name">{{ r.organization_name }}</span>
+            <span class="org-role-card-role">{{ r.role }}</span>
+          </button>
+        </form>
+      </li>
+      {% endfor %}
     </ul>
 
-    <p style="margin-top: 24px; text-align: center;">
-        <a href="/org/logout" style="color: var(--admin-text-muted, #888);">Sign out</a>
-    </p>
+    <div class="org-public-footer">
+      <a href="/org/logout">יציאה</a>
+    </div>
+  </div>
 </div>
 
 </body>

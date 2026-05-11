@@ -1,0 +1,154 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'players' %}
+{% block title %}שחקנים — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">שחקנים</h1>
+    <p class="org-page-subtitle">סגל השחקנים של הארגון. פרטי קשר רגישים מוצפנים במאגר.</p>
+  </div>
+  {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager', 'coach'] %}
+  <div class="org-page-actions">
+    <button type="button" class="org-btn org-btn--primary" data-action="open-new-player">
+      <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
+      <span>שחקן חדש</span>
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="org-flex org-items-center org-gap-3" style="margin-block-end: var(--org-space-4); flex-wrap: wrap;">
+  <label class="org-text-sm org-text-muted" for="player-region-filter">מחוז:</label>
+  <select class="org-select" id="player-region-filter" style="max-width: 200px;">
+    <option value="">כל המחוזות</option>
+  </select>
+  <label class="org-text-sm org-text-muted" for="player-branch-filter">סניף:</label>
+  <select class="org-select" id="player-branch-filter" style="max-width: 220px;">
+    <option value="">כל הסניפים</option>
+  </select>
+  <label class="org-text-sm org-text-muted" for="player-team-filter">קבוצה:</label>
+  <select class="org-select" id="player-team-filter" style="max-width: 240px;">
+    <option value="">כל הקבוצות</option>
+  </select>
+</div>
+
+<div class="org-table-wrap">
+  <table class="org-table" id="players-table">
+    <thead>
+      <tr>
+        <th style="width: 36%;">שחקן</th>
+        <th>מס׳</th>
+        <th>תפקיד</th>
+        <th>גיל</th>
+        <th>קבוצה</th>
+        <th style="width: 100px; text-align:end;">פעולות</th>
+      </tr>
+    </thead>
+    <tbody data-players-rows>
+      <tr><td colspan="6" class="org-table-empty">טוען…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- New / Edit player modal -->
+<div class="org-modal-backdrop" id="player-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="player-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="player-modal-title">שחקן חדש</div>
+      <button type="button" class="org-modal-close" data-action="close-player" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="player-form">
+      <div class="org-modal-body">
+        <input type="hidden" name="id" value="">
+        <div class="org-form-group">
+          <label class="org-form-label" for="player-name">שם מלא</label>
+          <input class="org-input" type="text" id="player-name" name="name"
+                 required minlength="1" maxlength="200" autocomplete="off">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="player-modal-region">מחוז</label>
+          <select class="org-select" id="player-modal-region" name="region_id_filter">
+            <option value="">— ללא מחוז —</option>
+          </select>
+          <div class="org-form-help">בחירת מחוז מצמצמת את רשימת הסניפים והקבוצות מטה.</div>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="player-modal-branch">סניף</label>
+          <select class="org-select" id="player-modal-branch" name="branch_id_filter">
+            <option value="">— ללא סניף —</option>
+          </select>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="player-team">קבוצה</label>
+          <select class="org-select" id="player-team" name="team_id" required>
+            <option value="">— בחר קבוצה —</option>
+          </select>
+        </div>
+        <div class="org-flex org-gap-3" style="flex-wrap: wrap;">
+          <div class="org-form-group" style="flex: 1; min-width: 80px;">
+            <label class="org-form-label" for="player-number">מס׳ חולצה</label>
+            <input class="org-input" type="number" id="player-number" name="number" min="0" max="999">
+          </div>
+          <div class="org-form-group" style="flex: 1; min-width: 80px;">
+            <label class="org-form-label" for="player-age">גיל</label>
+            <input class="org-input" type="number" id="player-age" name="age" min="4" max="120">
+          </div>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="player-position">תפקיד</label>
+          <select class="org-select" id="player-position" name="position">
+            <option value="">—</option>
+            <option value="PG">PG — Point Guard</option>
+            <option value="SG">SG — Shooting Guard</option>
+            <option value="SF">SF — Small Forward</option>
+            <option value="PF">PF — Power Forward</option>
+            <option value="C">C — Center</option>
+          </select>
+        </div>
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-player">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary">שמירה</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="org-modal-backdrop" id="confirm-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true">
+    <div class="org-modal-header">
+      <div class="org-modal-title">הסרת שחקן</div>
+      <button type="button" class="org-modal-close" data-action="close-confirm" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <p>האם להסיר את <strong data-confirm-name></strong> מהסגל?</p>
+      <p class="org-text-sm org-text-muted">השחקן יעבור למצב לא-פעיל אך לא יימחק מהמאגר.</p>
+      <div class="org-form-error org-hidden org-mt-4" data-confirm-error></div>
+    </div>
+    <div class="org-modal-footer">
+      <button type="button" class="org-btn org-btn--secondary" data-action="close-confirm">ביטול</button>
+      <button type="button" class="org-btn org-btn--danger" data-action="do-confirm">הסרה</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-players.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+{% endblock %}

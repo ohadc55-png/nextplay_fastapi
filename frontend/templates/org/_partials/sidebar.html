@@ -1,0 +1,105 @@
+{% from "org/_partials/icons.html" import icon %}
+{# /org/* sidebar partial.
+   Light blue palette flowing into the main canvas. SVG icons (Heroicons v2
+   outline). 11 nav items; 5 marked coming-soon (Calendar, Facilities,
+   Documents, Messages, Payments, AI Insights — except Dashboard / Users /
+   Teams / Players / Settings, which Phase 1 will build).
+   Pages set `active = 'dashboard'` etc. to highlight the current item.
+#}
+<aside class="org-sidebar" id="org-sidebar" aria-label="ניווט">
+  <a href="/org/dashboard" class="org-sidebar-brand">
+    <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+    <span class="org-sidebar-brand-text">NEXTPLAY</span>
+  </a>
+
+  <nav class="org-nav" aria-label="ראשי">
+
+    <div class="org-nav-section">
+      <a href="/org/dashboard"
+         class="org-nav-item {% if active == 'dashboard' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('home') }}</span>
+        <span class="org-nav-text">דשבורד</span>
+      </a>
+    </div>
+
+    <div class="org-nav-section">
+      <div class="org-nav-label">ארגון</div>
+      <a href="/org/regions"
+         class="org-nav-item {% if active == 'regions' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('building') }}</span>
+        <span class="org-nav-text">מחוזות</span>
+      </a>
+      <a href="/org/branches"
+         class="org-nav-item {% if active == 'branches' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('map-pin') }}</span>
+        <span class="org-nav-text">סניפים</span>
+      </a>
+      <a href="/org/users"
+         class="org-nav-item {% if active == 'users' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('users') }}</span>
+        <span class="org-nav-text">אנשים</span>
+      </a>
+      <a href="/org/teams"
+         class="org-nav-item {% if active == 'teams' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('flag') }}</span>
+        <span class="org-nav-text">קבוצות</span>
+      </a>
+      <a href="/org/players"
+         class="org-nav-item {% if active == 'players' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('identification') }}</span>
+        <span class="org-nav-text">שחקנים</span>
+      </a>
+      <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
+        <span class="org-nav-icon">{{ icon('calendar') }}</span>
+        <span class="org-nav-text">לוח שנה</span>
+        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
+      </a>
+      <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
+        <span class="org-nav-icon">{{ icon('map-pin') }}</span>
+        <span class="org-nav-text">מתקנים</span>
+        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
+      </a>
+    </div>
+
+    <div class="org-nav-section">
+      <div class="org-nav-label">תפעול</div>
+      <a href="/org/document-templates"
+         class="org-nav-item {% if active == 'document_templates' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('document') }}</span>
+        <span class="org-nav-text">מסמכים</span>
+      </a>
+      <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
+        <span class="org-nav-icon">{{ icon('chat') }}</span>
+        <span class="org-nav-text">הודעות</span>
+        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
+      </a>
+      <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
+        <span class="org-nav-icon">{{ icon('wallet') }}</span>
+        <span class="org-nav-text">כספים</span>
+        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
+      </a>
+    </div>
+
+    <div class="org-nav-section">
+      <div class="org-nav-label">תובנות</div>
+      <a href="#" class="org-nav-item is-disabled ai-feature" aria-disabled="true">
+        <span class="org-nav-icon">{{ icon('sparkles') }}</span>
+        <span class="org-nav-text">תובנות AI</span>
+        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
+      </a>
+    </div>
+
+  </nav>
+
+  <div class="org-sidebar-footer">
+    <a href="/org/settings"
+       class="org-nav-item {% if active == 'settings' %}is-active{% endif %}">
+      <span class="org-nav-icon">{{ icon('cog') }}</span>
+      <span class="org-nav-text">הגדרות</span>
+    </a>
+    <a href="/org/logout" class="org-nav-item">
+      <span class="org-nav-icon">{{ icon('logout') }}</span>
+      <span class="org-nav-text">יציאה</span>
+    </a>
+  </div>
+</aside>

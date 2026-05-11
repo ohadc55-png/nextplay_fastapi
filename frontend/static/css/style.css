@@ -482,6 +482,61 @@ a:hover { color: var(--accent-bright); }
     50%  { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
+
+/* Phase 2 — Flame-orange install CTA inside the sidebar nav (last item).
+   Conversion-critical: brighter than any other nav row, animated by default. */
+.nav-install-cta {
+    /* layout matches the nav <a> rows */
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: calc(100% - 0px);
+    padding: 11px 16px;
+    margin: 12px 0 4px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #fff;
+    cursor: pointer;
+    text-align: inherit;
+    /* flame gradient runs by default (not just hover) — this is the CTA */
+    background: linear-gradient(135deg, #ff4500, #ff8c00, #ffd700, #ff6347, #ff4500);
+    background-size: 300% 300%;
+    animation: flameShift 3.2s ease infinite;
+    box-shadow: 0 6px 18px rgba(255,69,0,0.35), 0 0 22px rgba(255,140,0,0.22);
+    transition: transform 0.18s, box-shadow 0.25s;
+    position: relative;
+    overflow: hidden;
+}
+.nav-install-cta:hover {
+    transform: translateY(-1px);
+    animation-duration: 1.4s;
+    box-shadow: 0 8px 28px rgba(255,69,0,0.55), 0 0 30px rgba(255,140,0,0.35);
+}
+.nav-install-cta:active {
+    transform: translateY(0);
+}
+.nav-install-cta .nav-icon {
+    color: #fff;
+    flex-shrink: 0;
+}
+.nav-install-cta__flame {
+    margin-inline-start: auto;
+    font-size: 1.05rem;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+}
+/* When already running inside the installed app, downgrade the CTA so it
+   stops shouting — the PWA JS swaps the label to "✓ App installed". */
+@media (display-mode: standalone) {
+    .nav-install-cta {
+        background: linear-gradient(135deg, #5a6677, #404a5c);
+        animation: none;
+        box-shadow: none;
+        opacity: 0.85;
+    }
+}
 .sidebar-manage-plan {
     display: flex;
     align-items: center;

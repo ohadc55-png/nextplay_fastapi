@@ -1,0 +1,203 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'document_templates' %}
+{% block title %}מסמכים — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">מסמכים</h1>
+    <p class="org-page-subtitle">תבניות PDF/Word להחתמת הורים. סמן את השדות לאחר העלאה.</p>
+  </div>
+  {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager'] %}
+  <div class="org-page-actions">
+    <button type="button" class="org-btn org-btn--primary" data-action="open-new-template">
+      <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
+      <span>מסמך חדש</span>
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="org-flex org-items-center org-gap-3" style="margin-block-end: var(--org-space-4); flex-wrap: wrap;">
+  <label class="org-text-sm org-text-muted" for="template-category-filter">קטגוריה:</label>
+  <select class="org-select" id="template-category-filter" style="max-width: 240px;">
+    <option value="">כל הקטגוריות</option>
+    <option value="PARTICIPATION">השתתפות</option>
+    <option value="TOURNAMENT">טורניר</option>
+    <option value="SIZING">מידות</option>
+    <option value="HEALTH">בריאות</option>
+    <option value="PERMISSION">אישור</option>
+    <option value="OTHER">אחר</option>
+  </select>
+  <label class="org-text-sm org-text-muted org-flex org-items-center org-gap-2">
+    <input type="checkbox" id="template-include-inactive">
+    <span>הצג גם תבניות מבוטלות</span>
+  </label>
+</div>
+
+<div class="org-table-wrap">
+  <table class="org-table" id="templates-table">
+    <thead>
+      <tr>
+        <th style="width: 32%;">שם</th>
+        <th>קטגוריה</th>
+        <th>קובץ</th>
+        <th>חתימה</th>
+        <th>שדות</th>
+        <th>סטטוס</th>
+        {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager'] %}<th style="width: 130px; text-align:end;">פעולות</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody data-templates-rows>
+      <tr><td colspan="7" class="org-table-empty">טוען…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- New template modal (upload) -->
+<div class="org-modal-backdrop" id="template-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="template-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="template-modal-title">מסמך חדש</div>
+      <button type="button" class="org-modal-close" data-action="close-template" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="template-form" enctype="multipart/form-data">
+      <div class="org-modal-body">
+        <div class="org-form-group">
+          <label class="org-form-label" for="template-name">שם המסמך</label>
+          <input class="org-input" type="text" id="template-name" name="name"
+                 required minlength="1" maxlength="200" autocomplete="off">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="template-description">תיאור (אופציונלי)</label>
+          <input class="org-input" type="text" id="template-description" name="description" maxlength="500">
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="template-category">קטגוריה</label>
+          <select class="org-select" id="template-category" name="category" required>
+            <option value="PARTICIPATION">השתתפות</option>
+            <option value="TOURNAMENT">טורניר</option>
+            <option value="SIZING">מידות</option>
+            <option value="HEALTH">בריאות</option>
+            <option value="PERMISSION">אישור</option>
+            <option value="OTHER" selected>אחר</option>
+          </select>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label org-flex org-items-center org-gap-2">
+            <input type="checkbox" id="template-requires-signature" name="requires_signature" checked>
+            <span>נדרשת חתימה (יופעל OTP בעת השליחה להורה)</span>
+          </label>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="template-file">קובץ PDF או Word</label>
+          <input class="org-input" type="file" id="template-file" name="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+          <div class="org-form-help">עד 10MB. PDF מאפשר סימון שדות מיד; ל-DOCX סימון השדות יתווסף בעתיד.</div>
+        </div>
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-template">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary">העלאה</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Send-campaign modal -->
+<div class="org-modal-backdrop" id="send-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="send-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="send-modal-title">שליחת מסמך להורים</div>
+      <button type="button" class="org-modal-close" data-action="close-send" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="send-form">
+      <div class="org-modal-body">
+        <input type="hidden" name="template_id" value="">
+        <div class="org-form-group">
+          <label class="org-form-label" for="send-title">כותרת הקמפיין</label>
+          <input class="org-input" type="text" id="send-title" name="title"
+                 required minlength="1" maxlength="200" autocomplete="off">
+          <div class="org-form-help">ההורים לא רואים את הכותרת — היא משמשת אותך לזיהוי בלבד.</div>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label">למי לשלוח?</label>
+          <select class="org-select" id="send-region" name="region_id" style="margin-block-end: var(--org-space-2);">
+            <option value="">כל המחוזות</option>
+          </select>
+          <select class="org-select" id="send-branch" name="branch_id" style="margin-block-end: var(--org-space-2);">
+            <option value="">כל הסניפים</option>
+          </select>
+          <select class="org-select" id="send-team" name="team_id">
+            <option value="">כל הקבוצות</option>
+          </select>
+          <div class="org-form-help">השאר הכל ריק לשליחה לכל הארגון. כל בחירה מצמצמת את הרשימה הבאה.</div>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label">ערוצי שליחה</label>
+          <label class="org-flex org-items-center org-gap-2">
+            <input type="checkbox" name="ch_sms" checked>
+            <span>SMS</span>
+          </label>
+          <label class="org-flex org-items-center org-gap-2">
+            <input type="checkbox" name="ch_email" checked>
+            <span>אימייל</span>
+          </label>
+          <div class="org-form-help">המערכת תנסה SMS תחילה ותעבור לאימייל אם אין מספר טלפון.</div>
+        </div>
+
+        <div class="org-card" style="background: var(--org-blue-50); padding: var(--org-space-3); border-color: var(--org-blue-200);">
+          <strong data-send-count>—</strong> <span data-send-count-suffix>הורים</span>
+          <div class="org-text-sm org-text-muted" data-send-count-hint></div>
+        </div>
+
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-send">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary" data-send-submit>שלח עכשיו</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="org-modal-backdrop" id="confirm-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true">
+    <div class="org-modal-header">
+      <div class="org-modal-title">ביטול תבנית</div>
+      <button type="button" class="org-modal-close" data-action="close-confirm" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <p>האם לבטל את <strong data-confirm-name></strong>?</p>
+      <p class="org-text-sm org-text-muted">התבנית תועבר ל"לא פעילה" והקובץ ב-S3 נשמר. שליחות קיימות עדיין נגישות.</p>
+      <div class="org-form-error org-hidden org-mt-4" data-confirm-error></div>
+    </div>
+    <div class="org-modal-footer">
+      <button type="button" class="org-btn org-btn--secondary" data-action="close-confirm">ביטול</button>
+      <button type="button" class="org-btn org-btn--danger" data-action="do-confirm">בטל תבנית</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-document-templates.js') }}?v={{ config.get('CSS_VERSION', '7') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+{% endblock %}

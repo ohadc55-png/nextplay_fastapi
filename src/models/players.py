@@ -39,6 +39,11 @@ class Player(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     team_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("team_profile.id"), nullable=True)
+    # Phase 1.1 — denormalized for fast org-scoped queries + RLS. NULL means
+    # private-coach player (existing rows pre-Phase-1; backfill in migration).
+    organization_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
     number: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -68,6 +73,7 @@ class Player(Base):
     __table_args__ = (
         Index("idx_players_user_id", "user_id"),
         Index("idx_players_team_id", "team_id"),
+        Index("idx_players_org", "organization_id"),
     )
 
     def __repr__(self) -> str:  # pragma: no cover

@@ -1,0 +1,97 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Organizations{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h2 style="margin: 0;">Organizations</h2>
+  <a href="/admin/orgs/wizard" class="admin-btn admin-btn-primary"
+     style="display: inline-flex; align-items: center; gap: 8px;">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Organization
+  </a>
+</div>
+
+<div class="admin-card" id="orgs-card" style="margin-top: 24px;">
+  <table class="admin-table" id="orgs-table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Slug</th>
+        <th>Plan</th>
+        <th>Status</th>
+        <th>Members</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody data-rows>
+      <tr><td colspan="7" style="text-align:center; padding: 24px; opacity: 0.6;">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  "use strict";
+  var $rows = document.querySelector("[data-rows]");
+  function el(tag, opts, children) {
+    var n = document.createElement(tag);
+    if (opts) {
+      if (opts.className) n.className = opts.className;
+      if (opts.text != null) n.textContent = opts.text;
+      if (opts.attrs) Object.keys(opts.attrs).forEach(function (k) { n.setAttribute(k, opts.attrs[k]); });
+    }
+    if (children) children.forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+  function setEmpty(msg) {
+    $rows.replaceChildren(el("tr", null, [
+      el("td", { text: msg, attrs: { colspan: "7", style: "text-align:center; padding: 24px; opacity: 0.6;" } }),
+    ]));
+  }
+  async function load() {
+    try {
+      var r = await fetch("/admin/api/orgs", {
+        headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (!r.ok) {
+        setEmpty("Failed to load (HTTP " + r.status + ")");
+        return;
+      }
+      var data = await r.json();
+      var orgs = data.organizations || [];
+      if (!orgs.length) {
+        setEmpty('No organizations yet. Click "New Organization" to start.');
+        return;
+      }
+      $rows.replaceChildren.apply($rows, orgs.map(function (o) {
+        var link = el("a", { text: o.name, attrs: { href: "/admin/orgs/" + o.id, style: "color: var(--admin-accent, #ff6b35); text-decoration: none; font-weight: 600;" } });
+        var nameTd = el("td", null, [link]);
+        var slugTd = el("td", { text: o.slug, attrs: { style: "font-family: monospace; opacity: 0.7;" } });
+        var planTd = el("td", { text: o.plan || "—" });
+        var statusTd = el("td", { text: o.status || "—" });
+        var membersTd = el("td", { text: String(o.member_count || 0) });
+        var createdTd = el("td", {
+          text: o.created_at ? new Date(o.created_at).toLocaleDateString() : "—",
+          attrs: { style: "opacity: 0.7; font-size: 13px;" },
+        });
+        var openTd = el("td", null, [
+          el("a", { text: "Open →", attrs: { href: "/admin/orgs/" + o.id, style: "color: var(--admin-accent, #ff6b35); text-decoration: none;" } }),
+        ]);
+        return el("tr", null, [nameTd, slugTd, planTd, statusTd, membersTd, createdTd, openTd]);
+      }));
+    } catch (e) {
+      setEmpty("Error: " + (e.message || e));
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", load);
+  } else {
+    load();
+  }
+})();
+</script>
+{% endblock %}

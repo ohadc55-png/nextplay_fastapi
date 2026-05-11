@@ -22,6 +22,7 @@ python-jose[cryptography]==3.3.0
 bcrypt==5.0.0
 authlib==1.6.9
 httpx==0.28.1
+cryptography>=42  # explicit pin: Fernet field-level encryption (Phase 1.6)
 
 # === AWS S3 (async) ===
 aioboto3==13.4.0  # pulls in compatible botocore via aiobotocore; no direct boto3 in new code

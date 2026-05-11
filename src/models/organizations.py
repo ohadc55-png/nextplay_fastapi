@@ -6,10 +6,10 @@ Private coaches have no organization; their teams keep `organization_id IS NULL`
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base, JSONText
@@ -31,6 +31,21 @@ class Organization(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
     plan: Mapped[str] = mapped_column(Text, nullable=False, server_default="enterprise")
     attributes_json: Mapped[dict | None] = mapped_column(JSONText, nullable=True)
+
+    # === Phase 1.1 wizard fields (all nullable so existing rows stay valid) ===
+    legal_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tax_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    primary_color: Mapped[str | None] = mapped_column(Text, nullable=True)  # '#RRGGBB'
+    subdomain: Mapped[str | None] = mapped_column(Text, nullable=True)  # partial-unique below
+    structure_type: Mapped[str | None] = mapped_column(Text, nullable=True)  # 'flat'|'regions'|'regions_branches'
+    monthly_fee_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    setup_fee_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    contract_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contract_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     created_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

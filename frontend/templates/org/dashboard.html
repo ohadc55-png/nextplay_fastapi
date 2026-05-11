@@ -1,59 +1,54 @@
-<!DOCTYPE html>
-<html lang="en" dir="ltr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0a0e14">
-    <meta name="robots" content="noindex, nofollow">
-    <title>{{ organization.name }} - NextPlay Enterprise</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
-</head>
-<body class="admin-body">
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'dashboard' %}
+{% block title %}{{ org_ctx.organization_name or 'דשבורד' }} — NEXTPLAY Enterprise{% endblock %}
 
-<div class="admin-layout">
-    <nav class="admin-nav">
-        <div class="admin-nav-inner">
-            <a href="/org/dashboard" class="admin-brand">
-                <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" class="admin-brand-logo">
-                <h1>{{ organization.name }} <span class="brand-tag">{{ role }}</span></h1>
-            </a>
-            <div class="admin-nav-user">
-                <span>{{ user_display_name or user_email }}</span>
-                <a href="/org/logout">Sign out</a>
-            </div>
-        </div>
-    </nav>
-
-    <main class="admin-main" style="padding: 24px;">
-        <h2>Dashboard</h2>
-        <p>Phase 0 placeholder. Live stats are wired via <code>GET /org/api/dashboard/summary</code>.</p>
-
-        <div id="org-stats" class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 24px;">
-            <div class="stat-tile"><div class="stat-label">Members</div><div class="stat-value" data-stat="member_count">—</div></div>
-            <div class="stat-tile"><div class="stat-label">Branches</div><div class="stat-value" data-stat="branch_count">—</div></div>
-            <div class="stat-tile"><div class="stat-label">Regions</div><div class="stat-value" data-stat="region_count">—</div></div>
-            <div class="stat-tile"><div class="stat-label">Teams</div><div class="stat-value" data-stat="team_count">—</div></div>
-        </div>
-    </main>
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">שלום, {{ (org_ctx.user_display_name or org_ctx.user_email or '').split(' ')[0] or 'שלום' }}</h1>
+    <p class="org-page-subtitle" data-role-subtitle>טוען…</p>
+  </div>
 </div>
 
-<script nonce="{{ g.csp_nonce }}">
-(async function () {
-    try {
-        const r = await fetch("/org/api/dashboard/summary", {
-            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
-            credentials: "same-origin",
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        for (const key of ["member_count", "branch_count", "region_count", "team_count"]) {
-            const el = document.querySelector(`[data-stat="${key}"]`);
-            if (el && typeof data[key] === "number") el.textContent = data[key];
-        }
-    } catch (e) { /* silently ignore in Phase 0 */ }
-})();
-</script>
+<!-- Stat tiles (populated per-role by JS) -->
+<div class="org-stat-grid" data-tiles>
+  <div class="org-stat"><div class="org-stat-label">טוען…</div><div class="org-stat-value">—</div></div>
+</div>
 
-</body>
-</html>
+<div class="org-flex org-mt-8" style="gap: var(--org-space-6); flex-wrap: wrap; align-items: flex-start;">
+
+  <!-- Recent activity feed -->
+  <div class="org-card" style="flex: 2; min-width: 320px;">
+    <div class="org-card-title">פעילות אחרונה</div>
+    <div data-activity>
+      <p class="org-text-sm org-text-muted">טוען…</p>
+    </div>
+  </div>
+
+  <!-- AI insights teaser (Phase 1.7 placeholder; future sub-phase wires it) -->
+  <div class="org-card org-card--ai" style="flex: 1; min-width: 280px;">
+    <div class="org-card-title org-flex org-items-center org-gap-2">
+      <span class="org-nav-icon" style="width:20px;height:20px; color: var(--org-purple-500);">{{ icon('sparkles') }}</span>
+      <span>תובנות AI</span>
+    </div>
+    <div class="org-card-body">
+      <p class="org-text-sm">בקרוב — תובנות אוטומטיות מבוססות נתוני הארגון: מגמות, אנומליות, והמלצות.</p>
+      <span class="org-badge org-badge--info" style="margin-block-start: var(--org-space-3); display:inline-block;">Phase 2</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'role_label_he': org_ctx.role_label_he,
+    'user_id': org_ctx.user_id,
+    'user_display_name': org_ctx.user_display_name,
+  } | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/org-dashboard.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+{% endblock %}

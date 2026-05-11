@@ -40,10 +40,13 @@ class TestOrgDashboardPage:
         assert r.status_code == 200
         # The org name appears in the navbar (Jinja escapes the apostrophe).
         assert "Sha&#39;ar Shivyon" in r.text
-        # Role appears as the brand tag.
-        assert ">org_admin<" in r.text
-        # Stat tiles wired to the JSON summary endpoint.
-        assert 'data-stat="member_count"' in r.text
+        # Role appears as the brand tag — the Hebrew label for org_admin.
+        # Jinja escapes the literal `"` inside מנכ"ל to &#34;.
+        assert "מנכ&#34;ל" in r.text
+        # Phase 1.7: tiles are populated by JS from /org/api/dashboard/role-stats.
+        # The page ships the empty containers + the activity feed slot.
+        assert "data-tiles" in r.text
+        assert "data-activity" in r.text
 
 
 class TestOrgRoleSelectPage:

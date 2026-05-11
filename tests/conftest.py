@@ -8,6 +8,16 @@ correctness is verified separately via `alembic upgrade head` smoke checks.
 
 from __future__ import annotations
 
+import os
+
+# Ensure ENCRYPTION_KEY is set BEFORE src.core.config builds its Settings
+# singleton. Local dev usually has it in .env; CI does not. A session-scoped
+# Fernet key keeps tests deterministic (within a run) without leaking real
+# production secrets. Phase 1.6 — see src/core/encryption.py.
+if not os.environ.get("ENCRYPTION_KEY"):
+    from cryptography.fernet import Fernet
+    os.environ["ENCRYPTION_KEY"] = Fernet.generate_key().decode()
+
 from collections.abc import AsyncIterator
 
 import pytest_asyncio
@@ -15,8 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
 # Importing src.models registers every ORM class with Base.metadata.
-import src.models  # noqa: F401
-from src.core.database import Base
+import src.models  # noqa: F401, E402
+from src.core.database import Base  # noqa: E402
 
 
 @pytest_asyncio.fixture

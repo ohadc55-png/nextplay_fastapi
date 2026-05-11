@@ -1,0 +1,299 @@
+/* Public signing flow — Phase 2.3.
+ *
+ * Three logical steps:
+ *   1. OTP request → server SMS → OTP verify (only if template.requires_signature).
+ *   2. Form rendering from template.form_fields + signature pad.
+ *   3. Submit → server generates final PDF → redirect to /complete.
+ *
+ * Security note: all user data lands via Node.textContent / setAttribute.
+ * The signature pad serializes via canvas.toDataURL (a data: URL, safe).
+ */
+
+(function () {
+  "use strict";
+
+  var ctx = window.SIGN_CTX;
+  if (!ctx || !ctx.token) return;
+  var TOKEN = ctx.token;
+  var TEMPLATE = ctx.template;
+
+  // --- DOM refs ---
+  var $otpSection = document.getElementById("otp-section");
+  var $formSection = document.getElementById("form-section");
+  var $signForm = document.getElementById("sign-form");
+
+  // --- API helper ---
+  async function api(method, url, body) {
+    var init = {
+      method: method,
+      headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+      credentials: "include",
+    };
+    if (body !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
+    var r = await fetch(url, init);
+    var data = null;
+    try { data = await r.json(); } catch (_e) {}
+    if (!r.ok) {
+      var msg = (data && (data.detail || data.message || data.error)) || ("שגיאה " + r.status);
+      throw { status: r.status, code: (data && data.code) || null, message: msg };
+    }
+    return data;
+  }
+
+  function showError($el, msg) { $el.textContent = msg; $el.classList.remove("org-hidden"); }
+  function hideError($el) { $el.textContent = ""; $el.classList.add("org-hidden"); }
+
+  // --- OTP step ---
+  if ($otpSection) {
+    var $otpErr = $otpSection.querySelector("[data-otp-error]");
+    var $stageReq = $otpSection.querySelector('[data-otp-stage="request"]');
+    var $stageVer = $otpSection.querySelector('[data-otp-stage="verify"]');
+    var $phone = document.getElementById("otp-phone");
+    var $code = document.getElementById("otp-code");
+
+    document.addEventListener("click", function (e) {
+      var t = e.target.closest("[data-action]");
+      if (!t) return;
+      if (t.dataset.action === "otp-request") return requestOtp();
+      if (t.dataset.action === "otp-resend") return requestOtp();
+      if (t.dataset.action === "otp-verify") return verifyOtp();
+    });
+
+    async function requestOtp() {
+      hideError($otpErr);
+      var phone = $phone.value.trim();
+      if (!phone) { showError($otpErr, "הזן מספר טלפון."); return; }
+      try {
+        await api("POST", "/sign/" + encodeURIComponent(TOKEN) + "/otp/request", { phone: phone });
+        $stageReq.hidden = true;
+        $stageVer.hidden = false;
+        setTimeout(function () { $code && $code.focus(); }, 50);
+      } catch (e) {
+        if (e.status === 429) {
+          showError($otpErr, "יותר מדי בקשות. נסה שוב בעוד שעה.");
+        } else {
+          showError($otpErr, "בקשה נכשלה — בדוק שמספר הטלפון תואם את ההזמנה.");
+        }
+      }
+    }
+
+    async function verifyOtp() {
+      hideError($otpErr);
+      var code = $code.value.trim();
+      if (!/^\d{4,8}$/.test(code)) { showError($otpErr, "קוד לא תקין."); return; }
+      try {
+        await api("POST", "/sign/" + encodeURIComponent(TOKEN) + "/otp/verify", { code: code });
+        // Verified — reveal the form.
+        $otpSection.hidden = true;
+        $formSection.hidden = false;
+      } catch (e) {
+        if (e.status === 410) showError($otpErr, "הקוד פג תוקף. לחץ 'שלח קוד שוב'.");
+        else if (e.status === 429) showError($otpErr, "מספר ניסיונות הסתיים. בקש קוד חדש.");
+        else showError($otpErr, "קוד שגוי.");
+      }
+    }
+  }
+
+  // --- Form rendering ---
+  var $fields = document.querySelector("[data-form-fields]");
+  if ($fields && TEMPLATE.form_fields) {
+    TEMPLATE.form_fields.forEach(function (f) { $fields.appendChild(renderField(f)); });
+  }
+
+  function renderField(f) {
+    var wrap = document.createElement("div");
+    wrap.className = "org-form-group";
+
+    var label = document.createElement("label");
+    label.className = "org-form-label";
+    label.setAttribute("for", "field-" + f.id);
+    label.textContent = f.label || f.id;
+    if (f.required) {
+      var star = document.createElement("span");
+      star.textContent = " *";
+      star.style.color = "var(--org-danger, #ef4444)";
+      label.appendChild(star);
+    }
+    wrap.appendChild(label);
+
+    var control;
+    switch (f.type) {
+      case "select":
+        control = document.createElement("select");
+        control.className = "org-select";
+        var blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = "— בחר —";
+        control.appendChild(blank);
+        (f.options || []).forEach(function (opt) {
+          var o = document.createElement("option");
+          o.value = opt;
+          o.textContent = opt;
+          control.appendChild(o);
+        });
+        break;
+      case "checkbox":
+        control = document.createElement("input");
+        control.className = "org-checkbox";
+        control.type = "checkbox";
+        break;
+      case "date":
+        control = document.createElement("input");
+        control.className = "org-input";
+        control.type = "date";
+        break;
+      case "number":
+        control = document.createElement("input");
+        control.className = "org-input";
+        control.type = "number";
+        control.inputMode = "numeric";
+        break;
+      default:
+        control = document.createElement("input");
+        control.className = "org-input";
+        control.type = "text";
+        break;
+    }
+    control.id = "field-" + f.id;
+    control.setAttribute("data-field-id", f.id);
+    control.setAttribute("data-field-type", f.type);
+    if (f.required) control.required = true;
+    wrap.appendChild(control);
+    return wrap;
+  }
+
+  // --- Signature pad ---
+  var signatureMethod = TEMPLATE.requires_signature ? "DRAWN" : null;
+  var hasDrawnInk = false;
+  var $canvas = document.getElementById("signature-canvas");
+  var $typed = document.getElementById("typed-sig");
+
+  if ($canvas) {
+    var ctx2d = $canvas.getContext("2d");
+    var drawing = false;
+    var last = null;
+
+    function resizeCanvas() {
+      // Match the display size to avoid blurry strokes.
+      var rect = $canvas.getBoundingClientRect();
+      var ratio = window.devicePixelRatio || 1;
+      $canvas.width = Math.max(2, Math.floor(rect.width * ratio));
+      $canvas.height = Math.max(2, Math.floor(200 * ratio));
+      ctx2d.scale(ratio, ratio);
+      ctx2d.lineWidth = 2;
+      ctx2d.lineJoin = "round";
+      ctx2d.lineCap = "round";
+      ctx2d.strokeStyle = "#0f172a";
+    }
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    function pointFrom(e) {
+      var rect = $canvas.getBoundingClientRect();
+      var clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] && e.touches[0].clientX);
+      var clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] && e.touches[0].clientY);
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+    function start(e) {
+      e.preventDefault();
+      drawing = true;
+      last = pointFrom(e);
+    }
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      var p = pointFrom(e);
+      ctx2d.beginPath();
+      ctx2d.moveTo(last.x, last.y);
+      ctx2d.lineTo(p.x, p.y);
+      ctx2d.stroke();
+      last = p;
+      hasDrawnInk = true;
+    }
+    function stop() { drawing = false; last = null; }
+    $canvas.addEventListener("pointerdown", start);
+    $canvas.addEventListener("pointermove", draw);
+    $canvas.addEventListener("pointerup", stop);
+    $canvas.addEventListener("pointerleave", stop);
+    $canvas.addEventListener("pointercancel", stop);
+  }
+
+  // Tab switching.
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-sig-tab]");
+    if (!t) return;
+    var which = t.dataset.sigTab;
+    signatureMethod = which === "typed" ? "TYPED" : "DRAWN";
+    document.querySelectorAll("[data-sig-tab]").forEach(function (b) {
+      b.classList.toggle("is-active", b === t);
+      b.setAttribute("aria-selected", String(b === t));
+    });
+    document.querySelectorAll("[data-sig-pane]").forEach(function (p) {
+      p.hidden = p.dataset.sigPane !== which;
+    });
+  });
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-action]");
+    if (!t) return;
+    if (t.dataset.action === "clear-sig") {
+      if ($canvas) {
+        var ctx2d = $canvas.getContext("2d");
+        ctx2d.clearRect(0, 0, $canvas.width, $canvas.height);
+        hasDrawnInk = false;
+      }
+    }
+  });
+
+  // --- Submit ---
+  if ($signForm) {
+    var $formErr = $signForm.querySelector("[data-form-error]");
+    $signForm.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      hideError($formErr);
+
+      var form_response = {};
+      var missing = [];
+      document.querySelectorAll("[data-field-id]").forEach(function (input) {
+        var id = input.dataset.fieldId;
+        var type = input.dataset.fieldType;
+        var value;
+        if (type === "checkbox") value = !!input.checked;
+        else value = input.value || "";
+        if (input.required && (value === "" || value === false)) missing.push(input);
+        form_response[id] = value;
+      });
+      if (missing.length) {
+        missing[0].focus();
+        showError($formErr, "אנא מלא את כל השדות המסומנים בכוכבית.");
+        return;
+      }
+
+      var payload = { form_response: form_response };
+      if (TEMPLATE.requires_signature) {
+        payload.signature_method = signatureMethod || "DRAWN";
+        if (payload.signature_method === "DRAWN") {
+          if (!hasDrawnInk) { showError($formErr, "צייר חתימה לפני השליחה."); return; }
+          payload.signature_image_base64 = $canvas.toDataURL("image/png");
+        } else {
+          var typed = ($typed && $typed.value.trim()) || "";
+          if (!typed) { showError($formErr, "הקלד את שמך כחתימה."); return; }
+          payload.typed_signature = typed;
+        }
+      }
+
+      var btn = $signForm.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = true;
+      try {
+        var resp = await api("POST", "/sign/" + encodeURIComponent(TOKEN) + "/submit", payload);
+        window.location.href = (resp && resp.redirect) || ("/sign/" + TOKEN + "/complete");
+      } catch (e) {
+        showError($formErr, e.message || "שליחה נכשלה.");
+        if (btn) btn.disabled = false;
+      }
+    });
+  }
+})();

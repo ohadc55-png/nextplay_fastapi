@@ -1,0 +1,567 @@
+/* /org/users page — members + invites management via /org/api/users/*.
+ *
+ * Security: every user-controlled value lands via Node.textContent or
+ * setAttribute; only SVG icons are inserted via cloned DOMParser nodes.
+ */
+
+(function () {
+  "use strict";
+
+  var ctx = window.ORG_CTX || { role: "viewer", region_id: null, branch_id: null, user_id: null };
+  var isAdmin = ctx.role === "org_admin";
+  var isRM = ctx.role === "region_manager";
+  var canInvite = isAdmin || isRM;
+  var canManageInvites = isAdmin || isRM;
+
+  var ROLE_LABELS = {
+    org_admin: "מנכ\"ל",
+    region_manager: "מנהל מחוז",
+    branch_manager: "מנהל סניף",
+    coach: "מאמן",
+    viewer: "צופה",
+  };
+  var STATUS_LABELS = {
+    active: "פעיל",
+    suspended: "מושעה",
+    removed: "הוסר",
+    pending: "ממתין",
+    cancelled: "בוטל",
+  };
+  var INVITABLE_ROLES_ADMIN = ["org_admin", "region_manager", "branch_manager", "coach", "viewer"];
+  var INVITABLE_ROLES_RM = ["branch_manager", "coach", "viewer"];
+
+  // --- DOM refs ---
+  var $membersRows = document.querySelector("[data-members-rows]");
+  var $invitesRows = document.querySelector("[data-invites-rows]");
+  var $inviteModal = document.getElementById("invite-modal");
+  var $inviteForm = document.getElementById("invite-form");
+  var $inviteError = $inviteModal.querySelector("[data-error]");
+  var $memberModal = document.getElementById("member-modal");           // null for non-admin
+  var $memberForm = $memberModal ? document.getElementById("member-form") : null;
+  var $memberError = $memberModal ? $memberModal.querySelector("[data-error]") : null;
+  var $confirmModal = document.getElementById("confirm-modal");
+  var $confirmTitle = $confirmModal.querySelector("[data-confirm-title]");
+  var $confirmMsg = $confirmModal.querySelector("[data-confirm-message]");
+  var $confirmError = $confirmModal.querySelector("[data-confirm-error]");
+
+  // --- State ---
+  var regionsById = {};
+  var branchesById = {};
+  var teamNamesByCoachUserId = {};  // user_id -> [team_name, ...]  (for coach search)
+  var allMembers = [];              // last-fetched (after server-side region filter)
+  var allInvites = [];
+  var pendingConfirm = null; // { onConfirm: () => Promise }
+  var searchDebounce = null;
+
+  // --- SVG icon templates (constant) ---
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function parseSvg(s) { return new DOMParser().parseFromString(s, "image/svg+xml").documentElement; }
+  var SVG_EDIT_TPL = parseSvg(
+    '<svg xmlns="' + SVG_NS + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/>' +
+    "</svg>"
+  );
+  var SVG_TRASH_TPL = parseSvg(
+    '<svg xmlns="' + SVG_NS + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>' +
+    "</svg>"
+  );
+  var SVG_RESEND_TPL = parseSvg(
+    '<svg xmlns="' + SVG_NS + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>' +
+    "</svg>"
+  );
+
+  // --- Generic helpers ---
+  function openModal(m) { m.classList.add("is-open"); m.setAttribute("aria-hidden", "false"); }
+  function closeModal(m) { m.classList.remove("is-open"); m.setAttribute("aria-hidden", "true"); }
+  function showError(el, text) { el.textContent = text; el.classList.remove("org-hidden"); }
+  function hideError(el) { el.textContent = ""; el.classList.add("org-hidden"); }
+
+  async function api(method, url, body) {
+    var init = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
+    var r = await fetch(url, init);
+    if (r.status === 204) return null;
+    var data = null;
+    try { data = await r.json(); } catch (_e) {}
+    if (!r.ok) {
+      var msg = (data && (data.detail || data.message)) || ("שגיאה " + r.status);
+      throw { status: r.status, code: (data && data.code) || null, message: msg };
+    }
+    return data;
+  }
+
+  function el(tag, opts, children) {
+    var n = document.createElement(tag);
+    if (opts) {
+      if (opts.className) n.className = opts.className;
+      if (opts.text != null) n.textContent = opts.text;
+      if (opts.attrs) Object.keys(opts.attrs).forEach(function (k) { n.setAttribute(k, opts.attrs[k]); });
+    }
+    if (children) children.forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+
+  function iconBtn(svgTpl, attrs, isDanger) {
+    var b = document.createElement("button");
+    b.className = "org-btn-icon" + (isDanger ? " is-danger" : "");
+    Object.keys(attrs).forEach(function (k) { b.setAttribute(k, attrs[k]); });
+    b.appendChild(svgTpl.cloneNode(true));
+    return b;
+  }
+
+  function pill(text, kind) {
+    return el("span", { className: "org-pill" + (kind ? " " + kind : ""), text: text });
+  }
+
+  function fillSelect(sel, items, valueKey, labelKey, includeBlank, blankLabel) {
+    while (sel.options.length > 0) sel.remove(0);
+    if (includeBlank) {
+      var blank = document.createElement("option");
+      blank.value = "";
+      blank.textContent = blankLabel || "— ללא —";
+      sel.appendChild(blank);
+    }
+    items.forEach(function (it) {
+      var o = document.createElement("option");
+      o.value = String(it[valueKey]);
+      o.textContent = it[labelKey];
+      sel.appendChild(o);
+    });
+  }
+
+  // --- Boot: load reference data + tables ---
+  async function loadReferenceData() {
+    var [regions, branches, teams] = await Promise.all([
+      api("GET", "/org/api/regions").catch(function () { return { regions: [] }; }),
+      api("GET", "/org/api/branches").catch(function () { return { branches: [] }; }),
+      // Teams power the "search by team name" path. Scoped on the server,
+      // so region_manager / branch_manager naturally see only their slice.
+      api("GET", "/org/api/teams").catch(function () { return { teams: [] }; }),
+    ]);
+    regionsById = {};
+    (regions.regions || []).forEach(function (r) { regionsById[r.id] = r; });
+    branchesById = {};
+    (branches.branches || []).forEach(function (b) { branchesById[b.id] = b; });
+    teamNamesByCoachUserId = {};
+    (teams.teams || []).forEach(function (t) {
+      if (t.user_id == null || !t.team_name) return;
+      if (!teamNamesByCoachUserId[t.user_id]) teamNamesByCoachUserId[t.user_id] = [];
+      teamNamesByCoachUserId[t.user_id].push(t.team_name);
+    });
+    populateSelectors();
+  }
+
+  function populateSelectors() {
+    var allowed = isAdmin ? INVITABLE_ROLES_ADMIN : INVITABLE_ROLES_RM;
+    var roleItems = allowed.map(function (r) { return { value: r, label: ROLE_LABELS[r] }; });
+    fillSelect(document.getElementById("invite-role"), roleItems, "value", "label", false);
+    if (document.getElementById("member-role")) {
+      var allRoles = INVITABLE_ROLES_ADMIN.map(function (r) { return { value: r, label: ROLE_LABELS[r] }; });
+      fillSelect(document.getElementById("member-role"), allRoles, "value", "label", false);
+    }
+
+    var regionList = Object.values(regionsById).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var inviteRegion = document.getElementById("invite-region");
+    fillSelect(inviteRegion, regionList, "id", "name", true, "— ללא מחוז —");
+    if (isRM && ctx.region_id) {
+      inviteRegion.value = String(ctx.region_id);
+      inviteRegion.disabled = true;
+    }
+    if (document.getElementById("member-region")) {
+      fillSelect(document.getElementById("member-region"), regionList, "id", "name", true, "— ללא מחוז —");
+    }
+    // The top-of-page list filter (org_admin only — server-side enforced).
+    var $regionFilter = document.getElementById("users-region-filter");
+    if ($regionFilter) {
+      fillSelect($regionFilter, regionList, "id", "name", true, "כל המחוזות");
+    }
+
+    var branchList = Object.values(branchesById).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    fillSelect(document.getElementById("invite-branch"), branchList, "id", "name", true, "— ללא סניף —");
+    if (document.getElementById("member-branch")) {
+      fillSelect(document.getElementById("member-branch"), branchList, "id", "name", true, "— ללא סניף —");
+    }
+  }
+
+  function scopeText(row) {
+    var parts = [];
+    if (row.region_id && regionsById[row.region_id]) parts.push(regionsById[row.region_id].name);
+    if (row.branch_id && branchesById[row.branch_id]) parts.push(branchesById[row.branch_id].name);
+    return parts.length ? parts.join(" · ") : "—";
+  }
+
+  function avatar(displayName, email) {
+    var initial = (displayName || email || "?").slice(0, 1).toUpperCase();
+    return el("span", { className: "org-avatar", text: initial });
+  }
+
+  // --- Members table ---
+  async function loadMembers() {
+    try {
+      var url = "/org/api/users";
+      var $regionFilter = document.getElementById("users-region-filter");
+      if ($regionFilter && $regionFilter.value) {
+        url += "?region_id=" + encodeURIComponent($regionFilter.value);
+      }
+      var data = await api("GET", url);
+      allMembers = data.members || [];
+      applyFilters();
+    } catch (e) {
+      renderMembersError(e.message);
+    }
+  }
+
+  // Wire the region filter (only present for org_admin) to refresh members
+  // on change. Populated in populateSelectors() with the regions list.
+  document.addEventListener("change", function (e) {
+    if (e.target && e.target.id === "users-region-filter") loadMembers();
+  });
+
+  // Free-text search across name, email, role label, region, branch, team names.
+  // Debounced 120ms so the rendering doesn't churn while typing.
+  document.addEventListener("input", function (e) {
+    if (!e.target || e.target.id !== "users-search") return;
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(applyFilters, 120);
+  });
+
+  function getSearchTerm() {
+    var $s = document.getElementById("users-search");
+    return $s ? $s.value.trim().toLowerCase() : "";
+  }
+
+  function memberMatchesSearch(m, q) {
+    if (!q) return true;
+    // Cheap path: short-circuit on any field hit.
+    if ((m.display_name || "").toLowerCase().indexOf(q) !== -1) return true;
+    if ((m.email || "").toLowerCase().indexOf(q) !== -1) return true;
+    if ((ROLE_LABELS[m.role] || m.role || "").toLowerCase().indexOf(q) !== -1) return true;
+    if (m.region_id && regionsById[m.region_id]
+        && regionsById[m.region_id].name.toLowerCase().indexOf(q) !== -1) return true;
+    if (m.branch_id && branchesById[m.branch_id]
+        && branchesById[m.branch_id].name.toLowerCase().indexOf(q) !== -1) return true;
+    var teamNames = teamNamesByCoachUserId[m.user_id];
+    if (teamNames) {
+      for (var i = 0; i < teamNames.length; i++) {
+        if (teamNames[i].toLowerCase().indexOf(q) !== -1) return true;
+      }
+    }
+    return false;
+  }
+
+  function inviteMatchesSearch(inv, q) {
+    if (!q) return true;
+    if ((inv.email || "").toLowerCase().indexOf(q) !== -1) return true;
+    if ((ROLE_LABELS[inv.role] || inv.role || "").toLowerCase().indexOf(q) !== -1) return true;
+    if (inv.region_id && regionsById[inv.region_id]
+        && regionsById[inv.region_id].name.toLowerCase().indexOf(q) !== -1) return true;
+    if (inv.branch_id && branchesById[inv.branch_id]
+        && branchesById[inv.branch_id].name.toLowerCase().indexOf(q) !== -1) return true;
+    return false;
+  }
+
+  function updateCount(filteredCount, totalCount) {
+    var $c = document.querySelector("[data-users-count]");
+    if (!$c) return;
+    if (filteredCount === totalCount) {
+      $c.textContent = totalCount + " חברים";
+    } else {
+      $c.textContent = filteredCount + " מתוך " + totalCount;
+    }
+  }
+
+  function applyFilters() {
+    var q = getSearchTerm();
+    var filtered = allMembers.filter(function (m) { return memberMatchesSearch(m, q); });
+    renderMembers(filtered);
+    updateCount(filtered.length, allMembers.length);
+    var filteredInvites = allInvites.filter(function (inv) { return inviteMatchesSearch(inv, q); });
+    renderInvites(filteredInvites);
+  }
+
+  function renderMembersError(msg) {
+    var colspan = isAdmin ? 5 : 4;
+    $membersRows.replaceChildren(
+      el("tr", null, [el("td", { className: "org-table-empty", text: msg, attrs: { colspan: String(colspan) } })])
+    );
+  }
+
+  function renderMembers(members) {
+    if (!members.length) {
+      var q = getSearchTerm();
+      renderMembersError(q ? "לא נמצאו תוצאות עבור \"" + q + "\"." : "אין חברים פעילים.");
+      return;
+    }
+    $membersRows.replaceChildren.apply(
+      $membersRows,
+      members.map(function (m) {
+        var nameCell = el("td", null, [
+          el("div", { className: "org-flex org-items-center org-gap-3" }, [
+            avatar(m.display_name, m.email),
+            el("div", null, [
+              el("div", { text: m.display_name || m.email, attrs: { style: "font-weight: 500;" } }),
+              el("div", { className: "org-text-sm org-text-muted", text: m.display_name ? m.email : "", attrs: { dir: "ltr" } }),
+            ]),
+          ]),
+        ]);
+        var roleCell = el("td", null, [pill(ROLE_LABELS[m.role] || m.role)]);
+        var scopeCell = el("td", null, [
+          el("span", {
+            className: scopeText(m) === "—" ? "org-pill org-pill--muted" : "org-pill",
+            text: scopeText(m),
+          }),
+        ]);
+        var statusCell = el("td", null, [pill(STATUS_LABELS[m.status] || m.status)]);
+        var cells = [nameCell, roleCell, scopeCell, statusCell];
+        if (isAdmin) {
+          var actions = [
+            iconBtn(SVG_EDIT_TPL, {
+              type: "button",
+              "data-edit-member": String(m.membership_id),
+              title: "עריכה",
+              "aria-label": "עריכה",
+            }, false),
+          ];
+          // Block self-removal in the UI; the backend rejects it too.
+          if (m.user_id !== ctx.user_id) {
+            actions.push(iconBtn(SVG_TRASH_TPL, {
+              type: "button",
+              "data-remove-member": String(m.membership_id),
+              "data-name": m.display_name || m.email,
+              title: "הסרה",
+              "aria-label": "הסרה",
+            }, true));
+          }
+          cells.push(el("td", { className: "org-table-actions" }, actions));
+        }
+        return el("tr", null, cells);
+      })
+    );
+  }
+
+  // --- Pending invites table ---
+  async function loadInvites() {
+    try {
+      var data = await api("GET", "/org/api/users/invites/pending");
+      allInvites = data.invites || [];
+      applyFilters();
+    } catch (e) {
+      renderInvitesError(e.message);
+    }
+  }
+
+  function renderInvitesError(msg) {
+    var colspan = canManageInvites ? 4 : 3;
+    $invitesRows.replaceChildren(
+      el("tr", null, [el("td", { className: "org-table-empty", text: msg, attrs: { colspan: String(colspan) } })])
+    );
+  }
+
+  function renderInvites(invites) {
+    if (!invites.length) {
+      var q = getSearchTerm();
+      // When the search is active and the full list isn't empty, this is a
+      // "no matches" state rather than "no invites" — message accordingly.
+      if (q && allInvites.length > 0) {
+        renderInvitesError("אין התאמות לחיפוש.");
+      } else {
+        renderInvitesError("אין הזמנות ממתינות.");
+      }
+      return;
+    }
+    $invitesRows.replaceChildren.apply(
+      $invitesRows,
+      invites.map(function (i) {
+        var emailCell = el("td", null, [el("span", { text: i.email, attrs: { dir: "ltr" } })]);
+        var roleCell = el("td", null, [pill(ROLE_LABELS[i.role] || i.role)]);
+        var dateCell = el("td", { className: "org-text-sm org-text-muted",
+          text: i.created_at ? new Date(i.created_at).toLocaleDateString("he-IL") : "—" });
+        var cells = [emailCell, roleCell, dateCell];
+        if (canManageInvites) {
+          cells.push(el("td", { className: "org-table-actions" }, [
+            iconBtn(SVG_RESEND_TPL, {
+              type: "button",
+              "data-resend-invite": String(i.id),
+              "data-email": i.email,
+              title: "שלח שוב",
+              "aria-label": "שלח שוב",
+            }, false),
+            iconBtn(SVG_TRASH_TPL, {
+              type: "button",
+              "data-cancel-invite": String(i.id),
+              "data-email": i.email,
+              title: "ביטול",
+              "aria-label": "ביטול",
+            }, true),
+          ]));
+        }
+        return el("tr", null, cells);
+      })
+    );
+  }
+
+  // --- Invite modal ---
+  function openInvite() {
+    $inviteForm.reset();
+    hideError($inviteError);
+    if (isRM && ctx.region_id) {
+      document.getElementById("invite-region").value = String(ctx.region_id);
+    }
+    openModal($inviteModal);
+    setTimeout(function () { $inviteForm.elements.email.focus(); }, 50);
+  }
+
+  $inviteForm.addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    hideError($inviteError);
+    var fd = new FormData($inviteForm);
+    var payload = {
+      email: (fd.get("email") || "").trim(),
+      role: fd.get("role"),
+      region_id: fd.get("region_id") ? parseInt(fd.get("region_id"), 10) : null,
+      branch_id: fd.get("branch_id") ? parseInt(fd.get("branch_id"), 10) : null,
+    };
+    try {
+      await api("POST", "/org/api/users/invite", payload);
+      window.OrgToast && window.OrgToast.show("ההזמנה נשלחה", "success");
+      closeModal($inviteModal);
+      loadInvites();
+    } catch (e) {
+      showError($inviteError, e.message);
+    }
+  });
+
+  // --- Edit member modal (admin only) ---
+  async function openEditMember(membershipId) {
+    if (!$memberModal) return;
+    try {
+      var data = await api("GET", "/org/api/users");
+      var member = (data.members || []).find(function (m) { return String(m.membership_id) === String(membershipId); });
+      if (!member) throw { message: "החבר לא נמצא" };
+      $memberForm.elements.membership_id.value = String(member.membership_id);
+      $memberModal.querySelector("[data-member-email]").textContent =
+        (member.display_name ? member.display_name + " · " : "") + member.email;
+      $memberForm.elements.role.value = member.role;
+      $memberForm.elements.region_id.value = member.region_id != null ? String(member.region_id) : "";
+      $memberForm.elements.branch_id.value = member.branch_id != null ? String(member.branch_id) : "";
+      hideError($memberError);
+      openModal($memberModal);
+    } catch (e) {
+      window.OrgToast && window.OrgToast.show(e.message, "danger");
+    }
+  }
+
+  if ($memberForm) {
+    $memberForm.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      hideError($memberError);
+      var id = $memberForm.elements.membership_id.value;
+      var regionVal = $memberForm.elements.region_id.value;
+      var branchVal = $memberForm.elements.branch_id.value;
+      var payload = {
+        role: $memberForm.elements.role.value,
+        region_id: regionVal === "" ? null : parseInt(regionVal, 10),
+        branch_id: branchVal === "" ? null : parseInt(branchVal, 10),
+      };
+      try {
+        await api("PATCH", "/org/api/users/" + id, payload);
+        window.OrgToast && window.OrgToast.show("הפרטים נשמרו", "success");
+        closeModal($memberModal);
+        loadMembers();
+      } catch (e) {
+        showError($memberError, e.message);
+      }
+    });
+  }
+
+  // --- Confirm modal (remove member / cancel invite) ---
+  function openConfirm(title, message, onConfirm) {
+    $confirmTitle.textContent = title;
+    $confirmMsg.textContent = message;
+    hideError($confirmError);
+    pendingConfirm = { onConfirm: onConfirm };
+    openModal($confirmModal);
+  }
+
+  async function runConfirm() {
+    if (!pendingConfirm) return;
+    try {
+      await pendingConfirm.onConfirm();
+      closeModal($confirmModal);
+      pendingConfirm = null;
+    } catch (e) {
+      showError($confirmError, e.message);
+    }
+  }
+
+  function confirmRemoveMember(membershipId, name) {
+    openConfirm("הסרת חבר", "האם להסיר את " + name + " מהארגון?", async function () {
+      await api("DELETE", "/org/api/users/" + membershipId);
+      window.OrgToast && window.OrgToast.show("החבר הוסר", "success");
+      loadMembers();
+    });
+  }
+
+  async function resendInviteAction(inviteId, email) {
+    try {
+      await api("POST", "/org/api/users/invites/" + inviteId + "/resend");
+      window.OrgToast && window.OrgToast.show("ההזמנה נשלחה שוב ל-" + email, "success");
+      loadInvites();
+    } catch (e) {
+      window.OrgToast && window.OrgToast.show(e.message, "danger");
+    }
+  }
+
+  function confirmCancelInvite(inviteId, email) {
+    openConfirm("ביטול הזמנה", "האם לבטל את ההזמנה ל-" + email + "?", async function () {
+      await api("DELETE", "/org/api/users/invites/" + inviteId);
+      window.OrgToast && window.OrgToast.show("ההזמנה בוטלה", "success");
+      loadInvites();
+    });
+  }
+
+  // --- Event delegation ---
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest(
+      "[data-action], [data-edit-member], [data-remove-member], [data-resend-invite], [data-cancel-invite]"
+    );
+    if (!t) return;
+    if (t.dataset.action === "open-invite") return openInvite();
+    if (t.dataset.action === "close-invite") return closeModal($inviteModal);
+    if (t.dataset.action === "close-member" && $memberModal) return closeModal($memberModal);
+    if (t.dataset.action === "close-confirm") return closeModal($confirmModal);
+    if (t.dataset.action === "do-confirm") return runConfirm();
+    if (t.dataset.editMember) return openEditMember(t.dataset.editMember);
+    if (t.dataset.removeMember) return confirmRemoveMember(t.dataset.removeMember, t.dataset.name);
+    if (t.dataset.resendInvite) return resendInviteAction(t.dataset.resendInvite, t.dataset.email);
+    if (t.dataset.cancelInvite) return confirmCancelInvite(t.dataset.cancelInvite, t.dataset.email);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    closeModal($inviteModal);
+    if ($memberModal) closeModal($memberModal);
+    closeModal($confirmModal);
+  });
+
+  [$inviteModal, $memberModal, $confirmModal].forEach(function (m) {
+    if (!m) return;
+    m.addEventListener("click", function (e) { if (e.target === m) closeModal(m); });
+  });
+
+  // --- Boot ---
+  async function boot() {
+    await loadReferenceData();
+    await Promise.all([loadMembers(), loadInvites()]);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();

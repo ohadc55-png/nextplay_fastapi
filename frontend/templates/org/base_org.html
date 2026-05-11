@@ -1,0 +1,50 @@
+{# /org/* master layout — Phase 1 Sub-Phase 1.0.
+   Independent of base.html (Coach App) and admin/base_admin.html.
+   Uses /static/css/org.css and /static/js/org.js. RTL by default for Hebrew.
+   Pages render with: extends "org/base_org.html" + override {% block content %}.
+#}
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}{{ org_ctx.organization_name or 'NEXTPLAY Enterprise' }}{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/org.css') }}?v={{ config.get('CSS_VERSION', '3') }}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="org-body">
+
+<div class="org-shell">
+  {% include "org/_partials/sidebar.html" %}
+  {% include "org/_partials/header.html" %}
+  <main class="org-main" id="org-main">
+    <div class="org-bg" aria-hidden="true"></div>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<div class="org-sidebar-backdrop" aria-hidden="true"></div>
+
+{% if org_ctx %}
+<script nonce="{{ g.csp_nonce }}">
+  // Active membership — read by org-context-switcher.js to filter the "switch
+  // role" list. Set in base_org.html (rather than per page) so every /org/*
+  // page gets the switcher with the correct context.
+  window.__ORG_ACTIVE__ = {{ {
+    'organization_id': org_ctx.organization_id,
+    'role': org_ctx.role,
+    'has_multiple_roles': org_ctx.has_multiple_roles,
+  } | tojson }};
+</script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/org.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+<script src="{{ url_for('static', filename='js/org-context-switcher.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

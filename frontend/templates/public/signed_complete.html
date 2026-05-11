@@ -1,0 +1,21 @@
+{% extends "public/_base.html" %}
+
+{% block title %}תודה — {{ organization_name or 'NEXTPLAY' }}{% endblock %}
+
+{% block subtitle %}
+{% if organization_name %}<p>{{ organization_name }}</p>{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="public-sign__success">
+  <div class="public-sign__success-icon" aria-hidden="true">✓</div>
+  <h2>תודה! המסמך נשמר.</h2>
+  <p class="org-text-muted">
+    {% if delivery.recipient_name %}{{ delivery.recipient_name }}, {% endif %}
+    החתימה התקבלה בהצלחה.
+  </p>
+  <p class="org-text-sm org-text-muted">
+    אם הזנת אימייל בעת שליחת המסמך — תקבל עותק עם קישור להורדה.
+  </p>
+</div>
+{% endblock %}

@@ -59,5 +59,74 @@ class UserOrganizationsRepository(BaseRepository[UserOrganization]):
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def list_with_user_data(
+        self,
+        organization_id: int | None,
+        *,
+        role: str | None = None,
+        region_id: int | None = None,
+        branch_id: int | None = None,
+        statuses: tuple[str, ...] | None = None,
+    ) -> list[dict]:
+        """Members + user.email + user.display_name in one query.
+
+        Used by /org/api/users (Phase 1.4) to populate the people table.
+        Defensive: returns [] if organization_id is None.
+
+        `region_id` filter is *inclusive*: matches members whose membership
+        either pins region_id directly (region_manager / branch_manager) OR
+        whose branch belongs to that region (coaches scoped to a branch).
+        Without this, a coach in a branch of region X would not show up
+        when you filter "all members in region X" — counter-intuitive.
+        """
+        from sqlalchemy import or_  # local import — keeps the file's top
+        from src.models.branches import Branch
+        from src.models.users import User
+
+        if organization_id is None:
+            return []
+        stmt = (
+            select(UserOrganization, User)
+            .join(User, User.id == UserOrganization.user_id)
+            .where(UserOrganization.organization_id == organization_id)
+        )
+        if role is not None:
+            stmt = stmt.where(UserOrganization.role == role)
+        if region_id is not None:
+            branches_in_region = (
+                select(Branch.id).where(
+                    Branch.organization_id == organization_id,
+                    Branch.region_id == region_id,
+                )
+            )
+            stmt = stmt.where(or_(
+                UserOrganization.region_id == region_id,
+                UserOrganization.branch_id.in_(branches_in_region),
+            ))
+        if branch_id is not None:
+            stmt = stmt.where(UserOrganization.branch_id == branch_id)
+        if statuses is not None:
+            stmt = stmt.where(UserOrganization.status.in_(statuses))
+        else:
+            stmt = stmt.where(UserOrganization.status == "active")
+
+        rows = (await self.session.execute(stmt)).all()
+        out: list[dict] = []
+        for uo, user in rows:
+            out.append({
+                "membership_id": uo.id,
+                "user_id": user.id,
+                "email": user.email,
+                "display_name": user.display_name,
+                "role": uo.role,
+                "region_id": uo.region_id,
+                "branch_id": uo.branch_id,
+                "status": uo.status,
+                "invited_by": uo.invited_by,
+                "invited_at": uo.invited_at,
+                "accepted_at": uo.accepted_at,
+            })
+        return out
+
 
 __all__ = ["UserOrganizationsRepository"]

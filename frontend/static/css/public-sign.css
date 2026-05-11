@@ -1,0 +1,96 @@
+/* Public signing flow styles — Phase 2.3.
+ * Loaded on top of org.css. Mobile-first; the form must work on a phone.
+ */
+
+/* Wider card for the signing form. */
+.org-public-card--wide { max-width: 720px; }
+
+.public-sign__player {
+  margin-block-start: var(--org-space-1);
+  font-weight: 600;
+  color: var(--org-blue-700, #1d4ed8);
+}
+
+.public-sign__doc-title {
+  font-size: var(--org-text-xl, 1.25rem);
+  margin-block: var(--org-space-3) var(--org-space-4);
+  text-align: center;
+}
+
+.public-sign__section {
+  margin-block-end: var(--org-space-5);
+  padding-block: var(--org-space-3);
+  border-block-start: 1px solid var(--org-gray-200);
+}
+.public-sign__section h3 {
+  font-size: var(--org-text-base, 1rem);
+  font-weight: 600;
+  margin-block-end: var(--org-space-3);
+}
+
+.public-sign__fields {
+  display: grid;
+  gap: var(--org-space-3);
+}
+
+/* Signature tabs (drawn / typed) */
+.public-sign__sig-tabs {
+  display: flex;
+  gap: var(--org-space-2);
+  margin-block-end: var(--org-space-3);
+}
+.public-sign__sig-tab {
+  flex: 1;
+  padding: var(--org-space-2) var(--org-space-3);
+  background: white;
+  border: 1px solid var(--org-gray-200);
+  border-radius: var(--org-radius-md);
+  cursor: pointer;
+  font: inherit;
+  color: var(--org-gray-700);
+}
+.public-sign__sig-tab:hover { background: var(--org-blue-50); }
+.public-sign__sig-tab.is-active {
+  background: var(--org-blue-500);
+  color: white;
+  border-color: var(--org-blue-500);
+}
+.public-sign__sig-pane[hidden] { display: none; }
+
+/* Signature canvas — touch-friendly */
+.public-sign__canvas {
+  display: block;
+  width: 100%;
+  height: 200px;
+  background: white;
+  border: 2px dashed var(--org-gray-300);
+  border-radius: var(--org-radius-md);
+  touch-action: none;
+  cursor: crosshair;
+  margin-block-end: var(--org-space-2);
+}
+
+.public-sign__typed {
+  font-family: "Brush Script MT", "Heebo", cursive;
+  font-size: 28px;
+  text-align: center;
+}
+
+/* Success / error states */
+.public-sign__success,
+.public-sign__error {
+  text-align: center;
+  padding-block: var(--org-space-4);
+}
+.public-sign__success-icon {
+  width: 64px;
+  height: 64px;
+  margin-inline: auto;
+  margin-block-end: var(--org-space-3);
+  border-radius: 50%;
+  background: var(--org-green-500, #10b981);
+  color: white;
+  font-size: 32px;
+  display: grid;
+  place-items: center;
+}

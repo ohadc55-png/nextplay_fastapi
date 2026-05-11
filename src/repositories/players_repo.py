@@ -38,6 +38,71 @@ class PlayersRepository(TeamScopedRepository[Player]):
         stmt = stmt.order_by(Player.number)
         return list((await self.session.execute(stmt)).scalars().all())
 
+    # ------------------------------------------------------------------
+    # Phase 1.6 — org-scoped reads. ADDITIVE: never touches the coach-app
+    # paths above. Every query filters by organization_id, so private-coach
+    # players (organization_id IS NULL) can't leak into org-context responses.
+    # ------------------------------------------------------------------
+
+    async def list_for_org(
+        self,
+        organization_id: int | None,
+        *,
+        team_id: int | None = None,
+        branch_id: int | None = None,
+        region_id: int | None = None,
+        coach_user_id: int | None = None,
+        include_inactive: bool = False,
+    ) -> list[Player]:
+        """Players inside an org, optionally narrowed by team / branch /
+        region (via the player's team's branch) / coach. Defensive: returns
+        [] when organization_id is None."""
+        from src.models.branches import Branch
+        from src.models.teams import TeamProfile
+
+        if organization_id is None:
+            return []
+        stmt = select(Player).where(Player.organization_id == organization_id)
+        if not include_inactive:
+            stmt = stmt.where(Player.active.is_(True))
+        if team_id is not None:
+            stmt = stmt.where(Player.team_id == team_id)
+        if branch_id is not None:
+            stmt = stmt.where(
+                Player.team_id.in_(
+                    select(TeamProfile.id).where(TeamProfile.branch_id == branch_id)
+                )
+            )
+        if region_id is not None:
+            stmt = stmt.where(
+                Player.team_id.in_(
+                    select(TeamProfile.id).where(
+                        TeamProfile.branch_id.in_(
+                            select(Branch.id).where(Branch.region_id == region_id)
+                        )
+                    )
+                )
+            )
+        if coach_user_id is not None:
+            stmt = stmt.where(
+                Player.team_id.in_(
+                    select(TeamProfile.id).where(TeamProfile.user_id == coach_user_id)
+                )
+            )
+        stmt = stmt.order_by(Player.team_id, Player.number)
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def get_for_org(
+        self, player_id: int, organization_id: int | None
+    ) -> Player | None:
+        """PK lookup scoped to organization. None when cross-org."""
+        if organization_id is None:
+            return None
+        stmt = select(Player).where(
+            Player.id == player_id, Player.organization_id == organization_id,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
 
 class PlayerMetricsRepository(TeamScopedRepository[PlayerMetric]):
     def __init__(self, session: AsyncSession):

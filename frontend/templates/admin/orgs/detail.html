@@ -1,0 +1,124 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Organization{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <div>
+    <a href="/admin/orgs" style="font-size: 13px; opacity: 0.7; color: inherit; text-decoration: none;">← Back to orgs</a>
+    <h2 style="margin: 4px 0 0 0;" data-org-name>Loading…</h2>
+    <div style="margin-top: 4px; font-family: monospace; opacity: 0.7; font-size: 13px;" data-org-slug></div>
+  </div>
+</div>
+
+<div class="admin-card" style="margin-top: 24px;">
+  <h3 style="margin: 0 0 16px 0;">Overview</h3>
+  <dl class="admin-detail-grid">
+    <div><dt>Plan</dt><dd data-org-plan>—</dd></div>
+    <div><dt>Status</dt><dd data-org-status>—</dd></div>
+    <div><dt>Members</dt><dd data-org-members>—</dd></div>
+    <div><dt>Created</dt><dd data-org-created>—</dd></div>
+  </dl>
+</div>
+
+<div class="admin-card" style="margin-top: 16px;">
+  <h3 style="margin: 0 0 12px 0;">Recent audit events</h3>
+  <table class="admin-table" style="width: 100%;">
+    <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead>
+    <tbody data-audit-rows>
+      <tr><td colspan="4" style="opacity: 0.6; padding: 16px; text-align: center;">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style nonce="{{ g.csp_nonce }}">
+  .admin-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 0; }
+  .admin-detail-grid dt { font-size: 12px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 4px 0; }
+  .admin-detail-grid dd { font-size: 16px; font-weight: 500; margin: 0; }
+</style>
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  "use strict";
+  var orgId = {{ org_id | tojson }};
+
+  function el(tag, opts, children) {
+    var n = document.createElement(tag);
+    if (opts) {
+      if (opts.text != null) n.textContent = opts.text;
+      if (opts.attrs) Object.keys(opts.attrs).forEach(function (k) { n.setAttribute(k, opts.attrs[k]); });
+      if (opts.style) n.style.cssText = opts.style;
+    }
+    if (children) children.forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+
+  async function api(url) {
+    var r = await fetch(url, {
+      headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
+
+  async function loadOverview() {
+    try {
+      var o = await api("/admin/api/orgs/" + orgId);
+      document.querySelector("[data-org-name]").textContent = o.name || "—";
+      document.querySelector("[data-org-slug]").textContent = o.slug || "";
+      document.querySelector("[data-org-plan]").textContent = o.plan || "—";
+      document.querySelector("[data-org-status]").textContent = o.status || "—";
+      document.querySelector("[data-org-members]").textContent = String(o.member_count != null ? o.member_count : "—");
+      document.querySelector("[data-org-created]").textContent = o.created_at
+        ? new Date(o.created_at).toLocaleString()
+        : "—";
+    } catch (e) {
+      document.querySelector("[data-org-name]").textContent = "Error: " + e.message;
+    }
+  }
+
+  function emptyRow($rows, msg) {
+    $rows.replaceChildren(
+      el("tr", null, [
+        el("td", {
+          text: msg,
+          attrs: { colspan: "4" },
+          style: "opacity: 0.6; padding: 16px; text-align: center;",
+        }),
+      ])
+    );
+  }
+
+  async function loadAudit() {
+    var $rows = document.querySelector("[data-audit-rows]");
+    try {
+      var d = await api("/admin/api/orgs/" + orgId + "/audit?limit=20");
+      var rows = d.audit_log || [];
+      if (!rows.length) {
+        emptyRow($rows, "No events yet.");
+        return;
+      }
+      $rows.replaceChildren.apply($rows, rows.map(function (r) {
+        return el("tr", null, [
+          el("td", {
+            text: r.created_at ? new Date(r.created_at).toLocaleString() : "—",
+            style: "font-size: 12px; opacity: 0.7; white-space: nowrap;",
+          }),
+          el("td", { text: r.actor_email || "—" }),
+          el("td", { text: r.action, style: "font-family: monospace; font-size: 13px;" }),
+          el("td", {
+            text: (r.target_type || "") + (r.target_id != null ? " #" + r.target_id : ""),
+            style: "font-size: 12px; opacity: 0.7;",
+          }),
+        ]);
+      }));
+    } catch (e) {
+      emptyRow($rows, "Error: " + e.message);
+    }
+  }
+
+  loadOverview();
+  loadAudit();
+})();
+</script>
+{% endblock %}

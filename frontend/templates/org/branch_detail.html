@@ -1,0 +1,56 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'branches' %}
+{% block title %}פירוט סניף — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <a href="/org/branches" class="org-text-sm org-text-muted"
+       style="display: inline-block; margin-block-end: var(--org-space-2);">
+      ← חזרה לסניפים
+    </a>
+    <h1 class="org-page-title" data-branch-name>טוען…</h1>
+    <p class="org-page-subtitle" data-branch-region></p>
+  </div>
+</div>
+
+<!-- Summary tiles -->
+<div class="org-stat-grid">
+  <div class="org-stat">
+    <div class="org-stat-label">קבוצות בסניף</div>
+    <div class="org-stat-value" data-stat-teams>—</div>
+  </div>
+  <div class="org-stat">
+    <div class="org-stat-label">שחקנים פעילים</div>
+    <div class="org-stat-value" data-stat-players>—</div>
+  </div>
+</div>
+
+<!-- Teams in this branch -->
+<div class="org-card org-mt-8">
+  <div class="org-card-title">קבוצות בסניף</div>
+  <div class="org-table-wrap" style="margin-block-start: var(--org-space-4);">
+    <table class="org-table">
+      <thead>
+        <tr>
+          <th style="width: 38%;">שם הקבוצה</th>
+          <th>חטיבה</th>
+          <th>ליגה</th>
+          <th>מאמן ראשי</th>
+        </tr>
+      </thead>
+      <tbody data-teams-rows>
+        <tr><td colspan="4" class="org-table-empty">טוען…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_BRANCH_ID = {{ branch_id | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/org-branch-detail.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+{% endblock %}

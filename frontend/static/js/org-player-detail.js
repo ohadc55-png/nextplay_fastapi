@@ -1,0 +1,161 @@
+/* /org/players/{id} detail page — player meta + contact (audit-triggered reveal).
+ *
+ * The contact panel is intentionally locked behind a "הצג פרטי קשר" button:
+ * one click → one GET /contact → one `player.contact.read` audit row. That's
+ * the regulatory trail for sensitive PII access.
+ */
+
+(function () {
+  "use strict";
+
+  var playerId = window.ORG_PLAYER_ID;
+  var ctx = window.ORG_CTX || { role: "viewer", user_id: null };
+  var canEditContact = ["org_admin", "region_manager", "branch_manager", "coach"].indexOf(ctx.role) >= 0;
+
+  // --- DOM refs ---
+  var $name = document.querySelector("[data-player-name]");
+  var $meta = document.querySelector("[data-player-meta]");
+  var statRefs = {
+    number: document.querySelector("[data-stat-number]"),
+    position: document.querySelector("[data-stat-position]"),
+    age: document.querySelector("[data-stat-age]"),
+    height: document.querySelector("[data-stat-height]"),
+    weight: document.querySelector("[data-stat-weight]"),
+    hand: document.querySelector("[data-stat-hand]"),
+  };
+  var $contactFields = document.querySelector("[data-contact-fields]");
+  var $revealBtn = document.getElementById("reveal-contact-btn");
+  var contactRefs = {
+    parent_name: document.querySelector("[data-c-parent-name]"),
+    parent_email: document.querySelector("[data-c-parent-email]"),
+    parent_phone: document.querySelector("[data-c-parent-phone]"),
+    national_id: document.querySelector("[data-c-national-id]"),
+    address: document.querySelector("[data-c-address]"),
+    medical_notes: document.querySelector("[data-c-medical-notes]"),
+  };
+  var $modal = document.getElementById("contact-modal");
+  var $form = document.getElementById("contact-form");
+  var $error = $modal.querySelector("[data-error]");
+
+  function openModal(m) { m.classList.add("is-open"); m.setAttribute("aria-hidden", "false"); }
+  function closeModal(m) { m.classList.remove("is-open"); m.setAttribute("aria-hidden", "true"); }
+  function showError(el, t) { el.textContent = t; el.classList.remove("org-hidden"); }
+  function hideError(el) { el.textContent = ""; el.classList.add("org-hidden"); }
+
+  async function api(method, url, body) {
+    var init = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
+    var r = await fetch(url, init);
+    if (r.status === 204) return null;
+    var data = null;
+    try { data = await r.json(); } catch (_e) {}
+    if (!r.ok) {
+      var msg = (data && (data.detail || data.message)) || ("שגיאה " + r.status);
+      throw { status: r.status, code: (data && data.code) || null, message: msg };
+    }
+    return data;
+  }
+
+  // --- Player meta load ---
+  async function loadPlayer() {
+    try {
+      var p = await api("GET", "/org/api/players/" + playerId);
+      $name.textContent = p.name || "—";
+      var bits = [];
+      if (p.position) bits.push(p.position);
+      if (p.age != null) bits.push("גיל " + p.age);
+      if (p.number != null) bits.push("חולצה #" + p.number);
+      $meta.textContent = bits.join(" · ") || "—";
+      statRefs.number.textContent = p.number != null ? String(p.number) : "—";
+      statRefs.position.textContent = p.position || "—";
+      statRefs.age.textContent = p.age != null ? String(p.age) : "—";
+      statRefs.height.textContent = p.height || "—";
+      statRefs.weight.textContent = p.weight || "—";
+      statRefs.hand.textContent = p.dominant_hand || "—";
+    } catch (e) {
+      $name.textContent = "שגיאה בטעינה";
+      $meta.textContent = e.message;
+    }
+  }
+
+  // --- Contact: reveal triggers a single audited GET ---
+  async function revealContact() {
+    $revealBtn.disabled = true;
+    try {
+      var c = await api("GET", "/org/api/players/" + playerId + "/contact");
+      contactRefs.parent_name.textContent = c.parent_name || "—";
+      contactRefs.parent_email.textContent = c.parent_email || "—";
+      contactRefs.parent_phone.textContent = c.parent_phone || "—";
+      contactRefs.national_id.textContent = c.national_id || "—";
+      contactRefs.address.textContent = c.address || "—";
+      contactRefs.medical_notes.textContent = c.medical_notes || "—";
+      $contactFields.classList.remove("org-hidden");
+      $revealBtn.textContent = "רענן";
+      $revealBtn.disabled = false;
+      window.__orgContactCache = c;
+    } catch (e) {
+      $revealBtn.disabled = false;
+      window.OrgToast && window.OrgToast.show(e.message, "danger");
+    }
+  }
+
+  // --- Edit contact ---
+  function openEditContact() {
+    var c = window.__orgContactCache || {};
+    $form.elements.parent_name.value = c.parent_name || "";
+    $form.elements.parent_email.value = c.parent_email || "";
+    $form.elements.parent_phone.value = c.parent_phone || "";
+    $form.elements.national_id.value = c.national_id || "";
+    $form.elements.address.value = c.address || "";
+    $form.elements.medical_notes.value = c.medical_notes || "";
+    hideError($error);
+    openModal($modal);
+    setTimeout(function () { $form.elements.parent_name.focus(); }, 50);
+  }
+
+  $form.addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    hideError($error);
+    var payload = {
+      parent_name: $form.elements.parent_name.value.trim() || null,
+      parent_email: $form.elements.parent_email.value.trim() || null,
+      parent_phone: $form.elements.parent_phone.value.trim() || null,
+      national_id: $form.elements.national_id.value.trim() || null,
+      address: $form.elements.address.value.trim() || null,
+      medical_notes: $form.elements.medical_notes.value.trim() || null,
+    };
+    try {
+      await api("PUT", "/org/api/players/" + playerId + "/contact", payload);
+      window.OrgToast && window.OrgToast.show("הפרטים נשמרו", "success");
+      closeModal($modal);
+      // Re-reveal to pull fresh decrypted values (triggers a new audit row).
+      await revealContact();
+    } catch (e) {
+      showError($error, e.message);
+    }
+  });
+
+  // --- Delegation ---
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-action], #reveal-contact-btn");
+    if (!t) return;
+    if (t.id === "reveal-contact-btn") return revealContact();
+    if (t.dataset.action === "edit-contact") return openEditContact();
+    if (t.dataset.action === "close-contact") return closeModal($modal);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeModal($modal);
+  });
+
+  $modal.addEventListener("click", function (e) { if (e.target === $modal) closeModal($modal); });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadPlayer);
+  } else {
+    loadPlayer();
+  }
+})();

@@ -1,0 +1,108 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'document_templates' %}
+{% block title %}סימון שדות — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title" data-template-name>טוען…</h1>
+    <p class="org-page-subtitle">לחץ על העמוד כדי להוסיף שדה. גרור שדה קיים כדי לשנות מיקום. לחץ שדה כדי לערוך תכונות.</p>
+  </div>
+  <div class="org-page-actions">
+    <a href="/org/document-templates" class="org-btn org-btn--secondary">חזרה</a>
+    <button type="button" class="org-btn org-btn--primary" data-action="save-fields">שמירה</button>
+  </div>
+</div>
+
+<div class="org-template-editor">
+  <!-- Toolbar -->
+  <div class="org-template-editor__toolbar">
+    <div class="org-flex org-items-center org-gap-3">
+      <span class="org-text-sm org-text-muted">מצב:</span>
+      <button type="button" class="org-btn org-btn--secondary is-active" data-mode="field">שדה</button>
+      <button type="button" class="org-btn org-btn--secondary" data-mode="signature">אזור חתימה</button>
+      <span class="org-text-sm org-text-muted" style="margin-inline-start: auto;">
+        עמוד <span data-page-current>1</span> מתוך <span data-page-total>?</span>
+      </span>
+      <button type="button" class="org-btn org-btn--secondary" data-action="page-prev">‹ הקודם</button>
+      <button type="button" class="org-btn org-btn--secondary" data-action="page-next">הבא ›</button>
+    </div>
+  </div>
+
+  <!-- Two-pane layout -->
+  <div class="org-template-editor__layout">
+    <!-- Left pane: PDF preview + click-to-add overlay -->
+    <div class="org-template-editor__canvas-wrap">
+      <div class="org-template-editor__canvas" data-editor-canvas>
+        <img data-editor-preview alt="תצוגת מסמך" />
+        <div class="org-template-editor__overlay" data-editor-overlay></div>
+      </div>
+      <div class="org-template-editor__hint org-text-sm org-text-muted" data-editor-hint>טוען תצוגה…</div>
+    </div>
+
+    <!-- Right pane: fields list + properties -->
+    <aside class="org-template-editor__panel">
+      <div class="org-template-editor__panel-section">
+        <h3 class="org-text-sm" style="font-weight: 600;">שדות לטופס</h3>
+        <ul class="org-template-editor__list" data-fields-list>
+          <li class="org-text-sm org-text-muted">אין שדות עדיין. לחץ על המסמך כדי להוסיף.</li>
+        </ul>
+      </div>
+      <div class="org-template-editor__panel-section">
+        <h3 class="org-text-sm" style="font-weight: 600;">אזורי חתימה</h3>
+        <ul class="org-template-editor__list" data-zones-list>
+          <li class="org-text-sm org-text-muted">אין אזורי חתימה.</li>
+        </ul>
+      </div>
+
+      <!-- Properties for selected item -->
+      <div class="org-template-editor__panel-section" data-properties-pane hidden>
+        <h3 class="org-text-sm" style="font-weight: 600;">תכונות הפריט</h3>
+        <div class="org-form-group">
+          <label class="org-form-label">תווית</label>
+          <input class="org-input" type="text" data-prop-label maxlength="200">
+        </div>
+        <div class="org-form-group" data-prop-type-group>
+          <label class="org-form-label">סוג שדה</label>
+          <select class="org-select" data-prop-type>
+            <option value="text">טקסט</option>
+            <option value="number">מספר</option>
+            <option value="date">תאריך</option>
+            <option value="select">בחירה</option>
+            <option value="checkbox">תיבת סימון</option>
+          </select>
+        </div>
+        <div class="org-form-group" data-prop-options-group hidden>
+          <label class="org-form-label">אפשרויות (מופרדות בפסיק)</label>
+          <input class="org-input" type="text" data-prop-options placeholder="S, M, L">
+        </div>
+        <div class="org-form-group" data-prop-required-group>
+          <label class="org-form-label org-flex org-items-center org-gap-2">
+            <input type="checkbox" data-prop-required>
+            <span>שדה חובה</span>
+          </label>
+        </div>
+        <div class="org-flex org-gap-3">
+          <button type="button" class="org-btn org-btn--danger" data-action="delete-item">מחיקה</button>
+        </div>
+      </div>
+
+      <div class="org-form-error org-hidden" data-editor-error></div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-document-template-editor.js') }}?v={{ config.get('CSS_VERSION', '7') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+  window.TEMPLATE_ID = {{ template_id | tojson }};
+</script>
+{% endblock %}

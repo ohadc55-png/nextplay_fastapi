@@ -1,38 +1,53 @@
+{# /org/login — public sign-in form.
+   Form contract preserved verbatim:
+   - method=POST action=/org/login
+   - inputs name=email, name=password
+   `_render_login_with_error` in src/api/org.py:86 reads {{ error }}.
+#}
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0a0e14">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Sign in - NextPlay Enterprise</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="robots" content="noindex, nofollow">
+  <title>כניסה — NEXTPLAY Enterprise</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/org.css') }}?v={{ config.get('CSS_VERSION', '3') }}">
 </head>
-<body class="admin-body admin-login-page">
+<body class="org-body">
 
-<div class="admin-login-card">
-    <div class="login-brand">
-        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" width="56" height="56" style="border-radius: 12px;">
-        <h1>NEXTPLAY <span class="brand-tag">Enterprise</span></h1>
-        <p>Sign in to your organization</p>
+<div class="org-public">
+  <div class="org-public-card">
+    <div class="org-public-brand">
+      <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+      <h1>NEXTPLAY <span class="org-brand-tag">Enterprise</span></h1>
+      <p>כניסה לפורטל הארגון</p>
     </div>
 
     {% if error %}
-    <div class="login-error">{{ error }}</div>
+    <div class="org-public-error" role="alert">{{ error }}</div>
     {% endif %}
 
-    <form method="POST" action="/org/login">
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required autocomplete="email">
-        </div>
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password">
-        </div>
-        <button type="submit" class="login-btn">Sign In</button>
+    <form method="POST" action="/org/login" novalidate>
+      <div class="org-form-group">
+        <label class="org-form-label" for="email">אימייל</label>
+        <input class="org-input" type="email" id="email" name="email"
+               required autocomplete="email" dir="ltr">
+      </div>
+      <div class="org-form-group">
+        <label class="org-form-label" for="password">סיסמה</label>
+        <input class="org-input" type="password" id="password" name="password"
+               required autocomplete="current-password" dir="ltr">
+      </div>
+      <button type="submit" class="org-btn org-btn--primary org-btn--full">
+        כניסה
+      </button>
     </form>
+  </div>
 </div>
 
 </body>

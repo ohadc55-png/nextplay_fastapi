@@ -308,6 +308,43 @@ async def put_bytes(
         )
 
 
+async def presign_get(key: str, ttl_seconds: int = 604800) -> str:
+    """Return a presigned GET URL for an S3 object.
+
+    Phase 2.3 — used by the post-signing confirmation email to include a
+    long-lived (default 7-day) download link for the final signed PDF.
+    Differs from `get_video_url`:
+      - never goes through CloudFront (CloudFront requires its own signing
+        key for private content; the email link must work outside the SPA),
+      - configurable TTL (the video presign is hardcoded to 1 hour).
+    """
+    if not key:
+        return ""
+    if key.startswith("local/"):
+        return f"/api/scouting/local-video/{key}"
+    async with s3_client() as s3:
+        return await s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.AWS_S3_BUCKET, "Key": key},
+            ExpiresIn=int(ttl_seconds),
+        )
+
+
+async def get_bytes(key: str) -> bytes:
+    """Download an S3 object into memory.
+
+    Phase 2.2 — used by the document-template preview renderer (PyMuPDF
+    needs the raw PDF bytes) and by the PDF-generation pipeline in 2.3.
+    Raises if the key doesn't exist; the caller surfaces a 404 / 500.
+    Don't use this for large blobs — videos / signed PDFs over a few MB
+    should stream via presigned GET instead.
+    """
+    async with s3_client() as s3:
+        obj = await s3.get_object(Bucket=settings.AWS_S3_BUCKET, Key=key)
+        async with obj["Body"] as stream:
+            return await stream.read()
+
+
 __all__ = [
     "MULTIPART_THRESHOLD",
     "PART_SIZE",
@@ -316,9 +353,11 @@ __all__ = [
     "complete_multipart",
     "create_presigned_upload",
     "delete_object",
+    "get_bytes",
     "get_upload_config",
     "get_video_url",
     "is_configured",
+    "presign_get",
     "put_bytes",
     "s3_client",
 ]

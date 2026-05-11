@@ -416,61 +416,28 @@ async def org_api_invite_user(
 
     404 if the path's org_id doesn't match the inviter's active org (cross-org
     write attempt). Conflict if a pending invite already exists for the same
-    (org, email, role) trio."""
+    (org, email, role) trio.
+
+    Phase 1.4: delegates to `org_user_service.invite_member` so the new
+    `/org/api/users/invite` (no path id) and this one share validation +
+    audit + email-send logic.
+    """
+    from src.services.org_user_service import invite_member
+
     if membership.organization_id != org_id:
         raise NotFoundError("Organization not found")
 
-    role = body.role.strip().lower()
-    if role not in _VALID_ROLES:
-        raise ValidationError("Unknown role", code="invalid_role")
-
-    org = await OrganizationsRepository(db).get(org_id)
-    if not org or org.deleted_at is not None:
-        raise NotFoundError("Organization not found")
-
-    invitee_email = body.email.lower()
-    invites_repo = OrgInvitesRepository(db)
-    if await invites_repo.get_pending(
-        organization_id=org_id, email=invitee_email, role=role,
-    ):
-        raise ConflictError("A pending invite already exists for this email + role.")
-
-    # Existing user, if any. Token can reference them; otherwise NULL.
-    existing_user = await UsersRepository(db).get_by_email_active(invitee_email)
-    inviter = request.state.user  # set by get_current_org_user
-
-    raw_token, auth_token_id = await send_org_invite_email(
+    inviter = request.state.user
+    invite = await invite_member(
         db,
-        inviter_display_name=inviter.display_name or inviter.email,
-        invitee_email=invitee_email,
-        invitee_user_id=existing_user.id if existing_user else None,
-        organization_name=org.name,
-        role=role,
+        request=request,
         background=background,
-    )
-
-    invite = OrgInvite(
-        organization_id=org_id,
-        email=invitee_email,
-        role=role,
+        org_id=org_id,
+        inviter=inviter,
+        email=body.email,
+        role=body.role,
         region_id=body.region_id,
         branch_id=body.branch_id,
-        auth_token_id=auth_token_id,
-        invited_by=inviter.id,
-        status="pending",
-    )
-    await invites_repo.create(invite)
-
-    await log_org_action(
-        db,
-        organization_id=org_id,
-        actor_user_id=inviter.id,
-        actor_email=inviter.email,
-        action="user.invite",
-        target_type="org_invite",
-        target_id=invite.id,
-        request=request,
-        extra={"email": invitee_email, "role": role},
     )
 
     return OrgInviteOut(

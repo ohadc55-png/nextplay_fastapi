@@ -1,0 +1,144 @@
+/* /org/* header context switcher.
+ *
+ * Renders the dropdown next to the user button. Loads /org/api/roles lazily
+ * on first open; if the user has more than one membership, shows a "החלף
+ * תפקיד" section with each alternative role. Clicking one POSTs to the
+ * existing Phase 0 endpoint /org/switch-role and reloads the page so the
+ * new active session takes effect everywhere.
+ *
+ * Security: all rendered text uses Node.textContent. The form sent to
+ * /org/switch-role uses application/x-www-form-urlencoded so CSRF passes
+ * even without org.js's fetch wrapper (the X-Requested-With header is
+ * added by org.js anyway).
+ */
+
+(function () {
+  "use strict";
+
+  var ROLE_LABELS_HE = {
+    org_admin: "מנכ\"ל",
+    region_manager: "מנהל מחוז",
+    branch_manager: "מנהל סניף",
+    coach: "מאמן",
+    viewer: "צופה",
+  };
+
+  var $root = document.getElementById("org-context-switcher");
+  if (!$root) return;
+  var $toggle = $root.querySelector("[data-switcher-toggle]");
+  var $menu = $root.querySelector("[data-switcher-menu]");
+  if (!$toggle || !$menu) return;
+  var $othersSection = $root.querySelector("[data-switcher-others-section]");
+  var $others = $root.querySelector("[data-switcher-others]");
+
+  var rolesLoaded = false;
+
+  function el(tag, opts, children) {
+    var n = document.createElement(tag);
+    if (opts) {
+      if (opts.className) n.className = opts.className;
+      if (opts.text != null) n.textContent = opts.text;
+      if (opts.attrs) Object.keys(opts.attrs).forEach(function (k) { n.setAttribute(k, opts.attrs[k]); });
+    }
+    if (children) children.forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+
+  function open() {
+    $menu.hidden = false;
+    $toggle.setAttribute("aria-expanded", "true");
+    if (!rolesLoaded) loadRoles();
+  }
+  function close() {
+    $menu.hidden = true;
+    $toggle.setAttribute("aria-expanded", "false");
+  }
+  function toggle() {
+    if ($menu.hidden) open();
+    else close();
+  }
+
+  async function loadRoles() {
+    try {
+      var r = await fetch("/org/api/roles", {
+        headers: { "Accept": "application/json" },
+      });
+      if (!r.ok) return;
+      var data = await r.json();
+      rolesLoaded = true;
+      renderOthers(data.roles || []);
+    } catch (_e) { /* best-effort */ }
+  }
+
+  function renderOthers(roles) {
+    // Find roles other than the current one (compare by org+role pair).
+    var current = window.__ORG_ACTIVE__ || {};
+    var others = roles.filter(function (r) {
+      return !(r.organization_id === current.organization_id && r.role === current.role);
+    });
+    if (!others.length) {
+      $othersSection.hidden = true;
+      return;
+    }
+    $othersSection.hidden = false;
+    $others.replaceChildren.apply(
+      $others,
+      others.map(function (r) {
+        var btn = el("button", {
+          className: "org-switcher-other",
+          attrs: { type: "button", "data-switch-org": String(r.organization_id), "data-switch-role": r.role },
+        }, [
+          el("div", { attrs: { style: "flex: 1;" } }, [
+            el("div", { className: "org-switcher-other-org", text: r.organization_name }),
+            el("div", { className: "org-switcher-other-role",
+              text: ROLE_LABELS_HE[r.role] || r.role }),
+          ]),
+        ]);
+        return btn;
+      })
+    );
+  }
+
+  async function switchRole(orgId, role) {
+    var fd = new FormData();
+    fd.append("organization_id", String(orgId));
+    fd.append("role", role);
+    try {
+      var r = await fetch("/org/switch-role", {
+        method: "POST",
+        body: fd,
+        headers: { "Accept": "application/json" },
+      });
+      if (!r.ok) {
+        window.OrgToast && window.OrgToast.show("מעבר תפקיד נכשל", "danger");
+        return;
+      }
+      // Reload — session cookie has been updated server-side.
+      window.location.href = "/org/dashboard";
+    } catch (_e) {
+      window.OrgToast && window.OrgToast.show("שגיאת רשת", "danger");
+    }
+  }
+
+  // --- Wire up events ---
+  $toggle.addEventListener("click", function (e) {
+    e.stopPropagation();
+    toggle();
+  });
+
+  document.addEventListener("click", function (e) {
+    if (!$root.contains(e.target)) close();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") close();
+  });
+
+  $others.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-switch-org]");
+    if (!t) return;
+    var orgId = parseInt(t.dataset.switchOrg, 10);
+    var role = t.dataset.switchRole;
+    switchRole(orgId, role);
+  });
+})();

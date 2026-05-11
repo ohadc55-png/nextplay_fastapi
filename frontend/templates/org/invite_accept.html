@@ -1,0 +1,105 @@
+{# /org/invite-accept — public page. Token comes from ?token= query param.
+   POSTs to the existing Phase 0 endpoint POST /org/api/invites/accept which
+   consumes the token, creates the user (if new) + the membership.
+#}
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="robots" content="noindex, nofollow">
+  <title>הצטרפות לארגון — NEXTPLAY Enterprise</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/org.css') }}?v={{ config.get('CSS_VERSION', '5') }}">
+</head>
+<body class="org-body">
+
+<div class="org-public">
+  <div class="org-public-card">
+    <div class="org-public-brand">
+      <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+      <h1>NEXTPLAY <span class="org-brand-tag">Enterprise</span></h1>
+      <p>הצטרפות לארגון</p>
+    </div>
+
+    {% if not invite_token %}
+    <div class="org-public-error" role="alert">
+      קישור לא תקין — קוד ההזמנה חסר. נא לפתוח את הקישור מהאימייל שקיבלת.
+    </div>
+    {% else %}
+    <div class="org-public-error org-hidden" id="accept-error" role="alert"></div>
+
+    <form id="accept-form">
+      <input type="hidden" name="token" value="{{ invite_token }}">
+      <div class="org-form-group">
+        <label class="org-form-label" for="accept-name">שם מלא</label>
+        <input class="org-input" type="text" id="accept-name" name="display_name"
+               autocomplete="name" placeholder="לחברים חדשים בלבד">
+        <div class="org-form-help">השאר ריק אם כבר יש לך חשבון.</div>
+      </div>
+      <div class="org-form-group">
+        <label class="org-form-label" for="accept-password">סיסמה</label>
+        <input class="org-input" type="password" id="accept-password" name="password"
+               autocomplete="new-password" dir="ltr" minlength="8">
+        <div class="org-form-help">חובה לחברים חדשים. לפחות 8 תווים.</div>
+      </div>
+      <button type="submit" class="org-btn org-btn--primary org-btn--full">
+        הצטרפות
+      </button>
+    </form>
+    {% endif %}
+
+    <div class="org-public-footer">
+      כבר חבר? <a href="/org/login">היכנס</a>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  var $form = document.getElementById("accept-form");
+  if (!$form) return;
+  var $err = document.getElementById("accept-error");
+
+  $form.addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    $err.classList.add("org-hidden");
+
+    var payload = {
+      token: $form.elements.token.value,
+      display_name: $form.elements.display_name.value.trim() || null,
+      password: $form.elements.password.value || null,
+    };
+    try {
+      var r = await fetch("/org/api/invites/accept", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify(payload),
+      });
+      var data = null;
+      try { data = await r.json(); } catch (_e) {}
+      if (!r.ok) {
+        $err.textContent = (data && (data.detail || data.message)) || ("שגיאה " + r.status);
+        $err.classList.remove("org-hidden");
+        return;
+      }
+      // Success — redirect to login.
+      window.location.href = (data && data.redirect) || "/org/login";
+    } catch (e) {
+      $err.textContent = "שגיאת רשת. נסה שוב.";
+      $err.classList.remove("org-hidden");
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+{% extends "public/_base.html" %}
+
+{% block title %}המסמך כבר נחתם{% endblock %}
+
+{% block content %}
+<div class="public-sign__success">
+  <div class="public-sign__success-icon" aria-hidden="true">✓</div>
+  <h2>המסמך כבר נחתם</h2>
+  <p class="org-text-muted">
+    {% if delivery.signed_at %}
+      החתימה בוצעה ב-{{ delivery.signed_at[:10] }}.
+    {% else %}
+      החתימה כבר התקבלה.
+    {% endif %}
+  </p>
+  <p class="org-text-sm org-text-muted">
+    אם אתה צריך עותק נוסף — פנה לארגון.
+  </p>
+</div>
+{% endblock %}

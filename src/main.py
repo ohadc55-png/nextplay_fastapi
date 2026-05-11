@@ -23,6 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from src.api import admin as admin_router
 from src.api import admin_emails as admin_emails_router
+from src.api import admin_org_wizard as admin_org_wizard_router
 from src.api import admin_orgs as admin_orgs_router
 from src.api import admin_pages as admin_pages_router
 from src.api import admin_tasks as admin_tasks_router
@@ -35,9 +36,18 @@ from src.api import notebook as notebook_router
 from src.api import oauth as oauth_router
 from src.api import onboarding as onboarding_router
 from src.api import org as org_router
+from src.api import org_branches as org_branches_router
+from src.api import org_dashboard as org_dashboard_router
+from src.api import org_document_campaigns as org_document_campaigns_router
+from src.api import org_document_templates as org_document_templates_router
 from src.api import org_pages as org_pages_router
+from src.api import org_players as org_players_router
+from src.api import org_regions as org_regions_router
+from src.api import org_teams as org_teams_router
+from src.api import org_users as org_users_router
 from src.api import pages as pages_router
 from src.api import players as players_router
+from src.api import public_sign as public_sign_router
 from src.api import plays as plays_router
 from src.api import push as push_router
 from src.api import scouting as scouting_router
@@ -237,9 +247,19 @@ app.include_router(admin_router.router)
 app.include_router(admin_tasks_router.router)
 app.include_router(admin_emails_router.router)
 app.include_router(admin_orgs_router.router)
+app.include_router(admin_org_wizard_router.router)
 app.include_router(admin_pages_router.router)
 app.include_router(org_router.router)
+app.include_router(org_regions_router.router)
+app.include_router(org_branches_router.router)
+app.include_router(org_teams_router.router)
+app.include_router(org_players_router.router)
+app.include_router(org_users_router.router)
+app.include_router(org_document_templates_router.router)
+app.include_router(org_document_campaigns_router.router)
+app.include_router(org_dashboard_router.router)
 app.include_router(org_pages_router.router)
+app.include_router(public_sign_router.router)
 app.include_router(notebook_router.router)
 app.include_router(onboarding_router.router)
 app.include_router(plays_router.router)

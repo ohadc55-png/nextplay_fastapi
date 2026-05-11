@@ -38,5 +38,56 @@ class TeamsRepository(BaseRepository[TeamProfile]):
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    # ------------------------------------------------------------------
+    # Phase 1.5 — org-scoped reads. ADDITIVE: never touches the coach-app
+    # paths above. Every org query filters by organization_id so private
+    # coach teams (organization_id IS NULL) cannot leak in.
+    # ------------------------------------------------------------------
+
+    async def list_for_org(
+        self,
+        organization_id: int | None,
+        *,
+        region_id: int | None = None,
+        branch_id: int | None = None,
+        coach_user_id: int | None = None,
+    ) -> list[TeamProfile]:
+        """Teams inside a specific org, optionally narrowed by region (via
+        the team's branch), branch, or owning coach. Defensive: returns []
+        when organization_id is None."""
+        from src.models.branches import Branch
+
+        if organization_id is None:
+            return []
+        stmt = select(TeamProfile).where(
+            TeamProfile.organization_id == organization_id
+        )
+        if branch_id is not None:
+            stmt = stmt.where(TeamProfile.branch_id == branch_id)
+        if region_id is not None:
+            # Teams whose branch lives in this region.
+            stmt = stmt.where(
+                TeamProfile.branch_id.in_(
+                    select(Branch.id).where(Branch.region_id == region_id)
+                )
+            )
+        if coach_user_id is not None:
+            stmt = stmt.where(TeamProfile.user_id == coach_user_id)
+        stmt = stmt.order_by(TeamProfile.team_name)
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def get_for_org(
+        self, team_id: int, organization_id: int | None
+    ) -> TeamProfile | None:
+        """PK lookup scoped to organization. None when cross-org (route layer
+        maps None → 404, per the 404-not-403 rule)."""
+        if organization_id is None:
+            return None
+        stmt = select(TeamProfile).where(
+            TeamProfile.id == team_id,
+            TeamProfile.organization_id == organization_id,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
 
 __all__ = ["TeamsRepository"]

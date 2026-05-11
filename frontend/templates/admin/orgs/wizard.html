@@ -1,0 +1,194 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}New Organization{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <div>
+    <a href="/admin/orgs" style="font-size: 13px; opacity: 0.7; color: inherit; text-decoration: none;">← Back to orgs</a>
+    <h2 style="margin: 4px 0 0 0;">New Organization</h2>
+  </div>
+</div>
+
+<!-- Step progress -->
+<div class="admin-wizard-steps">
+  <div class="admin-wizard-step is-active" data-step-indicator="1"><span class="step-num">1</span> Basics</div>
+  <div class="admin-wizard-step" data-step-indicator="2"><span class="step-num">2</span> Branding</div>
+  <div class="admin-wizard-step" data-step-indicator="3"><span class="step-num">3</span> Structure &amp; Plan</div>
+  <div class="admin-wizard-step" data-step-indicator="4"><span class="step-num">4</span> Primary Contact</div>
+</div>
+
+<form id="wizard-form" class="admin-card" style="margin-top: 24px;" novalidate>
+
+  <!-- Step 1: Basics -->
+  <div class="admin-wizard-pane" data-step="1">
+    <h3>Organization details</h3>
+    <div class="admin-form-grid">
+      <label>Name *
+        <input type="text" name="name" required minlength="2" maxlength="200" autocomplete="off">
+      </label>
+      <label>Slug *
+        <input type="text" name="slug" required maxlength="50" pattern="[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?"
+               placeholder="e.g. shaar-shivyon" autocomplete="off" style="font-family: monospace;">
+        <small>Lowercase letters, numbers, hyphens. 1-50 chars.</small>
+      </label>
+      <label>Legal name
+        <input type="text" name="legal_name" maxlength="200">
+      </label>
+      <label>Tax ID
+        <input type="text" name="tax_id" maxlength="50">
+      </label>
+      <label class="full-width">Address
+        <input type="text" name="address" maxlength="500">
+      </label>
+    </div>
+    <div class="admin-form-error hidden" data-step-error></div>
+  </div>
+
+  <!-- Step 2: Branding -->
+  <div class="admin-wizard-pane hidden" data-step="2">
+    <h3>Branding</h3>
+    <div class="admin-form-grid">
+      <label>Primary color
+        <input type="color" name="primary_color" value="#2563EB">
+      </label>
+      <label>Subdomain (optional)
+        <input type="text" name="subdomain" maxlength="63" pattern="[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+               placeholder="e.g. shaar" autocomplete="off" style="font-family: monospace;">
+        <small>Future: {subdomain}.nextplay.co</small>
+      </label>
+      <label class="full-width">Logo URL (optional)
+        <input type="url" name="logo_url" maxlength="500" placeholder="https://...">
+        <small>Direct URL to the org logo (CDN/S3). File upload UI coming next phase.</small>
+      </label>
+    </div>
+    <div class="admin-form-error hidden" data-step-error></div>
+  </div>
+
+  <!-- Step 3: Structure & Plan -->
+  <div class="admin-wizard-pane hidden" data-step="3">
+    <h3>Structure &amp; Plan</h3>
+    <div class="admin-form-grid">
+      <label class="full-width">Structure
+        <select name="structure_type">
+          <option value="flat">Flat (no regions/branches)</option>
+          <option value="regions">Regions only</option>
+          <option value="regions_branches" selected>Regions and branches</option>
+        </select>
+      </label>
+      <label>Monthly fee (ש"ח)
+        <input type="number" name="monthly_fee_shekel" min="0" value="5000" step="100">
+        <small>Stored as cents (×100) in DB.</small>
+      </label>
+      <label>Setup fee (ש"ח)
+        <input type="number" name="setup_fee_shekel" min="0" value="10000" step="100">
+      </label>
+      <label>Trial duration (days)
+        <input type="number" name="trial_days" min="0" max="365" value="60">
+      </label>
+      <label>Contract start
+        <input type="date" name="contract_start">
+      </label>
+      <label class="full-width">Billing status
+        <select name="status">
+          <option value="trial" selected>Trial (use trial_days)</option>
+          <option value="active">Active (skip trial)</option>
+        </select>
+      </label>
+    </div>
+    <div class="admin-form-error hidden" data-step-error></div>
+  </div>
+
+  <!-- Step 4: Primary Contact -->
+  <div class="admin-wizard-pane hidden" data-step="4">
+    <h3>Primary contact (CEO)</h3>
+    <div class="admin-form-grid">
+      <label>Full name *
+        <input type="text" name="full_name" required minlength="2" maxlength="200">
+      </label>
+      <label>Email *
+        <input type="email" name="email" required maxlength="200">
+      </label>
+      <label>Phone
+        <input type="tel" name="phone" maxlength="50">
+      </label>
+      <label>Role
+        <select name="role">
+          <option value="org_admin" selected>Org Admin (CEO / Director)</option>
+        </select>
+        <small>Other roles can be invited later by the org admin themselves.</small>
+      </label>
+      <label class="full-width" style="display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" name="send_invite_immediately" checked style="width: auto;">
+        <span>Send invite email immediately</span>
+      </label>
+    </div>
+    <div class="admin-form-error hidden" data-step-error></div>
+  </div>
+
+  <div class="admin-wizard-actions">
+    <button type="button" class="admin-btn admin-btn-ghost" id="prev-btn" disabled>← Previous</button>
+    <div style="flex: 1;"></div>
+    <button type="button" class="admin-btn admin-btn-primary" id="next-btn">Next →</button>
+    <button type="submit" class="admin-btn admin-btn-primary hidden" id="submit-btn">Create organization</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<style nonce="{{ g.csp_nonce }}">
+  .admin-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .admin-wizard-steps {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px;
+    border-bottom: 1px solid var(--admin-border, rgba(255,255,255,0.08));
+    padding-bottom: 0;
+  }
+  .admin-wizard-step {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    color: var(--admin-text-muted, #8c92a3); font-size: 14px;
+    border-bottom: 2px solid transparent; cursor: default;
+  }
+  .admin-wizard-step.is-active { color: var(--admin-text, #e6edf3); border-bottom-color: var(--admin-accent, #ff6b35); }
+  .admin-wizard-step.is-done .step-num { background: var(--admin-accent, #ff6b35); color: #fff; border-color: transparent; }
+  .step-num {
+    display: inline-flex; width: 22px; height: 22px; border-radius: 50%;
+    align-items: center; justify-content: center; font-size: 12px; font-weight: 600;
+    background: transparent; color: inherit;
+    border: 1px solid currentColor; opacity: 0.8;
+  }
+  .admin-wizard-step.is-active .step-num {
+    background: var(--admin-accent, #ff6b35); color: #fff; border-color: transparent; opacity: 1;
+  }
+
+  .admin-form-grid {
+    display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr);
+    margin-top: 16px;
+  }
+  .admin-form-grid label.full-width { grid-column: 1 / -1; }
+  .admin-form-grid label {
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 13px; color: var(--admin-text-muted, #8c92a3);
+  }
+  .admin-form-grid input, .admin-form-grid select {
+    background: var(--admin-input-bg, #11151c);
+    border: 1px solid var(--admin-border, rgba(255,255,255,0.1));
+    border-radius: 8px; padding: 10px 12px; color: var(--admin-text, #e6edf3); font-size: 14px;
+  }
+  .admin-form-grid small { color: var(--admin-text-muted, #6c7280); font-size: 12px; }
+
+  .admin-wizard-actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+  .admin-btn {
+    padding: 10px 18px; border-radius: 8px; border: 1px solid transparent;
+    font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .admin-btn-primary { background: var(--admin-accent, #ff6b35); color: #fff; }
+  .admin-btn-primary:hover { background: #e55a28; }
+  .admin-btn-primary:disabled, .admin-btn-primary[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .admin-btn-ghost { background: transparent; color: var(--admin-text, #e6edf3); border-color: var(--admin-border, rgba(255,255,255,0.15)); }
+  .admin-btn-ghost:hover { background: rgba(255,255,255,0.05); }
+  .admin-btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+  .admin-form-error { color: #ef4444; background: rgba(239,68,68,0.1); padding: 10px 14px; border-radius: 8px; margin-top: 12px; font-size: 13px; }
+  .hidden { display: none !important; }
+</style>
+<script src="{{ url_for('static', filename='js/admin-org-wizard.js') }}" defer nonce="{{ g.csp_nonce }}"></script>
+{% endblock %}
