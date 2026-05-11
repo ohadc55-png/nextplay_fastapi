@@ -35,13 +35,17 @@ get a single 401/403 funnel.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -244,24 +248,189 @@ async def s3_complete_multipart(
     return {"ok": True}
 
 
+# ---------------------------------------------------------------------------
+# SSRF protection + streaming proxy (ports v1 backend/scouting/routes.py:28-70
+# and the Flask `video_proxy` / `public_share_video_proxy` handlers).
+#
+# Why a same-origin streaming proxy instead of a 302 to the presigned URL:
+#   - <canvas> annotations (telestrator) only work when the <video> is loaded
+#     same-origin; cross-origin tainting breaks getImageData / toDataURL.
+#   - YouTube/Pixellot embeds aren't directly seekable from a <video> tag;
+#     we let the coach feed the iframe URL but still proxy when possible.
+#   - Range-request seeking has to be transparent — many CDNs strip auth
+#     headers on redirect, so we re-issue the upstream request ourselves.
+# ---------------------------------------------------------------------------
+
+_ALLOWED_PROXY_DOMAINS = {
+    ".s3.amazonaws.com",
+    ".s3.eu-central-1.amazonaws.com",
+    ".s3.us-east-1.amazonaws.com",
+    ".s3.us-west-2.amazonaws.com",
+    ".cloudfront.net",
+    "youtube.com",
+    "www.youtube.com",
+    "youtu.be",
+    "vimeo.com",
+    "player.vimeo.com",
+}
+
+
+def _is_safe_proxy_url(url: str | None) -> bool:
+    """Return True only if `url` is safe to fetch from the server."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ("https", "http"):
+        return False
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+    # Block private / loopback / link-local / reserved IPs.
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            logger.warning("SSRF blocked: private IP %s", host)
+            return False
+    except ValueError:
+        pass  # not an IP — check the domain whitelist below
+    for allowed in _ALLOWED_PROXY_DOMAINS:
+        if allowed.startswith("."):
+            if host.endswith(allowed) or host == allowed[1:]:
+                return True
+        elif host == allowed:
+            return True
+    logger.warning("SSRF blocked: domain %s not in whitelist", host)
+    return False
+
+
+_PROXY_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+async def _stream_video_proxy(request: Request, url: str) -> StreamingResponse:
+    """Open an upstream GET (with Range header preserved) and stream the
+    body back to the client. Falls back to a 502 on upstream errors.
+
+    The httpx client + response are kept alive for the lifetime of the
+    body iterator and closed in the `finally` block to avoid leaking
+    connections from the pool.
+    """
+    if not _is_safe_proxy_url(url):
+        raise HTTPException(status_code=403, detail="URL not allowed")
+
+    upstream_headers: dict[str, str] = {"User-Agent": _PROXY_UA}
+    range_header = request.headers.get("range")
+    if range_header:
+        upstream_headers["Range"] = range_header
+
+    client = httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
+        follow_redirects=True,
+    )
+    try:
+        req = client.build_request("GET", url, headers=upstream_headers)
+        r = await client.send(req, stream=True)
+    except httpx.RequestError as e:
+        await client.aclose()
+        logger.warning("[video-proxy] upstream error for %s: %s", url, e)
+        raise HTTPException(status_code=502, detail="Upstream error") from None
+
+    resp_headers: dict[str, str] = {
+        "Content-Type": r.headers.get("content-type", "video/mp4"),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-cache",
+    }
+    for h in ("content-length", "content-range", "etag", "last-modified"):
+        v = r.headers.get(h)
+        if v:
+            resp_headers[h.title()] = v
+
+    async def _iter():
+        try:
+            async for chunk in r.aiter_bytes(chunk_size=131072):
+                yield chunk
+        finally:
+            await r.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        _iter(),
+        status_code=r.status_code,
+        headers=resp_headers,
+        media_type=resp_headers["Content-Type"],
+    )
+
+
+def _resolve_playback_url(v: ScoutingVideo, *, presign: Any) -> str | None:
+    """Pick the upstream URL for a video, matching v1 semantics:
+    external_url wins for source_type=external, otherwise presigned S3 URL.
+    `presign` is the already-resolved S3 url (caller awaits it)."""
+    if v.source_type == "external" and v.external_url:
+        return v.external_url
+    if v.source_type == "s3" and v.s3_key:
+        return presign
+    return None
+
+
 @router.get("/video-proxy/{video_id}")
 async def video_proxy(
     video_id: int,
+    request: Request,
     user: User = Depends(require_pro),
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Return a fresh playback URL for a video. CloudFront URL when
-    configured, otherwise a presigned GET valid for 1 hour. Tenant-
-    scoped — only the owning coach can request the URL."""
+) -> StreamingResponse:
+    """Stream a video through our server (same-origin) so the telestrator
+    canvas can read its pixel data and the player can issue Range
+    requests. Tenant-scoped: 404 unless the caller owns this video.
+
+    Mirrors v1 backend/scouting/routes.py:172-209 byte-for-byte semantics
+    (Range passthrough, User-Agent spoof, 131072-byte chunks)."""
     v = await _video_owned_by(db, video_id, user.id)
     if not v:
         raise HTTPException(status_code=404, detail="Not found")
+
     from src.services import s3 as s3_module
 
-    url = await s3_module.get_video_url(v.s3_key or "")
+    presigned = await s3_module.get_video_url(v.s3_key or "") if v.s3_key else None
+    url = _resolve_playback_url(v, presign=presigned)
     if not url:
         raise HTTPException(status_code=404, detail="Video has no playback source")
-    return {"url": url, "expires_in": s3_module.PRESIGN_EXPIRY_GET}
+    return await _stream_video_proxy(request, url)
+
+
+@router.get("/share/{token}/video")
+async def public_share_video_proxy(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Public — no auth. Same proxy as `video_proxy` but authorized via
+    the share token so anonymous clip-share viewers can play the video.
+    Mirrors v1's `public_share_video_proxy`."""
+    share = (await db.execute(
+        select(ClipShare).where(ClipShare.share_token == token)
+    )).scalar_one_or_none()
+    if not share:
+        raise HTTPException(status_code=404, detail="Not found")
+    v = (await db.execute(
+        select(ScoutingVideo).where(ScoutingVideo.id == share.video_id)
+    )).scalar_one_or_none()
+    if not v:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    from src.services import s3 as s3_module
+
+    presigned = await s3_module.get_video_url(v.s3_key or "") if v.s3_key else None
+    url = _resolve_playback_url(v, presign=presigned)
+    if not url:
+        raise HTTPException(status_code=404, detail="Video has no playback source")
+    return await _stream_video_proxy(request, url)
 
 
 @router.post("/videos", status_code=201)

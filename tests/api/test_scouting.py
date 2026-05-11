@@ -464,26 +464,41 @@ class TestMultipartComplete:
 
 
 class TestVideoProxy:
-    async def test_owner_gets_presigned_url(
+    """Video proxy now streams the upstream bytes through the server
+    (same-origin for canvas annotations). Tests patch the
+    `_stream_video_proxy` helper so we don't actually hit S3/YouTube
+    in CI but still cover the URL-resolution + ownership logic."""
+
+    async def test_owner_proxies_s3_presigned_url(
         self, authed_client: AsyncClient, monkeypatch
     ):
         from src.core.config import settings
         monkeypatch.setattr(settings, "CLOUDFRONT_DOMAIN", "")
-        # Create a video with an s3_key
+
         r = await authed_client.post(
             "/api/scouting/videos",
             json={"title": "G", "s3_key": "videos/1/abc/x.mp4"},
         )
         vid = r.json()["id"]
 
+        # Capture what URL the proxy tries to stream and short-circuit it.
+        seen: dict = {}
+        from fastapi.responses import Response as _R
+        from src.api import scouting as _scouting_mod
+
+        async def _fake_stream(request, url):
+            seen["url"] = url
+            return _R(content=b"FAKE", media_type="video/mp4", status_code=200)
+
+        monkeypatch.setattr(_scouting_mod, "_stream_video_proxy", _fake_stream)
+
         fake = _FakeS3()
-        fake.generate_presigned_url = AsyncMock(return_value="https://s3/get-url")
+        fake.generate_presigned_url = AsyncMock(return_value="https://my-bucket.s3.eu-central-1.amazonaws.com/get-url")
         with _patch_s3(fake):
             r = await authed_client.get(f"/api/scouting/video-proxy/{vid}")
         assert r.status_code == 200
-        body = r.json()
-        assert body["url"] == "https://s3/get-url"
-        assert body["expires_in"] == 3600
+        assert r.content == b"FAKE"
+        assert seen["url"] == "https://my-bucket.s3.eu-central-1.amazonaws.com/get-url"
 
     async def test_cloudfront_used_when_configured(
         self, authed_client: AsyncClient, monkeypatch
@@ -495,13 +510,41 @@ class TestVideoProxy:
             json={"title": "G", "s3_key": "videos/1/abc/x.mp4"},
         )
         vid = r.json()["id"]
+
+        seen: dict = {}
+        from fastapi.responses import Response as _R
+        from src.api import scouting as _scouting_mod
+
+        async def _fake_stream(request, url):
+            seen["url"] = url
+            return _R(content=b"FAKE", media_type="video/mp4", status_code=200)
+
+        monkeypatch.setattr(_scouting_mod, "_stream_video_proxy", _fake_stream)
         r = await authed_client.get(f"/api/scouting/video-proxy/{vid}")
         assert r.status_code == 200
-        assert r.json()["url"] == "https://cdn.example.com/videos/1/abc/x.mp4"
+        assert seen["url"] == "https://cdn.example.com/videos/1/abc/x.mp4"
 
     async def test_unknown_video_404(self, authed_client: AsyncClient):
         r = await authed_client.get("/api/scouting/video-proxy/99999")
         assert r.status_code == 404
+
+    async def test_ssrf_guard_blocks_private_ip(
+        self, authed_client: AsyncClient, monkeypatch
+    ):
+        """An external video pointed at a private IP must be refused
+        with 403, never proxied."""
+        from src.core.config import settings
+        monkeypatch.setattr(settings, "CLOUDFRONT_DOMAIN", "")
+
+        r = await authed_client.post(
+            "/api/scouting/videos/external",
+            json={"title": "G", "external_url": "http://192.168.1.1/foo.mp4"},
+        )
+        # The create endpoint may itself reject; if it accepts, the proxy must reject.
+        if r.status_code in (200, 201):
+            vid = r.json()["id"]
+            r2 = await authed_client.get(f"/api/scouting/video-proxy/{vid}")
+            assert r2.status_code == 403
 
 
 class TestDeleteVideoCleansUpS3:
