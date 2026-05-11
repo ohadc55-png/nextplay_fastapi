@@ -533,6 +533,18 @@ async def notebook_page(
     """Coach Notebook shell. JS hits `/api/notebook/*` for entries
     (practice plans, game summaries, attendance)."""
     data = await _team_data(db, user)
+    # Template does `{{ players | tojson }}` for client-side JS — Jinja's
+    # tojson can't serialize SQLAlchemy ORM objects, so pre-flatten the
+    # roster to the dict shape the JS expects.
+    data["players"] = [
+        {
+            "id": p.id,
+            "name": p.name or "",
+            "number": p.number,
+            "position": p.position or "",
+        }
+        for p in (data.get("players") or [])
+    ]
     return templates.TemplateResponse(
         "notebook.html", page_context(request, user=user, extra=data),
     )
