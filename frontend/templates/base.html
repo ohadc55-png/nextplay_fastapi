@@ -16,6 +16,8 @@
     <noscript><link rel="stylesheet" href="{{ url_for('static', filename='css/guide-widget.css') }}?v={{ config.get('CSS_VERSION', '2') }}"></noscript>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
     {% if g.user and g.user.id is defined %}<meta name="np-user-id" content="{{ g.user.id }}">{% endif %}
+    {% if g.user %}<meta name="np-user-name" content="{{ g.user.display_name or (g.user.email.split('@')[0] if g.user.email else '') }}">{% endif %}
+    <meta name="np-has-team" content="{{ 'true' if profile and profile.team_name else 'false' }}">
 
     {# ── PWA: makes the app installable on iPhone/Android/desktop.
        Manifest declares icons + display mode + start URL.
@@ -622,6 +624,8 @@ const NpDialog = (() => {
 <script src="{{ url_for('static', filename='js/activity-tracker.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
 <script src="{{ url_for('static', filename='js/tour.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
 <script src="{{ url_for('static', filename='js/guide-widget.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script src="{{ url_for('static', filename='js/feature-gate.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+<script src="{{ url_for('static', filename='js/welcome-spotlight.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
 <script src="{{ url_for('static', filename='js/upload-idb.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
 <script src="{{ url_for('static', filename='js/upload-client.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
 {# Push subscribe helper — exposes window.NextPlayPush for the settings page. #}

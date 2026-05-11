@@ -2542,3 +2542,92 @@ a:hover { color: var(--accent-bright); }
 .np-dialog-ok.danger { background: #ef4444; }
 .np-dialog-ok.danger:hover { background: #dc2626; }
 
+
+/* ══════════ No-Team Modal (feature-gate.js) ════════════════════════ */
+.no-team-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: noTeamFade 0.25s ease;
+}
+.no-team-overlay.open { display: flex; }
+@keyframes noTeamFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+.no-team-box {
+    background: linear-gradient(165deg, #1a2230, #131a26);
+    border: 1px solid rgba(255, 107, 53, 0.32);
+    border-radius: 16px;
+    padding: 36px 32px 28px;
+    max-width: 460px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 107, 53, 0.08);
+    animation: noTeamPop 0.32s cubic-bezier(.16,.84,.44,1);
+}
+@keyframes noTeamPop {
+    from { transform: translateY(12px) scale(0.96); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+.no-team-icon {
+    font-size: 48px;
+    line-height: 1;
+    margin-bottom: 14px;
+    filter: drop-shadow(0 4px 8px rgba(255, 107, 53, 0.35));
+}
+.no-team-title {
+    margin: 0 0 10px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+}
+.no-team-text {
+    margin: 0 0 24px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #c4c9d1;
+}
+.no-team-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.no-team-actions .btn { min-width: 130px; }
+
+/* ══════════ Welcome Spotlight (welcome-spotlight.js) ═══════════════ */
+.np-welcome-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99998;       /* below Daisy panel (which is ~99999) */
+    background: radial-gradient(circle at bottom right, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.88) 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+.np-welcome-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+/* Lift Daisy's toggle + panel above the overlay during the first visit. */
+.np-welcome-active #nicoToggle,
+.np-welcome-active #nicoPanel {
+    z-index: 99999 !important;
+}
+/* Pulse the toggle so the eye is drawn to her. */
+.np-welcome-active #nicoToggle {
+    animation: npWelcomePulse 1.6s ease-in-out infinite;
+}
+@keyframes npWelcomePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.55); }
+    50%      { box-shadow: 0 0 0 18px rgba(255, 107, 53, 0); }
+}
