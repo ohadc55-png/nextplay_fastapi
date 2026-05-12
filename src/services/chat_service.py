@@ -31,6 +31,21 @@ import re
 from collections.abc import AsyncIterator
 from typing import Any
 
+from openai import APIError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.database import AsyncSessionLocal
+from src.crew.agents import build_agent_prompt
+from src.crew.llm import get_client, log_api_usage, log_response
+from src.crew.routing import route_query
+from src.crew.tools import Tool, default_tools_for_agent, execute_tool_call
+from src.models.conversations import Conversation
+from src.models.players import Player
+from src.models.teams import TeamProfile
+from src.models.users import User
+from src.services.memory_extractor import extract_and_store
+
 # Character ranges → ISO 639-1 language code. Order matters: a script
 # unique to one family wins over a generic match. Used by
 # `_detect_message_language` to enforce reply-language parity in the
@@ -85,20 +100,6 @@ def _language_directive(user_message: str, history: list[dict]) -> str:
         "headers, bullet labels, and follow-up questions."
     )
 
-from openai import APIError
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.core.database import AsyncSessionLocal
-from src.crew.agents import build_agent_prompt
-from src.crew.llm import get_client, log_api_usage, log_response
-from src.crew.routing import route_query
-from src.crew.tools import Tool, default_tools_for_agent, execute_tool_call
-from src.models.conversations import Conversation
-from src.models.players import Player
-from src.models.teams import TeamProfile
-from src.models.users import User
-from src.services.memory_extractor import extract_and_store
 
 logger = logging.getLogger(__name__)
 

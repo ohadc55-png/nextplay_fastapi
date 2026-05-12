@@ -483,12 +483,13 @@ class TestVideoProxy:
 
         # Capture what URL the proxy tries to stream and short-circuit it.
         seen: dict = {}
-        from fastapi.responses import Response as _R
+        from fastapi.responses import Response as FakeResponse
+
         from src.api import scouting as _scouting_mod
 
         async def _fake_stream(request, url):
             seen["url"] = url
-            return _R(content=b"FAKE", media_type="video/mp4", status_code=200)
+            return FakeResponse(content=b"FAKE", media_type="video/mp4", status_code=200)
 
         monkeypatch.setattr(_scouting_mod, "_stream_video_proxy", _fake_stream)
 
@@ -512,12 +513,13 @@ class TestVideoProxy:
         vid = r.json()["id"]
 
         seen: dict = {}
-        from fastapi.responses import Response as _R
+        from fastapi.responses import Response as FakeResponse
+
         from src.api import scouting as _scouting_mod
 
         async def _fake_stream(request, url):
             seen["url"] = url
-            return _R(content=b"FAKE", media_type="video/mp4", status_code=200)
+            return FakeResponse(content=b"FAKE", media_type="video/mp4", status_code=200)
 
         monkeypatch.setattr(_scouting_mod, "_stream_video_proxy", _fake_stream)
         r = await authed_client.get(f"/api/scouting/video-proxy/{vid}")
