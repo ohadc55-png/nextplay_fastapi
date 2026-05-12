@@ -11,12 +11,12 @@ fetch on every navigation / first-use milestone, so the router must be:
 from __future__ import annotations
 
 import logging
-from datetime import UTC
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps.auth import get_current_user
+from src.api.deps.auth import get_current_user, get_current_user_optional
 from src.core.database import get_db
 from src.models.analytics import OnboardingEvent, PageView
 from src.models.users import User
@@ -27,6 +27,41 @@ from src.schemas.common import StatusResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["tracking"])
+
+
+@router.post("/track/pageview", response_model=StatusResponse)
+async def log_page_view_compat(
+    body: dict = Body(default_factory=dict),
+    user: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compat shim for `activity-tracker.js`, which still posts the v1
+    payload shape `{session_id, page_path, page_section, duration_seconds,
+    action}` to `/api/track/pageview`. The v2 endpoint at
+    `/api/tracking/page-views` uses `entered_at` + `exited_at` instead.
+
+    Auth is optional so the `navigator.sendBeacon` exit pings (which
+    fire as the tab closes, often after cookies have expired) don't
+    crash with a 401 — we silently no-op for unauthenticated callers.
+    Returns 200 in every case so the SPA never sees a console error."""
+    if user is None:
+        return StatusResponse(status="ok", detail="anonymous, no-op")
+    now = datetime.now(UTC).isoformat()
+    try:
+        row = PageView(
+            user_id=user.id,
+            session_id=str(body.get("session_id") or ""),
+            page_path=str(body.get("page_path") or "")[:512],
+            page_section=str(body.get("page_section") or "")[:128],
+            duration_seconds=int(body.get("duration_seconds") or 0),
+            entered_at=now,
+            exited_at=now if body.get("action") == "exit" else None,
+            created_at=now,
+        )
+        await PageViewsRepository(db).create(row)
+    except Exception as exc:
+        logger.warning("[track/pageview] swallowed: %s", exc)
+    return StatusResponse(status="ok")
 
 
 @router.post("/tracking/page-views", response_model=StatusResponse)

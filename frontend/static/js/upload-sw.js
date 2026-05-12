@@ -4,7 +4,7 @@
  * Survives page navigation + tab close + browser refresh.
  */
 
-const SW_VERSION = '1.0.0';
+const UPLOAD_SW_VERSION = '1.0.0';
 const CHANNEL_NAME = 'nextplay-uploads';
 const PART_CONCURRENCY = 2;
 const MAX_PART_RETRIES = 3;
@@ -15,12 +15,12 @@ const IDB = self.NextPlayUploadIDB;
 const channel = new BroadcastChannel(CHANNEL_NAME);
 
 self.addEventListener('install', function(e) {
-  console.log('[SW] install', SW_VERSION);
+  console.log('[SW] install', UPLOAD_SW_VERSION);
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function(e) {
-  console.log('[SW] activate', SW_VERSION);
+  console.log('[SW] activate', UPLOAD_SW_VERSION);
   e.waitUntil(self.clients.claim().then(function() {
     return resumeAllJobs();
   }));
@@ -29,7 +29,7 @@ self.addEventListener('activate', function(e) {
 self.addEventListener('message', function(e) {
   var msg = e.data || {};
   if (msg.type === 'PING') {
-    e.source && e.source.postMessage({ type: 'PONG', version: SW_VERSION });
+    e.source && e.source.postMessage({ type: 'PONG', version: UPLOAD_SW_VERSION });
     return;
   }
   if (msg.type === 'ENQUEUE') {
