@@ -78,6 +78,14 @@ class DocumentTemplate(Base):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # Phase 2.5b — manual "done" flag. Completed templates sort to the bottom
+    # of the list, render with strikethrough, and disable send/edit/delete.
+    # Reversible via the same toggle.
+    is_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     created_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

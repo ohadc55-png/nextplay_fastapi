@@ -12,9 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.models.document_campaigns import DocumentCampaign
 from src.models.document_deliveries import DocumentDelivery
-from src.models.document_templates import DocumentTemplate
 from src.models.player_contacts import PlayerContact
 from src.models.players import Player
 from src.models.teams import TeamProfile

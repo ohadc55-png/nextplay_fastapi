@@ -430,7 +430,7 @@ def make_research_tool(
                 level_hint=(level_hint or "").strip() or None,
                 url_hint=(url_hint or "").strip() or None,
             ))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("[tools.research] failed: %s", e)
             return {"error": f"research_failed: {e}"}
 
@@ -563,7 +563,7 @@ def make_add_player_tool(
         except (ValueError, TypeError) as e:
             logger.warning("[tools.add_player] bad input: %s", e)
             return {"error": "bad_input", "message": str(e)}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.exception("[tools.add_player] insert failed")
             return {"error": "insert_failed", "message": str(e)}
 

@@ -18,7 +18,7 @@ trust domain.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -134,7 +134,7 @@ async def admin_dashboard(
     from src.models.admin import AdminTask
     from src.models.users import User
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
 
@@ -208,7 +208,7 @@ async def admin_users_page(
     from src.models.teams import TeamProfile
     from src.models.users import User
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     base = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
     total = (await db.execute(base)).scalar_one()
@@ -326,7 +326,7 @@ async def admin_api_costs_page(
 
     from src.models.analytics import ApiUsageLog
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Token sums + cost estimate. v1 stores cost_usd directly per row.
     base = select(

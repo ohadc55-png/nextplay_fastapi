@@ -24,6 +24,7 @@ from src.models.document_deliveries import DocumentDelivery
 from src.models.document_templates import DocumentTemplate
 from src.models.organizations import Organization
 from src.services.email import send_email_now
+from src.services.email_templates import render as render_email
 from src.services.sms import get_sms_provider
 
 logger = logging.getLogger(__name__)
@@ -67,20 +68,19 @@ async def _send_email_for(
     url = _signing_url(delivery.unique_token)
     org_name = (org.name if org else "") or "הארגון"
     recipient = delivery.recipient_name or "הורה"
-    subject = f"מסמך לחתימה — {template.name}"
-    text = (
-        f"שלום {recipient},\n\n"
-        f"{org_name} שלח לך מסמך לחתימה: {template.name}.\n\n"
-        f"קישור לחתימה (תקף ל-{template.default_expiry_days or 30} ימים):\n{url}\n\n"
-        "תודה,\nNEXTPLAY"
-    )
-    html = (
-        '<div dir="rtl" style="font-family: Arial, sans-serif; line-height:1.5;">'
-        f"<p>שלום {recipient},</p>"
-        f"<p>{org_name} שלח לך מסמך לחתימה: <strong>{template.name}</strong>.</p>"
-        f'<p><a href="{url}">לחץ כאן לחתימה</a></p>'
-        f'<p class="muted">הקישור תקף ל-{template.default_expiry_days or 30} ימים.</p>'
-        "<p>תודה,<br>NEXTPLAY</p></div>"
+    subject, html, text = render_email(
+        "document_invite",
+        language="he",
+        context={
+            "recipient_name": recipient,
+            "template_name": template.name,
+            "organization_name": org_name,
+            "sign_url": url,
+            "expiry_days": template.default_expiry_days or 30,
+            "cta_url": url,
+            "cta_label_he": "לחתימה",
+            "cta_label_en": "Sign now",
+        },
     )
     result = await send_email_now(
         session,

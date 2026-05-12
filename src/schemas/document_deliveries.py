@@ -57,9 +57,18 @@ class OTPRequest(BaseModel):
 
 
 class OTPVerify(BaseModel):
-    """POST /sign/{token}/otp/verify — parent submits the 6-digit code."""
+    """POST /sign/{token}/otp/verify — parent submits the 6-digit code.
+
+    `challenge_*` fields are only required once the server has demanded a
+    CAPTCHA (after 2 failed verify attempts on the same delivery). The
+    server returns a fresh challenge in the 4xx response; the client
+    echoes the answer + token here.
+    """
 
     code: str = Field(min_length=4, max_length=8, pattern=r"^\d+$")
+    challenge_answer: int | None = None
+    challenge_expires_at: int | None = None
+    challenge_token: str | None = Field(default=None, max_length=128)
 
 
 class SignatureSubmit(BaseModel):

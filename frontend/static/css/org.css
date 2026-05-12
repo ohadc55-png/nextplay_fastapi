@@ -1350,3 +1350,241 @@
   border-color: var(--org-orange-500, #FF6B35);
   background: rgba(255, 107, 53, 0.06);
 }
+
+/* ─────── Phase 2.5: tabs / sm buttons / wide modal / stat cards ─────── */
+.org-tabs {
+  display: inline-flex;
+  gap: 0;
+  background: var(--org-gray-100);
+  border-radius: var(--org-radius-md);
+  padding: 4px;
+}
+.org-tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 6px 14px;
+  border-radius: var(--org-radius-sm, 6px);
+  font-size: 13px;
+  color: var(--org-gray-700);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.org-tab:hover { color: var(--org-gray-900); }
+.org-tab.is-active {
+  background: white;
+  color: var(--org-blue-700);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.org-btn--sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.org-btn--danger {
+  background: #dc2626;
+  color: white;
+  border: 1px solid #b91c1c;
+}
+.org-btn--danger:hover { background: #b91c1c; }
+
+.org-modal--wide .org-modal-body,
+.org-modal--wide.org-modal,
+.org-modal.org-modal--wide {
+  max-width: 720px;
+}
+
+.org-pill--ok {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+.org-pill--warn {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+.org-pill--err {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+/* Deliveries page stat cards */
+.org-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--org-space-3);
+  margin-block-end: var(--org-space-4);
+}
+.org-stat-card {
+  background: white;
+  border: 1px solid var(--org-gray-200);
+  border-radius: var(--org-radius-md);
+  padding: var(--org-space-3);
+}
+.org-stat-card__label {
+  font-size: 12px;
+  color: var(--org-gray-600);
+  margin-block-end: 4px;
+}
+.org-stat-card__value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--org-gray-900);
+}
+.org-stat-card--ok .org-stat-card__value { color: #166534; }
+.org-stat-card--warn .org-stat-card__value { color: #92400e; }
+.org-stat-card--err .org-stat-card__value { color: #991b1b; }
+
+.org-progress {
+  height: 8px;
+  background: var(--org-gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-block-start: var(--org-space-2);
+}
+.org-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--org-blue-500, #3b82f6), #16a34a);
+  transition: width 0.3s;
+}
+
+/* Phase 2.5 — placeholder chips (insert-on-click) */
+.org-placeholder-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+.org-placeholder-bar__label {
+  font-size: 12px;
+  color: var(--org-gray-600);
+  margin-inline-end: 4px;
+}
+.org-chip {
+  appearance: none;
+  background: var(--org-blue-50);
+  border: 1px solid var(--org-blue-200);
+  color: var(--org-blue-700);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.org-chip:hover {
+  background: var(--org-blue-100, #dbeafe);
+  border-color: var(--org-blue-300, #93c5fd);
+}
+.org-chip:active {
+  background: var(--org-blue-200, #bfdbfe);
+}
+
+/* Phase 2.5b — completed-template marker on document_templates list */
+.org-done-toggle {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--org-gray-400, #9ca3af);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.org-done-toggle:hover {
+  color: var(--org-gray-700);
+  background: var(--org-gray-100);
+}
+.org-done-toggle.is-done {
+  color: #16a34a; /* green-600 */
+}
+.org-done-toggle.is-done:hover {
+  color: #15803d;
+  background: #dcfce7;
+}
+.org-done-toggle svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* A row whose template was marked completed: gray + strikethrough across
+   every cell. Action buttons keep their own color (so 👁 stays visible). */
+.org-table tbody tr.is-completed > td {
+  color: var(--org-gray-500, #6b7280);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.org-table tbody tr.is-completed > td strong {
+  font-weight: 600;
+}
+.org-table tbody tr.is-completed > td.org-table-actions,
+.org-table tbody tr.is-completed > td .org-done-toggle,
+.org-table tbody tr.is-completed > td .org-btn-icon,
+.org-table tbody tr.is-completed > td .org-pill {
+  text-decoration: none;
+}
+
+/* Phase 2.6a — analytics bar chart (pure CSS, no external lib) */
+.org-card {
+  background: white;
+  border: 1px solid var(--org-gray-200);
+  border-radius: var(--org-radius-md);
+}
+.org-card-header {
+  padding: var(--org-space-3) var(--org-space-4);
+  border-block-end: 1px solid var(--org-gray-200);
+}
+.org-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--org-gray-900);
+}
+.org-card-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: var(--org-gray-600);
+}
+.org-card-body {
+  padding: var(--org-space-3) var(--org-space-4);
+}
+
+.org-bar-row {
+  margin-block-end: var(--org-space-3);
+}
+.org-bar-row:last-child { margin-block-end: 0; }
+.org-bar-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-block-end: 6px;
+  font-size: 13px;
+}
+.org-bar-row__label {
+  font-weight: 500;
+  color: var(--org-gray-900);
+}
+.org-bar-row__stat {
+  font-size: 12px;
+  color: var(--org-gray-600);
+  font-variant-numeric: tabular-nums;
+}
+.org-bar-row__track {
+  background: var(--org-gray-100);
+  border-radius: 4px;
+  height: 10px;
+  overflow: hidden;
+}
+.org-bar-row__fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}

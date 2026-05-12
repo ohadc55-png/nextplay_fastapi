@@ -1,0 +1,87 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'analytics' %}
+{% block title %}אנליטיקה — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">אנליטיקה</h1>
+    <p class="org-page-subtitle">סטטיסטיקות חתימות הורים — לפי תבנית, מחוז, סניף וקבוצה.</p>
+  </div>
+  <div class="org-page-actions">
+    <select class="org-select" id="analytics-period" style="max-width: 180px;">
+      <option value="7">7 ימים אחרונים</option>
+      <option value="30" selected>30 ימים אחרונים</option>
+      <option value="90">90 ימים אחרונים</option>
+      <option value="365">שנה אחרונה</option>
+    </select>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="org-stat-grid">
+  <div class="org-stat-card">
+    <div class="org-stat-card__label">סה"כ נשלחו</div>
+    <div class="org-stat-card__value" data-kpi-total>—</div>
+  </div>
+  <div class="org-stat-card org-stat-card--ok">
+    <div class="org-stat-card__label">נחתמו</div>
+    <div class="org-stat-card__value" data-kpi-signed>—</div>
+  </div>
+  <div class="org-stat-card org-stat-card--warn">
+    <div class="org-stat-card__label">ממתינים</div>
+    <div class="org-stat-card__value" data-kpi-pending>—</div>
+  </div>
+  <div class="org-stat-card">
+    <div class="org-stat-card__label">אחוז חתימה</div>
+    <div class="org-stat-card__value" data-kpi-pct>—</div>
+  </div>
+</div>
+<div class="org-progress" style="margin-block-end: var(--org-space-5);">
+  <div class="org-progress__bar" data-kpi-bar style="width: 0%;"></div>
+</div>
+
+<!-- By template -->
+<section class="org-card" style="margin-block-end: var(--org-space-4);">
+  <header class="org-card-header">
+    <h2 class="org-card-title">אחוז חתימה לפי תבנית</h2>
+    <p class="org-card-subtitle">תבניות עם השלמה נמוכה מופיעות בראש — שם דורש תשומת לב.</p>
+  </header>
+  <div class="org-card-body">
+    <div data-bar-by-template>
+      <div class="org-text-sm org-text-muted" style="padding: var(--org-space-3);">טוען…</div>
+    </div>
+  </div>
+</section>
+
+<!-- By region / branch / team — tabbed -->
+<section class="org-card">
+  <header class="org-card-header">
+    <h2 class="org-card-title">פילוח לפי יחידה</h2>
+    <p class="org-card-subtitle">מה אחוז החתימות בכל מחוז / סניף / קבוצה.</p>
+  </header>
+  <div class="org-card-body">
+    <div class="org-tabs" role="tablist" style="margin-block-end: var(--org-space-3);">
+      <button type="button" class="org-tab is-active" role="tab" data-unit="region">מחוז</button>
+      <button type="button" class="org-tab" role="tab" data-unit="branch">סניף</button>
+      <button type="button" class="org-tab" role="tab" data-unit="team">קבוצה</button>
+    </div>
+    <div data-bar-by-unit>
+      <div class="org-text-sm org-text-muted" style="padding: var(--org-space-3);">טוען…</div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-analytics.js') }}?v={{ config.get('CSS_VERSION', '7') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+{% endblock %}

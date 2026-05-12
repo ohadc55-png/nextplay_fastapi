@@ -431,7 +431,7 @@ async def seed_demo_tenant(
         ))
     session.add_all(region_managers)
     await session.flush()
-    for rm, region in zip(region_managers, region_objs):
+    for rm, region in zip(region_managers, region_objs, strict=False):
         session.add(UserOrganization(
             user_id=rm.id, organization_id=org.id, role="region_manager",
             region_id=region.id, status="active",
@@ -441,7 +441,7 @@ async def seed_demo_tenant(
     # ---- Branches ----
     branch_objs: list[Branch] = []
     branches_by_region: dict[int, list[Branch]] = {}
-    for region, rc in zip(region_objs, region_cfgs):
+    for region, rc in zip(region_objs, region_cfgs, strict=False):
         curated = HEBREW_BRANCHES_BY_REGION.get(rc.name, [])
         region_branches: list[Branch] = []
         for j in range(rc.branches):
@@ -464,7 +464,7 @@ async def seed_demo_tenant(
         ))
     session.add_all(branch_managers)
     await session.flush()
-    for bm, branch in zip(branch_managers, branch_objs):
+    for bm, branch in zip(branch_managers, branch_objs, strict=False):
         session.add(UserOrganization(
             user_id=bm.id, organization_id=org.id, role="branch_manager",
             region_id=branch.region_id, branch_id=branch.id, status="active",
@@ -476,12 +476,12 @@ async def seed_demo_tenant(
     # one branch may end up with 9 teams while a neighbour has 2.
     teams: list[TeamProfile] = []
     teams_by_branch: dict[int, list[TeamProfile]] = {}
-    for region, rc in zip(region_objs, region_cfgs):
+    for region, rc in zip(region_objs, region_cfgs, strict=False):
         region_branches = branches_by_region[region.id]
         if not region_branches:
             continue
         team_counts = _distribute_int(rc.teams, len(region_branches), rng, min_per_bucket=1)
-        for branch, n_teams in zip(region_branches, team_counts):
+        for branch, n_teams in zip(region_branches, team_counts, strict=False):
             branch_teams: list[TeamProfile] = []
             for _ in range(n_teams):
                 t = TeamProfile(

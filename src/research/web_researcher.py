@@ -534,7 +534,7 @@ class WebResearcher:
                     confidence=f.get("confidence") or "medium",
                     cross_source_count=1,
                 ))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.debug("[research] skipping malformed finding: %s", e)
         return out
 
@@ -612,7 +612,7 @@ class WebResearcher:
             )
             await self._log_cost(resp, agent_key="research_synthesize", req=req)
             return json.loads(resp.choices[0].message.content or "{}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("[research] Stage 7 SYNTHESIZE failed: %s", e)
             return {}
 

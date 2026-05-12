@@ -85,3 +85,32 @@ before flipping the Procfile.
 - **Move file-processing pipelines to a queue.** PyMuPDF / openpyxl / pandas extraction is currently inline in chat-upload (UX expects sync). At scale, defer to a Celery/RQ worker.
 - **Replace in-memory rate limiter with Redis.** The custom per-IP tracker (ported in Phase 7) is per-process; horizontal scaling needs Redis.
 - **APScheduler / cron worker.** Push delivery currently relies on Railway hitting `/api/internal/run-push-jobs` externally. Consider an in-app scheduler post-launch.
+
+---
+
+## Phase 2 — Deferred work
+
+Captured at the end of Phase 2 closeout (2026-05-12). All items have
+"stable ground" — code is ready for the addition without restructuring.
+
+### Tracked but deferred (in priority order)
+
+- **Real SMS provider integration (2.7b).** `SMS_PROVIDER=twilio|inforu|o19|meta_whatsapp` currently raise `NotImplementedError` with a helpful pointer to the file path to create. Drop a new adapter inheriting `RealSMSProvider` from [src/services/sms/base.py](src/services/sms/base.py) and replace the corresponding branch in [src/services/sms/factory.py](src/services/sms/factory.py). Safety rails (kill switch + whitelist + audit) apply automatically. **Blocker:** vendor decision pending (Twilio vs Inforu/019 vs Meta Cloud API).
+- **Railway healthcheck failure since `eea00a0`.** Production deploy is blocked. Last known good build, then the start.sh `set -e` + `alembic upgrade head` step appears to fail. Check Railway build logs before next deploy attempt. Workaround: roll back to last green if urgency demands.
+- **Rotate `RESEND_API_KEY`.** The key was visible in a `grep` output during development; treat as exposed. Generate a fresh key in Resend dashboard, replace in `.env` (local) and Railway (prod).
+- **Two-step campaign send (DRAFT → Send).** Current flow creates + dispatches in one POST. Spec asked for separate steps for approval workflows. Refactor: split `org_document_campaigns.create_and_send` into `POST /` (creates DRAFT) + `POST /{id}/send` (promotes to SENDING). The `DocumentCampaign.status` column already supports `DRAFT`.
+
+### Polish / small wins
+
+- **Hebrew-shaping PDF footer.** [src/services/pdf_generation_service.py](src/services/pdf_generation_service.py) writes the audit footer in ASCII only. Bundle [Heebo](https://fonts.google.com/specimen/Heebo) into the repo and switch `fitz` to use it for the footer.
+- **DOCX preview rendering.** Today shows a placeholder PNG; needs `libreoffice --headless --convert-to pdf` round-trip. Affects only [src/services/document_template_service.py:render_template_preview](src/services/document_template_service.py).
+- **True PDF attachment vs presigned link.** [src/services/document_signed_email.py](src/services/document_signed_email.py) sends a 7-day presigned S3 link in the body. Resend's attachments API supports inline PDFs — switch when needed.
+- **Excel export.** [frontend/static/js/org-template-deliveries.js](frontend/static/js/org-template-deliveries.js) emits CSV (UTF-8 BOM; Excel opens directly). True .xlsx export would need `openpyxl` server-side or a JS lib — skipped because CSV is sufficient.
+- **Per-row PII audit.** Current audit is aggregate-per-campaign (`player.contact.read` with `extra={"player_count": N}`). Regulators may eventually want per-row. The DocumentDelivery table already gives row-level traceability, so this is regulator-driven, not technical.
+- **3-step wizard for campaign creation.** Current UI is a single modal with cascading region → branch → team dropdowns. If product asks for an explicit wizard (template → recipients → review), the existing endpoint shape supports it.
+
+### Phase 3 candidates (named by Phase 2 spec)
+
+- **Payments** — Stripe / Tranzila + payment plans + recurring + invoices. Treasurer role activates here.
+- **Calendar** — training / game scheduling.
+- **Facilities** — venue management.

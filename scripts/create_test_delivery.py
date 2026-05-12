@@ -21,15 +21,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from src.core.database import AsyncSessionLocal  # noqa: E402
-from src.models.document_campaigns import DocumentCampaign  # noqa: E402
-from src.models.document_deliveries import DocumentDelivery  # noqa: E402
-from src.models.document_templates import DocumentTemplate  # noqa: E402
-from src.models.organizations import Organization  # noqa: E402
-from src.models.player_contacts import PlayerContact  # noqa: E402
-from src.models.players import Player  # noqa: E402
+from src.core.database import AsyncSessionLocal
+from src.models.document_campaigns import DocumentCampaign
+from src.models.document_deliveries import DocumentDelivery
+from src.models.document_templates import DocumentTemplate
+from src.models.player_contacts import PlayerContact
+from src.models.players import Player
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 log = logging.getLogger("create-delivery")

@@ -48,6 +48,10 @@ from src.schemas.org_players import (
     PlayerOut,
     PlayerUpdate,
 )
+from src.services.document_deliveries_view import (
+    count_pending_for_players,
+    list_for_player,
+)
 from src.services.org_audit_service import log_org_action
 
 logger = logging.getLogger(__name__)
@@ -152,11 +156,19 @@ async def list_players(
             region_id=region_id,
             include_inactive=include_inactive,
         )
-    return {
-        "players": [
-            PlayerOut.model_validate(p).model_dump(mode="json") for p in rows
-        ]
-    }
+    # Phase 2.5 — augment each row with a pending-approvals count so the
+    # players table can show a badge without N+1 queries.
+    pending = await count_pending_for_players(
+        db,
+        player_ids=[p.id for p in rows],
+        organization_id=membership.organization_id,
+    )
+    out = []
+    for p in rows:
+        row = PlayerOut.model_validate(p).model_dump(mode="json")
+        row["pending_approvals"] = pending.get(p.id, 0)
+        out.append(row)
+    return {"players": out}
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +432,50 @@ async def upsert_player_contact(
         extra={"fields_changed": changed_fields},
     )
     return _contact_to_out(contact, player_id)
+
+
+# ---------------------------------------------------------------------------
+# GET /{player_id}/deliveries — Phase 2.5 visibility modal
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{player_id}/deliveries", response_model=dict)
+async def list_player_deliveries(
+    player_id: int,
+    db: AsyncSession = Depends(get_db),
+    membership: UserOrganization = Depends(get_current_org_membership),
+) -> dict:
+    """All document deliveries for this player (signed + pending + failed).
+    Cross-org / out-of-scope → 404."""
+    repo = PlayersRepository(db)
+    player = await repo.get_for_org(player_id, membership.organization_id)
+    if player is None:
+        raise NotFoundError("Player not found")
+
+    rows = await list_for_player(
+        db,
+        player_id=player_id,
+        organization_id=membership.organization_id,
+    )
+    return {
+        "player": {"id": player.id, "name": player.name},
+        "deliveries": [
+            {
+                "id": d.id,
+                "campaign_id": d.campaign_id,
+                "recipient_name": d.recipient_name,
+                "recipient_email": d.recipient_email,
+                "delivery_status": d.delivery_status,
+                "document_status": d.document_status,
+                "channel_used": d.channel_used,
+                "sent_at": d.sent_at.isoformat() if d.sent_at else None,
+                "signed_at": d.signed_at.isoformat() if d.signed_at else None,
+                "expires_at": d.expires_at.isoformat() if d.expires_at else None,
+                "final_pdf_url": d.final_pdf_url,
+            }
+            for d in rows
+        ],
+    }
 
 
 __all__ = ["router"]

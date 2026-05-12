@@ -26,7 +26,7 @@ class RecipientFilter(BaseModel):
     player_ids: list[int] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _validate_consistency(self) -> "RecipientFilter":
+    def _validate_consistency(self) -> RecipientFilter:
         # Cheap up-front check; the service layer also enforces scoping.
         if self.type == "region" and self.region_id is None:
             raise ValueError("region_id required when type='region'")

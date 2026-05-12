@@ -1,0 +1,168 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'messages' %}
+{% block title %}הודעות — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">הודעות</h1>
+    <p class="org-page-subtitle">הודעות תפעוליות להורים — תזכורות, עדכונים, הודעות לחבילת קבוצה.</p>
+  </div>
+  {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager'] %}
+  <div class="org-page-actions">
+    <button type="button" class="org-btn org-btn--primary" data-action="open-new-message">
+      <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
+      <span>הודעה חדשה</span>
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="org-tabs" role="tablist" style="margin-block-end: var(--org-space-4);">
+  <button type="button" class="org-tab is-active" role="tab" data-tab="all">הכל</button>
+  <button type="button" class="org-tab" role="tab" data-tab="DRAFT">טיוטות</button>
+  <button type="button" class="org-tab" role="tab" data-tab="SCHEDULED">מתוזמנות</button>
+  <button type="button" class="org-tab" role="tab" data-tab="SENDING">בתהליך</button>
+  <button type="button" class="org-tab" role="tab" data-tab="SENT">נשלחו</button>
+</div>
+
+<div class="org-table-wrap">
+  <table class="org-table" id="messages-table">
+    <thead>
+      <tr>
+        <th style="width: 40%;">נושא</th>
+        <th>סטטוס</th>
+        <th>ערוצים</th>
+        <th>נמענים</th>
+        <th>נשלח ב</th>
+        {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager'] %}<th style="width: 160px; text-align:end;">פעולות</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody data-messages-rows>
+      <tr><td colspan="6" class="org-table-empty">טוען…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- New / edit message modal -->
+<div class="org-modal-backdrop" id="message-modal" aria-hidden="true">
+  <div class="org-modal org-modal--wide" role="dialog" aria-modal="true" aria-labelledby="message-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="message-modal-title">הודעה חדשה</div>
+      <button type="button" class="org-modal-close" data-action="close-message" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="message-form">
+      <div class="org-modal-body">
+        <input type="hidden" name="message_id" value="">
+
+        <div class="org-form-group">
+          <label class="org-form-label" for="msg-subject">נושא</label>
+          <input class="org-input" type="text" id="msg-subject" name="subject"
+                 required minlength="1" maxlength="200" autocomplete="off">
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label" for="msg-body">תוכן ההודעה</label>
+          <textarea class="org-input" id="msg-body" name="body" rows="8" required maxlength="10000"></textarea>
+          <div class="org-placeholder-bar" data-placeholder-bar>
+            <span class="org-placeholder-bar__label">הוסף שדה אישי:</span>
+            <button type="button" class="org-chip" data-insert-placeholder="parent_name">שם ההורה</button>
+            <button type="button" class="org-chip" data-insert-placeholder="player_name">שם השחקן</button>
+            <button type="button" class="org-chip" data-insert-placeholder="team_name">שם הקבוצה</button>
+            <button type="button" class="org-chip" data-insert-placeholder="branch_name">שם הסניף</button>
+            <button type="button" class="org-chip" data-insert-placeholder="org_name">שם הארגון</button>
+          </div>
+          <div class="org-form-help">
+            לחץ על כפתור כדי להכניס שדה שיוחלף אוטומטית לכל הורה (לדוגמה: "שלום שם ההורה, הבן שלך שם השחקן…").
+          </div>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label">למי לשלוח?</label>
+          <select class="org-select" id="msg-region" name="region_id" style="margin-block-end: var(--org-space-2);">
+            <option value="">כל המחוזות</option>
+          </select>
+          <select class="org-select" id="msg-branch" name="branch_id" style="margin-block-end: var(--org-space-2);">
+            <option value="">כל הסניפים</option>
+          </select>
+          <select class="org-select" id="msg-team" name="team_id">
+            <option value="">כל הקבוצות</option>
+          </select>
+          <div class="org-form-help">השאר הכל ריק לשליחה לכל הארגון. כל בחירה מצמצמת את הרשימה הבאה.</div>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label">ערוצי שליחה</label>
+          <label class="org-flex org-items-center org-gap-2">
+            <input type="checkbox" name="ch_sms" checked>
+            <span>SMS</span>
+          </label>
+          <label class="org-flex org-items-center org-gap-2">
+            <input type="checkbox" name="ch_email" checked>
+            <span>אימייל</span>
+          </label>
+          <div class="org-form-help">המערכת תנסה SMS תחילה ותעבור לאימייל אם אין מספר טלפון.</div>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label org-flex org-items-center org-gap-2">
+            <input type="checkbox" id="msg-schedule-toggle" name="schedule_enabled">
+            <span>שלח במועד עתידי (תזמון)</span>
+          </label>
+          <div id="msg-schedule-fields" hidden style="margin-block-start: var(--org-space-2);">
+            <input class="org-input" type="datetime-local" id="msg-schedule-at" name="scheduled_at">
+            <div class="org-form-help">ההודעה תישלח אוטומטית במועד שתבחר.</div>
+          </div>
+        </div>
+
+        <div class="org-card" style="background: var(--org-blue-50); padding: var(--org-space-3); border-color: var(--org-blue-200);">
+          <strong data-msg-count>—</strong> <span>הורים</span>
+          <div class="org-text-sm org-text-muted" data-msg-count-hint></div>
+        </div>
+
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-message">ביטול</button>
+        <button type="button" class="org-btn org-btn--ghost" data-action="save-draft">שמור כטיוטה</button>
+        <button type="submit" class="org-btn org-btn--primary" data-msg-submit>שלח עכשיו</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="org-modal-backdrop" id="confirm-msg-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true">
+    <div class="org-modal-header">
+      <div class="org-modal-title">מחיקת טיוטה</div>
+      <button type="button" class="org-modal-close" data-action="close-confirm-msg" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <p>למחוק את הטיוטה <strong data-confirm-msg-name></strong>?</p>
+      <div class="org-form-error org-hidden org-mt-4" data-confirm-msg-error></div>
+    </div>
+    <div class="org-modal-footer">
+      <button type="button" class="org-btn org-btn--secondary" data-action="close-confirm-msg">ביטול</button>
+      <button type="button" class="org-btn org-btn--danger" data-action="do-confirm-msg">מחק טיוטה</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-messages.js') }}?v={{ config.get('CSS_VERSION', '7') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+{% endblock %}

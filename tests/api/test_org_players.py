@@ -5,8 +5,6 @@ PlayerContact (encrypted) tests live in test_org_player_contacts.py.
 
 from __future__ import annotations
 
-from sqlalchemy import select, update
-
 import pytest
 from httpx import AsyncClient
 
@@ -236,3 +234,38 @@ async def test_coach_sees_only_own_players(
     names = {p["name"] for p in r.json()["players"]}
     assert "Mine P" in names
     assert "Other P" not in names
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.5 — player deliveries visibility
+# ---------------------------------------------------------------------------
+
+
+async def test_player_deliveries_endpoint_returns_empty_when_none(
+    org_admin_client: AsyncClient, api_session_factory,
+):
+    org_id = org_admin_client.org_seed["organization_id"]
+    tid = await _seed_team_for_admin(org_admin_client, api_session_factory)
+    pid = await _seed_player(
+        api_session_factory, org_id=org_id, team_id=tid, name="No-Deliv",
+    )
+    r = await org_admin_client.get(f"/org/api/players/{pid}/deliveries")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["player"]["id"] == pid
+    assert body["deliveries"] == []
+
+
+async def test_players_list_includes_pending_approvals_field(
+    org_admin_client: AsyncClient, api_session_factory,
+):
+    org_id = org_admin_client.org_seed["organization_id"]
+    tid = await _seed_team_for_admin(org_admin_client, api_session_factory)
+    await _seed_player(api_session_factory, org_id=org_id, team_id=tid, name="P1")
+
+    r = await org_admin_client.get("/org/api/players")
+    assert r.status_code == 200
+    rows = r.json()["players"]
+    assert rows
+    assert "pending_approvals" in rows[0]
+    assert rows[0]["pending_approvals"] == 0

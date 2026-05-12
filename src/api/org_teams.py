@@ -33,12 +33,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps.org_auth import get_current_org_membership, require_role
 from src.core.database import get_db
-from src.core.exceptions import ConflictError, NotFoundError, ValidationError
+from src.core.exceptions import ConflictError, NotFoundError
 from src.models.branches import Branch
 from src.models.players import Player
 from src.models.teams import TeamProfile
 from src.models.user_organizations import UserOrganization
-from src.models.users import User
 from src.repositories.teams_repo import TeamsRepository
 from src.repositories.user_organizations_repo import UserOrganizationsRepository
 from src.repositories.users_repo import UsersRepository

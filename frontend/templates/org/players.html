@@ -38,16 +38,17 @@
   <table class="org-table" id="players-table">
     <thead>
       <tr>
-        <th style="width: 36%;">שחקן</th>
+        <th style="width: 32%;">שחקן</th>
         <th>מס׳</th>
         <th>תפקיד</th>
         <th>גיל</th>
         <th>קבוצה</th>
+        <th>אישורים פתוחים</th>
         <th style="width: 100px; text-align:end;">פעולות</th>
       </tr>
     </thead>
     <tbody data-players-rows>
-      <tr><td colspan="6" class="org-table-empty">טוען…</td></tr>
+      <tr><td colspan="7" class="org-table-empty">טוען…</td></tr>
     </tbody>
   </table>
 </div>
@@ -116,6 +117,39 @@
         <button type="submit" class="org-btn org-btn--primary">שמירה</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Player approvals modal (Phase 2.5) -->
+<div class="org-modal-backdrop" id="approvals-modal" aria-hidden="true">
+  <div class="org-modal org-modal--wide" role="dialog" aria-modal="true">
+    <div class="org-modal-header">
+      <div class="org-modal-title" data-approvals-title>אישורי הורים</div>
+      <button type="button" class="org-modal-close" data-action="close-approvals" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <div class="org-table-wrap">
+        <table class="org-table">
+          <thead>
+            <tr>
+              <th>מסמך</th>
+              <th>סטטוס</th>
+              <th>ערוץ</th>
+              <th>נשלח</th>
+              <th>נחתם</th>
+            </tr>
+          </thead>
+          <tbody data-approvals-rows>
+            <tr><td colspan="5" class="org-table-empty">טוען…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="org-modal-footer">
+      <button type="button" class="org-btn org-btn--secondary" data-action="close-approvals">סגור</button>
+    </div>
   </div>
 </div>
 

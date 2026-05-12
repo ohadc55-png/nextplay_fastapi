@@ -33,7 +33,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -483,7 +483,7 @@ async def extract_player_skills(
             response_format={"type": "json_object"},
             max_completion_tokens=800,
         )
-    except Exception as e:  # noqa: BLE001 — LLM API errors are diverse
+    except Exception as e:
         logger.exception("[onboarding] LLM extraction call failed: %s", e)
         return {"success": False, "error": "extraction_failed",
                 "detail": "AI service unavailable"}
@@ -495,7 +495,7 @@ async def extract_player_skills(
             agent_key="onboarding_player_extract",
             endpoint="onboarding",
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.debug("[onboarding] cost-log skipped: %s", e)
 
     raw = (resp.choices[0].message.content or "").strip()

@@ -1,0 +1,44 @@
+{# Signature confirmation — sent immediately after a parent signs.
+   Used by src/services/document_signed_email.py. Bilingual.
+
+   Context:
+     - recipient_name
+     - template_name
+     - organization_name
+     - download_url (presigned S3 URL to the final signed PDF; 7-day TTL)
+#}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}אישור חתימה — {{ template_name }}{% else %}Signature confirmed — {{ template_name }}{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ recipient_name }},
+
+קיבלנו את חתימתך על {{ template_name }} עבור {{ organization_name }}.
+
+קישור להורדה (תקף ל-7 ימים):
+{{ download_url }}
+
+תודה,
+{{ brand_name }}{% else %}Hi {{ recipient_name }},
+
+We received your signature on {{ template_name }} for {{ organization_name }}.
+
+Download link (valid for 7 days):
+{{ download_url }}
+
+Thanks,
+{{ brand_name }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">החתימה התקבלה ✓</h2>
+<p style="margin:0 0 16px;">שלום {{ recipient_name }},</p>
+<p style="margin:0 0 16px;">קיבלנו את חתימתך על <strong>{{ template_name }}</strong> עבור <strong>{{ organization_name }}</strong>.</p>
+<p style="margin:0 0 8px;">להורדת המסמך החתום (תקף ל-7 ימים):</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">Signature received ✓</h2>
+<p style="margin:0 0 16px;">Hi {{ recipient_name }},</p>
+<p style="margin:0 0 16px;">We received your signature on <strong>{{ template_name }}</strong> for <strong>{{ organization_name }}</strong>.</p>
+<p style="margin:0 0 8px;">Download the signed document (valid for 7 days):</p>
+{% endif %}
+{% endblock %}

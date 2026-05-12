@@ -410,6 +410,63 @@ async def org_document_template_editor_page(
     )
 
 
+@router.get("/org/document-templates/{template_id}/deliveries", response_class=HTMLResponse)
+async def org_document_template_deliveries_page(
+    template_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Phase 2.5 — visibility page: "who signed / who didn't" for one template."""
+    result = await _require_active_org(request, db)
+    if isinstance(result, RedirectResponse):
+        return result
+    _user, _membership, _org, org_ctx = result
+    return templates.TemplateResponse(
+        "org/document_templates/deliveries.html",
+        _org_context(request, org_ctx=org_ctx, extra={"template_id": template_id}),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.5 — Messaging Module HTML page
+# ---------------------------------------------------------------------------
+
+
+@router.get("/org/messages", response_class=HTMLResponse)
+async def org_messages_page(
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Messaging module. Data is loaded client-side via /org/api/messages/*."""
+    result = await _require_active_org(request, db)
+    if isinstance(result, RedirectResponse):
+        return result
+    _user, _membership, _org, org_ctx = result
+    return templates.TemplateResponse(
+        "org/messages/list.html",
+        _org_context(request, org_ctx=org_ctx),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.6a — Analytics dashboard
+# ---------------------------------------------------------------------------
+
+
+@router.get("/org/analytics", response_class=HTMLResponse)
+async def org_analytics_page(
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Analytics dashboard. Data is loaded client-side via /org/api/analytics/*."""
+    result = await _require_active_org(request, db)
+    if isinstance(result, RedirectResponse):
+        return result
+    _user, _membership, _org, org_ctx = result
+    return templates.TemplateResponse(
+        "org/analytics.html",
+        _org_context(request, org_ctx=org_ctx),
+    )
+
+
 # ---------------------------------------------------------------------------
 # GET /org/invite-accept — PUBLIC page (token in query string).
 # Renders the "set password + accept invite" form. POSTs to the existing

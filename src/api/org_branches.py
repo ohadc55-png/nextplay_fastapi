@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps.org_auth import get_current_org_membership, require_role
 from src.core.database import get_db
-from src.core.exceptions import ConflictError, NotFoundError, ValidationError
+from src.core.exceptions import ConflictError, NotFoundError
 from src.models.branches import Branch
 from src.models.players import Player
 from src.models.regions import Region

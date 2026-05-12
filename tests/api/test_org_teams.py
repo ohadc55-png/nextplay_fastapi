@@ -7,10 +7,9 @@ appear in org-context responses. The corresponding Coach App endpoint
 
 from __future__ import annotations
 
-from sqlalchemy import select, update
-
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select, update
 
 pytestmark = pytest.mark.asyncio
 
@@ -232,7 +231,6 @@ async def test_delete_team_with_players_blocked(
 async def test_assign_coach_idempotent(
     org_admin_client: AsyncClient, api_session_factory,
 ):
-    from src.models.teams import TeamProfile
     from src.models.user_organizations import UserOrganization
 
     org_id = org_admin_client.org_seed["organization_id"]

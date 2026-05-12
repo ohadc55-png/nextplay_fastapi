@@ -25,8 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
 # Importing src.models registers every ORM class with Base.metadata.
-import src.models  # noqa: F401, E402
-from src.core.database import Base  # noqa: E402
+import src.models  # noqa: F401
+from src.core.database import Base
 
 
 @pytest_asyncio.fixture

@@ -14,7 +14,6 @@ from sqlalchemy.orm import selectinload
 
 from src.models.document_campaigns import DocumentCampaign
 from src.models.document_deliveries import DocumentDelivery
-from src.models.document_templates import DocumentTemplate
 from src.repositories.org_scoped_repository import OrgScopedRepository
 
 

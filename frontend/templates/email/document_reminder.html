@@ -1,0 +1,42 @@
+{# Document reminder — sent by the cron after N days of inactivity.
+   Used by src/services/reminder_service.py. Bilingual.
+
+   Context: same as document_invite.html
+#}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}תזכורת: מסמך ממתין לחתימה — {{ template_name }}{% else %}Reminder: document waiting for signature — {{ template_name }}{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ recipient_name }},
+
+זוהי תזכורת ידידותית: יש לך מסמך שעדיין ממתין לחתימה מ-{{ organization_name }}: {{ template_name }}.
+
+קישור לחתימה:
+{{ sign_url }}
+
+תודה,
+{{ brand_name }}{% else %}Hi {{ recipient_name }},
+
+A friendly reminder: you have a document still waiting for your signature from {{ organization_name }}: {{ template_name }}.
+
+Sign here:
+{{ sign_url }}
+
+Thanks,
+{{ brand_name }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">תזכורת — המסמך עדיין ממתין ⏰</h2>
+<p style="margin:0 0 16px;">שלום {{ recipient_name }},</p>
+<p style="margin:0 0 16px;">זוהי תזכורת ידידותית — יש לך מסמך שעדיין ממתין לחתימה מ-<strong>{{ organization_name }}</strong>:</p>
+<p style="margin:0 0 16px;"><strong>{{ template_name }}</strong></p>
+<p style="margin:0 0 8px;">לחיצה אחת ויהיה לנו את הכל. הקישור עדיין פעיל:</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">Reminder — your document is still waiting ⏰</h2>
+<p style="margin:0 0 16px;">Hi {{ recipient_name }},</p>
+<p style="margin:0 0 16px;">A friendly nudge — you have a document still waiting for your signature from <strong>{{ organization_name }}</strong>:</p>
+<p style="margin:0 0 16px;"><strong>{{ template_name }}</strong></p>
+<p style="margin:0 0 8px;">One click and we're done. The link is still active:</p>
+{% endif %}
+{% endblock %}

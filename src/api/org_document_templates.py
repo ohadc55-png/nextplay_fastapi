@@ -36,6 +36,10 @@ from src.schemas.document_templates import (
     DocumentTemplateUpdate,
     TemplateFieldsUpdate,
 )
+from src.services.document_deliveries_view import (
+    list_for_template_filtered,
+    summarize,
+)
 from src.services.document_template_service import (
     process_uploaded_file,
     render_template_preview,
@@ -173,6 +177,11 @@ async def update_template(
     tpl = await repo.get_for_org(template_id, membership.organization_id)
     if tpl is None:
         raise NotFoundError("Template not found")
+    if tpl.is_completed:
+        raise ValidationError(
+            "Template is marked as completed. Reopen it before editing.",
+            code="template_completed",
+        )
 
     changes: dict = {}
     if body.name is not None and body.name != tpl.name:
@@ -238,6 +247,11 @@ async def set_template_fields(
     tpl = await repo.get_for_org(template_id, membership.organization_id)
     if tpl is None:
         raise NotFoundError("Template not found")
+    if tpl.is_completed:
+        raise ValidationError(
+            "Template is marked as completed. Reopen it before editing fields.",
+            code="template_completed",
+        )
 
     new_fields = [f.model_dump() for f in body.form_fields]
     new_zones = [z.model_dump() for z in body.signature_zones]
@@ -317,6 +331,11 @@ async def delete_template(
     tpl = await repo.get_for_org(template_id, membership.organization_id)
     if tpl is None:
         raise NotFoundError("Template not found")
+    if tpl.is_completed:
+        raise ValidationError(
+            "Template is marked as completed. Reopen it before deleting.",
+            code="template_completed",
+        )
     if not tpl.is_active:
         return {"ok": True}
 
@@ -335,6 +354,130 @@ async def delete_template(
         extra={"name": tpl.name},
     )
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# POST /{id}/completion — Phase 2.5b: toggle "completed" marker
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{template_id}/completion", response_model=DocumentTemplateOut)
+async def set_template_completion(
+    template_id: int,
+    body: dict,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    membership: UserOrganization = Depends(
+        require_role("org_admin", "region_manager", "branch_manager")
+    ),
+) -> DocumentTemplateOut:
+    """Body: `{"is_completed": true|false}`. Reversible — marking a template
+    as completed disables send/edit/delete but keeps it visible (struck
+    through, sorted to bottom). Unmark to bring it back to fully usable."""
+    from datetime import UTC, datetime
+
+    target = bool(body.get("is_completed"))
+    repo = DocumentTemplatesRepository(db)
+    tpl = await repo.get_for_org(template_id, membership.organization_id)
+    if tpl is None:
+        raise NotFoundError("Template not found")
+    if not tpl.is_active:
+        raise ValidationError(
+            "Cannot toggle completion on an inactive template.",
+            code="template_inactive",
+        )
+    if tpl.is_completed == target:
+        return DocumentTemplateOut.model_validate(tpl)
+
+    tpl.is_completed = target
+    tpl.completed_at = datetime.now(UTC).replace(tzinfo=None) if target else None
+    await db.flush()
+    await db.refresh(tpl)
+
+    await log_org_action(
+        db,
+        organization_id=membership.organization_id,
+        actor_user_id=request.state.user.id,
+        actor_email=request.state.user.email,
+        action="document.template.complete" if target else "document.template.reopen",
+        target_type="document_template",
+        target_id=tpl.id,
+        request=request,
+        extra={"name": tpl.name},
+    )
+    return DocumentTemplateOut.model_validate(tpl)
+
+
+# ---------------------------------------------------------------------------
+# GET /{id}/deliveries — visibility for "who signed / who didn't"
+# ---------------------------------------------------------------------------
+
+
+_VALID_STATUS_FILTERS = {"NOT_OPENED", "OPENED", "FILLED", "SIGNED", "EXPIRED", "DECLINED"}
+
+
+@router.get("/{template_id}/deliveries", response_model=dict)
+async def list_template_deliveries(
+    template_id: int,
+    region_id: int | None = Query(default=None),
+    branch_id: int | None = Query(default=None),
+    team_id: int | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+    membership: UserOrganization = Depends(get_current_org_membership),
+) -> dict:
+    """All deliveries for this template, with optional region/branch/team/status
+    narrowing. Returns stats + per-recipient rows for the visibility page.
+    Cross-org or unknown template → 404."""
+    repo = DocumentTemplatesRepository(db)
+    tpl = await repo.get_for_org(template_id, membership.organization_id)
+    if tpl is None:
+        raise NotFoundError("Template not found")
+    if status_filter and status_filter not in _VALID_STATUS_FILTERS:
+        raise ValidationError("Unknown status filter.", code="invalid_status")
+
+    deliveries = await list_for_template_filtered(
+        db,
+        template_id=template_id,
+        organization_id=membership.organization_id,
+        actor=membership,
+        region_id=region_id,
+        branch_id=branch_id,
+        team_id=team_id,
+        status_filter=status_filter,
+    )
+    stats = summarize(deliveries)
+
+    rows = []
+    for d in deliveries:
+        rows.append(
+            {
+                "id": d.id,
+                "campaign_id": d.campaign_id,
+                "player_id": d.player_id,
+                "recipient_name": d.recipient_name,
+                "recipient_email": d.recipient_email,
+                # phone deliberately omitted — sensitive snapshot.
+                "delivery_status": d.delivery_status,
+                "document_status": d.document_status,
+                "channel_used": d.channel_used,
+                "sent_at": d.sent_at.isoformat() if d.sent_at else None,
+                "opened_at": d.opened_at.isoformat() if d.opened_at else None,
+                "signed_at": d.signed_at.isoformat() if d.signed_at else None,
+                "expires_at": d.expires_at.isoformat() if d.expires_at else None,
+                "final_pdf_url": d.final_pdf_url,
+            }
+        )
+
+    return {
+        "template": {
+            "id": tpl.id,
+            "name": tpl.name,
+            "category": tpl.category,
+        },
+        "stats": stats,
+        "deliveries": rows,
+    }
 
 
 __all__ = ["router"]

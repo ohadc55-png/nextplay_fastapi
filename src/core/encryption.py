@@ -94,7 +94,7 @@ def decrypt_str(ciphertext: str) -> str:
         ) from exc
 
 
-class EncryptedText(TypeDecorator):  # noqa: D101
+class EncryptedText(TypeDecorator):
     """TEXT column whose value is transparently encrypted at write and
     decrypted at read. Use for low-volume PII (phone, national id, medical
     notes); NOT for anything that must be searchable in SQL.

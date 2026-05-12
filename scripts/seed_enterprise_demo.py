@@ -24,11 +24,11 @@ from pathlib import Path
 # src.services.demo_seeder.)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from src.core.database import AsyncSessionLocal  # noqa: E402
-from src.models.organizations import Organization  # noqa: E402
-from src.services.demo_seeder import (  # noqa: E402
+from src.core.database import AsyncSessionLocal
+from src.models.organizations import Organization
+from src.services.demo_seeder import (
     DEFAULT_NAME,
     DEFAULT_SLUG,
     DEMO_EMAIL_DOMAIN,
@@ -101,10 +101,10 @@ async def main(args: argparse.Namespace) -> int:
     log.info(f"  contacts     = {result['contacts']} (encrypted at rest)")
     log.info(f"  users        = {result['users']}")
     log.info("")
-    log.info(f"Login as the demo Org Admin:")
+    log.info("Login as the demo Org Admin:")
     log.info(f"  email    = admin@{DEMO_EMAIL_DOMAIN}")
     log.info(f"  password = {DEMO_PASSWORD}")
-    log.info(f"  url      = http://127.0.0.1:5050/org/login")
+    log.info("  url      = http://127.0.0.1:5050/org/login")
     log.info("=" * 60)
     return 0
 

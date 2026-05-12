@@ -221,7 +221,7 @@
 
   function setEmpty(msg) {
     $rows.replaceChildren(
-      el("tr", null, [el("td", { className: "org-table-empty", text: msg, attrs: { colspan: "6" } })])
+      el("tr", null, [el("td", { className: "org-table-empty", text: msg, attrs: { colspan: "7" } })])
     );
   }
 
@@ -257,6 +257,31 @@
           el("span", { className: "org-pill", text: teamName }),
         ]);
 
+        // Phase 2.5 — pending approvals badge. Clickable when > 0.
+        var pendingCount = p.pending_approvals || 0;
+        var approvalsCell = el("td", null);
+        if (pendingCount > 0) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "org-pill org-pill--warn";
+          btn.style.cursor = "pointer";
+          btn.style.border = "0";
+          btn.textContent = String(pendingCount) + " ממתינים";
+          btn.setAttribute("data-approvals-player", String(p.id));
+          btn.setAttribute("data-name", p.name);
+          approvalsCell.appendChild(btn);
+        } else {
+          var okBtn = document.createElement("button");
+          okBtn.type = "button";
+          okBtn.className = "org-pill org-pill--ok";
+          okBtn.style.cursor = "pointer";
+          okBtn.style.border = "0";
+          okBtn.textContent = "✓";
+          okBtn.setAttribute("data-approvals-player", String(p.id));
+          okBtn.setAttribute("data-name", p.name);
+          approvalsCell.appendChild(okBtn);
+        }
+
         var actions = [];
         if (canManage) {
           actions.push(iconBtn(SVG_EDIT_TPL, {
@@ -274,10 +299,90 @@
           }, true));
         }
         var actionsCell = el("td", { className: "org-table-actions" }, actions);
-        return el("tr", null, [nameCell, numberCell, positionCell, ageCell, teamCell, actionsCell]);
+        return el("tr", null, [nameCell, numberCell, positionCell, ageCell, teamCell, approvalsCell, actionsCell]);
       })
     );
   }
+
+  // ─── Phase 2.5 — approvals modal ───
+  var $approvalsModal = document.getElementById("approvals-modal");
+  var $approvalsRows = $approvalsModal && $approvalsModal.querySelector("[data-approvals-rows]");
+  var $approvalsTitle = $approvalsModal && $approvalsModal.querySelector("[data-approvals-title]");
+
+  var APPROVAL_STATUS_LABEL = {
+    NOT_OPENED: "לא נפתח",
+    OPENED: "נפתח",
+    FILLED: "מולא",
+    SIGNED: "נחתם",
+    EXPIRED: "פג תוקף",
+    DECLINED: "נדחה",
+  };
+  var APPROVAL_STATUS_KIND = {
+    SIGNED: "org-pill--ok",
+    NOT_OPENED: "org-pill--muted",
+    EXPIRED: "org-pill--err",
+    DECLINED: "org-pill--err",
+    OPENED: "org-pill--warn",
+    FILLED: "org-pill--warn",
+  };
+
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      return d.toLocaleDateString("he-IL") + " " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+    } catch (_e) { return iso; }
+  }
+
+  async function openApprovals(playerId, playerName) {
+    if (!$approvalsModal) return;
+    $approvalsTitle.textContent = "אישורי הורים — " + playerName;
+    $approvalsRows.replaceChildren(
+      el("tr", null, [el("td", { className: "org-table-empty", text: "טוען…", attrs: { colspan: "5" } })])
+    );
+    openModal($approvalsModal);
+    try {
+      var data = await api("GET", "/org/api/players/" + playerId + "/deliveries");
+      var rows = data.deliveries || [];
+      if (!rows.length) {
+        $approvalsRows.replaceChildren(
+          el("tr", null, [el("td", { className: "org-table-empty", text: "אין אישורי הורים לשחקן זה.", attrs: { colspan: "5" } })])
+        );
+        return;
+      }
+      $approvalsRows.replaceChildren.apply(
+        $approvalsRows,
+        rows.map(function (r) {
+          var doc = el("td", { text: r.recipient_name ? "להורה: " + r.recipient_name : "—" });
+          var status = el("td", null, [
+            el("span", {
+              className: "org-pill " + (APPROVAL_STATUS_KIND[r.document_status] || ""),
+              text: APPROVAL_STATUS_LABEL[r.document_status] || r.document_status,
+            }),
+          ]);
+          var ch = el("td", { className: "org-text-sm", text: r.channel_used || "—" });
+          var sent = el("td", { className: "org-text-sm org-text-muted", text: fmtDate(r.sent_at) });
+          var signed = el("td", { className: "org-text-sm", text: fmtDate(r.signed_at) });
+          return el("tr", null, [doc, status, ch, sent, signed]);
+        })
+      );
+    } catch (e) {
+      $approvalsRows.replaceChildren(
+        el("tr", null, [el("td", { className: "org-table-empty", text: e.message, attrs: { colspan: "5" } })])
+      );
+    }
+  }
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest("[data-approvals-player]");
+    if (t) {
+      ev.preventDefault();
+      openApprovals(parseInt(t.getAttribute("data-approvals-player"), 10), t.getAttribute("data-name") || "");
+    }
+    if ($approvalsModal && ev.target.closest("[data-action='close-approvals']")) {
+      closeModal($approvalsModal);
+    }
+  });
 
   // --- Create / edit ---
   function openNew() {

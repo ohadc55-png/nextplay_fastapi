@@ -27,13 +27,13 @@ from pathlib import Path
 # Make `src` importable when run as a standalone script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from src.core.database import AsyncSessionLocal  # noqa: E402
-from src.models.branches import Branch  # noqa: E402
-from src.models.organizations import Organization  # noqa: E402
-from src.models.regions import Region  # noqa: E402
-from src.services.demo_seeder import HEBREW_BRANCHES_BY_REGION  # noqa: E402
+from src.core.database import AsyncSessionLocal
+from src.models.branches import Branch
+from src.models.organizations import Organization
+from src.models.regions import Region
+from src.services.demo_seeder import HEBREW_BRANCHES_BY_REGION
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("rename")

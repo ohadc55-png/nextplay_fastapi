@@ -77,7 +77,7 @@ async def onboarding_status(
         payload = await obs.compute_onboarding_status(
             db, user_id=user.id, team_id=user.active_team_id,
         )
-    except Exception:  # noqa: BLE001 — surface a clean 500 to the SPA
+    except Exception:
         logger.exception("[onboarding] status computation failed")
         raise HTTPException(
             status_code=500, detail="Failed to compute onboarding status",

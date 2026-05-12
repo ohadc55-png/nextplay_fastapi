@@ -90,6 +90,8 @@ class DocumentTemplateOut(ORMModel):
     requires_signature: bool
     default_expiry_days: int
     is_active: bool
+    is_completed: bool = False
+    completed_at: datetime | None = None
     created_by_user_id: int | None = None
     created_at: datetime
     updated_at: datetime

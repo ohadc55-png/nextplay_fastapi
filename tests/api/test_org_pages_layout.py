@@ -76,8 +76,9 @@ class TestDashboardLayout:
         assert "is-active" in body
 
         # 6. "Coming soon" placeholders for unbuilt features.
-        # Hebrew "בקרוב" appears 5+ times (one per disabled nav item).
-        assert body.count("בקרוב") >= 5
+        # Hebrew "בקרוב" — was 6 at Phase 0/1, shrinks as features land.
+        # As of Phase 2 closeout: Calendar + Facilities + Payments remain.
+        assert body.count("בקרוב") >= 3
 
     async def test_dashboard_exposes_org_ctx_in_header(
         self, org_admin_client: AsyncClient

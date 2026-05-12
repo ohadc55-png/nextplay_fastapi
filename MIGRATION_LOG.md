@@ -53,3 +53,71 @@ Private-coach behaviour is unchanged.
 - Clubs → Orgs migration (legacy `clubs` table coexists with `organizations` for now).
 - Org Admin HTML pages beyond Phase 0 set (members / branches / regions / teams / audit pages land in Phase 1 with the bulk-import flow).
 - System Admin HTML pages for `/admin/orgs` (only JSON endpoints in Phase 0; HTML in Phase 1).
+
+---
+
+## 2026-05-12 — Phase 2 Enterprise (Documents + Messaging + Analytics)
+
+Phase 2 was the "external world" phase — the first product surface that
+contacts parents over SMS/email and collects legally-binding signatures.
+Built incrementally across 8 sub-phases, all additive, all 75 dedicated
+tests pass plus the existing Phase 0/1 suite stayed green.
+
+### Sub-phases
+
+| # | Scope | Migration ID | Key files |
+|---|---|---|---|
+| 2.1 | Schema + 6 new tables | `e5a8d2c1f9b3` | [src/models/document_templates.py](src/models/document_templates.py), [src/models/document_campaigns.py](src/models/document_campaigns.py), [src/models/document_deliveries.py](src/models/document_deliveries.py), [src/models/otp_attempts.py](src/models/otp_attempts.py), [src/models/messages.py](src/models/messages.py) |
+| 2.2 | Templates management (upload + mark fields) | — | [src/api/org_document_templates.py](src/api/org_document_templates.py), [src/services/document_template_service.py](src/services/document_template_service.py) |
+| 2.3 | Public signing flow (OTP + signature + PDF) | — | [src/api/public_sign.py](src/api/public_sign.py), [src/services/pdf_generation_service.py](src/services/pdf_generation_service.py), [src/services/signing_session.py](src/services/signing_session.py) |
+| 2.4 | Bulk campaigns send | — | [src/api/org_document_campaigns.py](src/api/org_document_campaigns.py), [src/services/document_campaign_service.py](src/services/document_campaign_service.py), [src/services/document_send_worker.py](src/services/document_send_worker.py) |
+| 2.5 | Messaging module + deliveries visibility | — | [src/api/org_messages.py](src/api/org_messages.py), [src/services/message_service.py](src/services/message_service.py), [src/services/message_send_worker.py](src/services/message_send_worker.py), [src/services/recipient_resolver.py](src/services/recipient_resolver.py), [src/services/document_deliveries_view.py](src/services/document_deliveries_view.py) |
+| 2.5b | Template "completed" flag | `a7c93b4f1e22` | `POST /org/api/document-templates/{id}/completion`, V button on rows, sort to bottom, strikethrough |
+| 2.6 | Analytics + Reminders + Scheduled messages | — | [src/services/analytics_service.py](src/services/analytics_service.py), [src/services/reminder_service.py](src/services/reminder_service.py), [src/services/scheduled_message_worker.py](src/services/scheduled_message_worker.py), [src/api/org_analytics.py](src/api/org_analytics.py), [src/api/internal_cron.py](src/api/internal_cron.py) |
+| 2.7a | SMS provider safety scaffolding | — | [src/services/sms/safety.py](src/services/sms/safety.py), [src/services/sms/base.py](src/services/sms/base.py) (added `RealSMSProvider`), [src/services/sms/factory.py](src/services/sms/factory.py) (placeholders) |
+| Closeout | Hash-chain + CAPTCHA + branded emails + perf bench | — | [src/services/audit_chain.py](src/services/audit_chain.py), [src/services/sign_challenge.py](src/services/sign_challenge.py), [frontend/templates/email/document_*.html](frontend/templates/email/), [tests/api/test_bulk_send_perf.py](tests/api/test_bulk_send_perf.py), [tools/verify_audit_chain.py](tools/verify_audit_chain.py) |
+
+### What changed in existing files
+
+- [src/main.py](src/main.py) — registered 5 new routers: `org_document_templates`, `org_document_campaigns`, `org_messages`, `org_analytics`, `internal_cron`, `public_sign`
+- [src/middleware/csrf.py](src/middleware/csrf.py) — added `/sign/` and `/api/internal/` to `_CSRF_EXEMPT_PREFIXES` (public signing + cron use their own auth)
+- [src/middleware/rate_limit.py](src/middleware/rate_limit.py) — added 2 entries for OTP request (5/hour/IP) + signing submit (10/hour/IP)
+- [src/services/s3.py](src/services/s3.py) — added `get_bytes(key)` and `presign_get(key, ttl)` (additive)
+- [src/core/config.py](src/core/config.py) — added `SMS_PROVIDER`, `SMS_KILL_SWITCH`, `SMS_ALLOWED_RECIPIENTS`, 11 provider credential placeholders, `CRON_SECRET`
+- [src/frontend.py](src/frontend.py) — `CSS_VERSION` bumped 7 → 17 across sub-phases
+- [frontend/templates/org/_partials/sidebar.html](frontend/templates/org/_partials/sidebar.html) — added "מסמכים" / "הודעות" / "אנליטיקה" nav links (formerly "בקרוב" placeholders)
+
+### Architecture invariants added
+
+- **Hash-chain audit.** Every signed `DocumentDelivery` carries `prev_hash` + `self_hash` in `audit_data` JSON, linking back to the previous signature in the same org. The chain is verified by [tools/verify_audit_chain.py](tools/verify_audit_chain.py). Genesis hash is `"0" * 64`. Per-org chain (not global) preserves cross-tenant isolation.
+- **SMS safety rails.** Three layers before any real provider HTTP call:
+  1. `SMS_KILL_SWITCH=true` env var → all real providers refuse to send.
+  2. `SMS_ALLOWED_RECIPIENTS` whitelist (CSV of phones). Empty + real provider = fail-closed block-all.
+  3. Audit log row per attempt (`action="sms.provider.attempt"`) with phone masked.
+- **OTP CAPTCHA gate.** After 2 failed verify attempts on the same delivery, the 3rd attempt MUST include a stateless HMAC-signed arithmetic challenge solution. Replaces "wait for rate limit" with active anti-bot friction. Frontend-side widget swap-ready for Turnstile/hCaptcha in production.
+- **Cron secret pattern.** `/api/internal/run-reminders` + `/api/internal/run-scheduled-messages` require `X-Cron-Secret` header matching `settings.CRON_SECRET`. Empty secret → 503 (fail-closed). Each cron supports `?dry_run=true` for safe local verification.
+- **Recipient resolver shared.** Single `resolve_recipients` in [src/services/recipient_resolver.py](src/services/recipient_resolver.py) used by Documents and Messages — actor-role-scoped (region_manager → own region, etc.). DRY across two modules.
+
+### Verification
+
+- 75 new tests across [tests/api/test_org_document_templates.py](tests/api/test_org_document_templates.py), [test_org_document_campaigns.py](tests/api/test_org_document_campaigns.py), [test_org_messages.py](tests/api/test_org_messages.py), [test_org_analytics.py](tests/api/test_org_analytics.py), [test_internal_cron.py](tests/api/test_internal_cron.py), [test_public_sign_flow.py](tests/api/test_public_sign_flow.py), [tests/services/test_sms_safety.py](tests/services/test_sms_safety.py), [test_audit_chain.py](tests/services/test_audit_chain.py), [test_sign_challenge.py](tests/services/test_sign_challenge.py). All pass.
+- Performance bench: 3,000 recipients dispatched in **~5s** synchronous (well under the 60s budget; spec target was 10 minutes including provider time which is provider-bound). Run via `pytest -m slow tests/api/test_bulk_send_perf.py`.
+- `alembic upgrade head` clean to `a7c93b4f1e22` against local SQLite.
+- App boots: 319 routes registered.
+- Public flows return 404 (not 403) for invalid/expired tokens — verified by 6 dedicated tests in `test_public_sign_flow.py`.
+
+### Deviations from Part B spec (intentional)
+
+- **Campaign send: one-shot vs two-step.** Single `POST /org/api/document-campaigns` creates + sends in one call. Spec asked for separate `DRAFT` then `Send`. `DocumentCampaign.status` already supports `DRAFT` — adding the split is a 30-min refactor when product needs approval workflows.
+- **PII audit granularity.** Aggregate `player.contact.read` audit per campaign/message (with `player_count`), not per-row. Cuts audit_logs growth ~3,000x at scale without losing recall (the deliveries table is the audit trail).
+- **PDF as link, not attachment.** Confirmation email carries a 7-day presigned S3 link rather than a real attachment. Resend's attachment API can be wired in when needed (~1h work).
+- **3-step wizard → single modal.** Campaign send UI is one cascading modal (region → branch → team narrowing). Fewer clicks; product can revisit if a multi-step approval flow is added.
+
+### Deferred (tracked in [MIGRATION_TODO.md](MIGRATION_TODO.md))
+
+- Real SMS provider integration (`SMS_PROVIDER=twilio|inforu|meta_whatsapp|o19` raise `NotImplementedError` until adapter file lands).
+- Hebrew-shaping PDF footer (ASCII-only today; needs bundled Heebo font).
+- DOCX preview rendering (placeholder PNG today; needs LibreOffice or libreoffice-headless).
+- Two-step campaign send (DRAFT → Send) if approval workflows are needed.
+- Excel export of unsigned recipients (CSV today, which Excel opens directly).
+- Railway healthcheck investigation (last green deploy: `eea00a0`).

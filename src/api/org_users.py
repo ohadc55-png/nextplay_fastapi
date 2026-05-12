@@ -25,20 +25,19 @@ region_manager (would be self-escalation).
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps.org_auth import get_current_org_membership, require_role
+from src.api.deps.org_auth import require_role
 from src.core.database import get_db
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.models.auth import AuthToken
 from src.models.org_invites import OrgInvite
 from src.models.user_organizations import UserOrganization
-from src.repositories.org_invites_repo import OrgInvitesRepository
 from src.repositories.user_organizations_repo import UserOrganizationsRepository
 from src.repositories.users_repo import UsersRepository
 from src.services.email_service import send_org_invite_email

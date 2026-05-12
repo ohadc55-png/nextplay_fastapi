@@ -32,14 +32,17 @@ from src.api import chat as chat_router
 from src.api import coach as coach_router
 from src.api import composite as composite_router
 from src.api import email_auth as email_auth_router
+from src.api import internal_cron as internal_cron_router
 from src.api import notebook as notebook_router
 from src.api import oauth as oauth_router
 from src.api import onboarding as onboarding_router
 from src.api import org as org_router
+from src.api import org_analytics as org_analytics_router
 from src.api import org_branches as org_branches_router
 from src.api import org_dashboard as org_dashboard_router
 from src.api import org_document_campaigns as org_document_campaigns_router
 from src.api import org_document_templates as org_document_templates_router
+from src.api import org_messages as org_messages_router
 from src.api import org_pages as org_pages_router
 from src.api import org_players as org_players_router
 from src.api import org_regions as org_regions_router
@@ -47,8 +50,8 @@ from src.api import org_teams as org_teams_router
 from src.api import org_users as org_users_router
 from src.api import pages as pages_router
 from src.api import players as players_router
-from src.api import public_sign as public_sign_router
 from src.api import plays as plays_router
+from src.api import public_sign as public_sign_router
 from src.api import push as push_router
 from src.api import scouting as scouting_router
 from src.api import sessions as sessions_router
@@ -257,6 +260,9 @@ app.include_router(org_players_router.router)
 app.include_router(org_users_router.router)
 app.include_router(org_document_templates_router.router)
 app.include_router(org_document_campaigns_router.router)
+app.include_router(org_messages_router.router)
+app.include_router(org_analytics_router.router)
+app.include_router(internal_cron_router.router)
 app.include_router(org_dashboard_router.router)
 app.include_router(org_pages_router.router)
 app.include_router(public_sign_router.router)

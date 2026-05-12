@@ -19,6 +19,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps.auth import get_current_admin
 from src.core.database import get_db
@@ -36,7 +37,6 @@ from src.services.org_wizard_service import (
     check_subdomain_available,
     commit_wizard,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 

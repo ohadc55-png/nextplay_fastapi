@@ -1,0 +1,94 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'document_templates' %}
+{% block title %}אישורי הורים — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title" data-template-name>טוען…</h1>
+    <p class="org-page-subtitle">מצב חתימות עבור כל ההורים שאליהם נשלח המסמך.</p>
+  </div>
+  <div class="org-page-actions">
+    <a href="/org/document-templates" class="org-btn org-btn--secondary">חזרה למסמכים</a>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="org-stat-grid">
+  <div class="org-stat-card">
+    <div class="org-stat-card__label">סה"כ נשלחו</div>
+    <div class="org-stat-card__value" data-stat-total>—</div>
+  </div>
+  <div class="org-stat-card org-stat-card--ok">
+    <div class="org-stat-card__label">נחתמו</div>
+    <div class="org-stat-card__value" data-stat-signed>—</div>
+  </div>
+  <div class="org-stat-card org-stat-card--warn">
+    <div class="org-stat-card__label">ממתינים</div>
+    <div class="org-stat-card__value" data-stat-pending>—</div>
+  </div>
+  <div class="org-stat-card org-stat-card--err">
+    <div class="org-stat-card__label">פג תוקף / נכשל</div>
+    <div class="org-stat-card__value" data-stat-failed>—</div>
+  </div>
+</div>
+<div class="org-progress" style="margin-block-end: var(--org-space-4);">
+  <div class="org-progress__bar" data-progress-bar style="width: 0%;"></div>
+</div>
+
+<!-- Filters -->
+<div class="org-flex org-items-center org-gap-3" style="margin-block-end: var(--org-space-4); flex-wrap: wrap;">
+  <select class="org-select" id="dlv-region" style="max-width: 200px;">
+    <option value="">כל המחוזות</option>
+  </select>
+  <select class="org-select" id="dlv-branch" style="max-width: 200px;">
+    <option value="">כל הסניפים</option>
+  </select>
+  <select class="org-select" id="dlv-team" style="max-width: 200px;">
+    <option value="">כל הקבוצות</option>
+  </select>
+  <select class="org-select" id="dlv-status" style="max-width: 200px;">
+    <option value="">כל הסטטוסים</option>
+    <option value="NOT_OPENED">לא נפתח</option>
+    <option value="OPENED">נפתח</option>
+    <option value="SIGNED">נחתם</option>
+    <option value="EXPIRED">פג תוקף</option>
+    <option value="DECLINED">נדחה</option>
+  </select>
+  <button type="button" class="org-btn org-btn--ghost" data-action="export-csv">ייצוא CSV</button>
+</div>
+
+<div class="org-table-wrap">
+  <table class="org-table" id="deliveries-table">
+    <thead>
+      <tr>
+        <th>שחקן</th>
+        <th>הורה</th>
+        <th>ערוץ</th>
+        <th>נשלח</th>
+        <th>סטטוס</th>
+        <th>נחתם ב</th>
+        <th>פג תוקף ב</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody data-deliveries-rows>
+      <tr><td colspan="8" class="org-table-empty">טוען…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-template-deliveries.js') }}?v={{ config.get('CSS_VERSION', '7') }}" defer></script>
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_TEMPLATE_ID = {{ template_id | tojson }};
+  window.ORG_CTX = {{ {
+    'role': org_ctx.role,
+    'region_id': org_ctx.region_id,
+    'branch_id': org_ctx.branch_id,
+    'user_id': org_ctx.user_id,
+  } | tojson }};
+</script>
+{% endblock %}

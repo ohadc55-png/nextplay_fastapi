@@ -23,7 +23,6 @@ import sys
 
 import asyncpg
 
-
 # Order matters: child rows first, then anything referencing users.id,
 # then users itself. Every FK that points to users.id without ON DELETE
 # CASCADE shows up here.

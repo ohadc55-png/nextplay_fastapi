@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import pytest
 from cryptography.fernet import Fernet
 
@@ -10,7 +9,7 @@ from cryptography.fernet import Fernet
 def test_round_trip(monkeypatch):
     """encrypt → decrypt returns the original plaintext, and the ciphertext
     is NOT visually similar to the plaintext."""
-    from src.core.encryption import _build_fernet, decrypt_str, encrypt_str
+    from src.core.encryption import decrypt_str, encrypt_str
 
     plaintext = "Top secret: 040-1234567"
     ct = encrypt_str(plaintext)

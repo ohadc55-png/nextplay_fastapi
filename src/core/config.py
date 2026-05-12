@@ -123,9 +123,39 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY_PREVIOUS: str = ""
 
     # === SMS provider (Phase 2.3) ===
-    # "mock"   → src.services.sms.mock.MockSMSProvider (logs only; dev/test)
-    # "inforu" → reserved for Part B / Sub-Phase 2.7
+    # "mock"          → src.services.sms.mock.MockSMSProvider (logs only; dev/test)
+    # "twilio"        → reserved for Sub-Phase 2.7 (NotImplementedError until adapter lands)
+    # "inforu"        → reserved for Sub-Phase 2.7
+    # "o19"           → reserved for Sub-Phase 2.7
+    # "meta_whatsapp" → reserved for Sub-Phase 2.7
     SMS_PROVIDER: str = "mock"
+
+    # === Phase 2.7a — SMS safety rails ===
+    # Hard kill switch: when True, every real SMS provider refuses to
+    # send. The mock provider ignores this.
+    SMS_KILL_SWITCH: bool = False
+    # CSV of phone numbers a real provider is allowed to send to. With
+    # an empty list + a real provider configured, EVERY send is blocked
+    # (fail-closed). Use during rollout to test with a personal phone.
+    SMS_ALLOWED_RECIPIENTS: str = ""
+
+    # === Phase 2.7a — Provider credential placeholders ===
+    # Filled in `.env` once a provider is chosen. Empty by default so
+    # the build still passes and tests don't accidentally hit real APIs.
+    # Twilio (SMS + WhatsApp):
+    SMS_TWILIO_ACCOUNT_SID: str = ""
+    SMS_TWILIO_AUTH_TOKEN: str = ""
+    SMS_TWILIO_FROM: str = ""
+    # Inforu (Israeli SMS):
+    SMS_INFORU_USER: str = ""
+    SMS_INFORU_PASSWORD: str = ""
+    SMS_INFORU_FROM: str = ""
+    # 019 (Israeli SMS):
+    SMS_O19_TOKEN: str = ""
+    SMS_O19_FROM: str = ""
+    # Meta WhatsApp Cloud API (direct, no BSP middleware):
+    SMS_META_PHONE_NUMBER_ID: str = ""
+    SMS_META_ACCESS_TOKEN: str = ""
 
     # === Monitoring ===
     SENTRY_DSN: str = ""

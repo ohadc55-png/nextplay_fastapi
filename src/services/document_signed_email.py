@@ -15,8 +15,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from src.core.database import AsyncSessionLocal
+from src.models.document_campaigns import DocumentCampaign
+from src.models.document_templates import DocumentTemplate
+from src.models.organizations import Organization
 from src.services import s3
 from src.services.email import schedule_email
+from src.services.email_templates import render as render_email
 
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
@@ -53,23 +58,37 @@ async def send_signed_document_email(
         )
         download_url = ""
 
-    recipient = delivery.recipient_name or ""
-    subject = "אישור — המסמך נחתם"
-    text = (
-        f"שלום {recipient},\n\n"
-        f"המסמך שחתמת נשמר בהצלחה.\n\n"
-        + (f"קישור להורדה (תקף ל-7 ימים):\n{download_url}\n\n" if download_url else "")
-        + "תודה,\nNEXTPLAY"
-    )
-    html = (
-        '<div dir="rtl" style="font-family: Arial, sans-serif; line-height:1.5;">'
-        f"<p>שלום {recipient},</p>"
-        "<p>המסמך שחתמת נשמר בהצלחה.</p>"
-        + (
-            f'<p><a href="{download_url}">קישור להורדה (תקף ל-7 ימים)</a></p>'
-            if download_url else ""
-        )
-        + "<p>תודה,<br>NEXTPLAY</p></div>"
+    # Look up the template + org names so the branded template can render
+    # them. Failures fall back to generic strings — we never want this
+    # confirmation email to fail because of a slow lookup.
+    template_name = ""
+    org_name = ""
+    try:
+        async with AsyncSessionLocal() as session:
+            campaign = await session.get(DocumentCampaign, delivery.campaign_id)
+            if campaign:
+                template = await session.get(DocumentTemplate, campaign.template_id)
+                if template:
+                    template_name = template.name
+            org = await session.get(Organization, delivery.organization_id)
+            if org:
+                org_name = org.name
+    except Exception as e:  # pragma: no cover — defensive
+        logger.warning("[signed-email] lookup failed for delivery %d: %s", delivery.id, e)
+
+    recipient = delivery.recipient_name or "הורה"
+    subject, html, text = render_email(
+        "document_signed",
+        language="he",
+        context={
+            "recipient_name": recipient,
+            "template_name": template_name or "המסמך",
+            "organization_name": org_name or "הארגון",
+            "download_url": download_url,
+            "cta_url": download_url if download_url else None,
+            "cta_label_he": "הורדת המסמך",
+            "cta_label_en": "Download document",
+        },
     )
 
     schedule_email(

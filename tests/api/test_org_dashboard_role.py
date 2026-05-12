@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from sqlalchemy import update
-
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 
 pytestmark = pytest.mark.asyncio
 

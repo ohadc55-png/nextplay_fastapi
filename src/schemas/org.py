@@ -6,7 +6,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-
 # ---------------------------------------------------------------------------
 # Auth — login / role selection / current user
 # ---------------------------------------------------------------------------

@@ -1,0 +1,45 @@
+{# Document invite — sent when a parent first receives a document for signing.
+   Used by src/services/document_send_worker.py. Bilingual.
+
+   Context:
+     - recipient_name (parent name)
+     - template_name (document name, e.g. "הצהרת בריאות 2026")
+     - organization_name
+     - sign_url (full URL the parent clicks)
+     - expiry_days (int, default 30)
+#}
+{% extends "base.html" %}
+
+{% block subject_tag %}{% if rtl %}מסמך לחתימה — {{ template_name }}{% else %}Document to sign — {{ template_name }}{% endif %}{% endblock %}
+
+{% block text_body %}{% if rtl %}שלום {{ recipient_name }},
+
+{{ organization_name }} שלח לך מסמך לחתימה: {{ template_name }}.
+
+קישור לחתימה (תקף ל-{{ expiry_days }} ימים):
+{{ sign_url }}
+
+תודה,
+{{ brand_name }}{% else %}Hi {{ recipient_name }},
+
+{{ organization_name }} sent you a document to sign: {{ template_name }}.
+
+Sign here (valid for {{ expiry_days }} days):
+{{ sign_url }}
+
+Thanks,
+{{ brand_name }}{% endif %}{% endblock %}
+
+{% block body %}
+{% if rtl %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">מסמך ממתין לחתימתך ✍️</h2>
+<p style="margin:0 0 16px;">שלום {{ recipient_name }},</p>
+<p style="margin:0 0 16px;"><strong>{{ organization_name }}</strong> שלח לך מסמך לחתימה: <strong>{{ template_name }}</strong>.</p>
+<p style="margin:0 0 8px;">לחץ על הכפתור למטה כדי לפתוח, למלא ולחתום. הקישור <strong>תקף ל-{{ expiry_days }} ימים</strong>:</p>
+{% else %}
+<h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">A document is waiting for your signature ✍️</h2>
+<p style="margin:0 0 16px;">Hi {{ recipient_name }},</p>
+<p style="margin:0 0 16px;"><strong>{{ organization_name }}</strong> sent you a document to sign: <strong>{{ template_name }}</strong>.</p>
+<p style="margin:0 0 8px;">Click the button below to open, fill, and sign. The link is <strong>valid for {{ expiry_days }} days</strong>:</p>
+{% endif %}
+{% endblock %}

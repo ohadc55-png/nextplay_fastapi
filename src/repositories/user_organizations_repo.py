@@ -80,6 +80,7 @@ class UserOrganizationsRepository(BaseRepository[UserOrganization]):
         when you filter "all members in region X" — counter-intuitive.
         """
         from sqlalchemy import or_  # local import — keeps the file's top
+
         from src.models.branches import Branch
         from src.models.users import User
 

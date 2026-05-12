@@ -31,7 +31,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,9 +43,15 @@ from src.repositories.document_deliveries_repo import DocumentDeliveriesReposito
 from src.repositories.otp_attempts_repo import OTPAttemptsRepository
 from src.schemas.document_deliveries import OTPRequest, OTPVerify, SignatureSubmit
 from src.services import signing_session
+from src.services.audit_chain import build_signed_audit
 from src.services.document_signed_email import send_signed_document_email
 from src.services.org_audit_service import log_org_action
 from src.services.pdf_generation_service import generate_final
+from src.services.sign_challenge import (
+    ATTEMPTS_BEFORE_CHALLENGE,
+    issue_arithmetic_challenge,
+    verify_challenge,
+)
 from src.services.sms import get_sms_provider
 
 logger = logging.getLogger(__name__)
@@ -290,6 +296,40 @@ async def verify_otp(
             status_code=429, content={"error": "Too many attempts"}
         )
 
+    # Phase 2 closeout — anti-bot challenge.
+    # After 2 failed attempts on this OTP, the next verify MUST also solve
+    # a CAPTCHA. This is the layer between "rate-limit per IP" and "OTP
+    # entirely locked" — without it, an attacker can burn through 3 codes
+    # before they're locked out, and that's enough for some bots to score.
+    if otp.attempts >= ATTEMPTS_BEFORE_CHALLENGE:
+        challenge_ok = verify_challenge(
+            answer=body.challenge_answer,
+            expires_at=body.challenge_expires_at,
+            token=body.challenge_token,
+        )
+        if not challenge_ok:
+            # Issue a fresh challenge for the next attempt. Don't bump
+            # `attempts` — we haven't actually verified the code yet.
+            await log_org_action(
+                db,
+                organization_id=delivery.organization_id,
+                actor_user_id=None,
+                actor_email=None,
+                action="signature.otp.verify",
+                target_type="document_delivery",
+                target_id=delivery.id,
+                request=request,
+                extra={"result": "challenge_required", "attempts": otp.attempts},
+            )
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Challenge required",
+                    "challenge_required": True,
+                    "challenge": issue_arithmetic_challenge(),
+                },
+            )
+
     otp.attempts += 1
 
     if _hash_otp(body.code) != otp.code_hash:
@@ -305,7 +345,13 @@ async def verify_otp(
             request=request,
             extra={"result": "invalid", "attempts": otp.attempts},
         )
-        return JSONResponse(status_code=400, content={"error": "Invalid code"})
+        # If we just crossed the threshold, surface the challenge in the
+        # response so the next attempt can include it without an extra round-trip.
+        invalid_body: dict = {"error": "Invalid code"}
+        if otp.attempts >= ATTEMPTS_BEFORE_CHALLENGE:
+            invalid_body["challenge_required"] = True
+            invalid_body["challenge"] = issue_arithmetic_challenge()
+        return JSONResponse(status_code=400, content=invalid_body)
 
     otp.verified_at = _now_utc_naive()
     await db.flush()
@@ -388,20 +434,28 @@ async def submit_signature(
         typed_signature=body.typed_signature,
     )
 
-    # Update delivery row + audit_data hash.
+    # Update delivery row first so audit_chain builder sees the right
+    # signature_method / final_pdf_url / signed_at when computing the
+    # canonical payload.
     payload_hash = hashlib.sha256(
         repr(sorted(body.form_response.items())).encode("utf-8")
     ).hexdigest()
+    signed_at = _now_utc_naive()
     delivery.document_status = "SIGNED"
-    delivery.signed_at = _now_utc_naive()
+    delivery.signed_at = signed_at
     delivery.form_response = body.form_response
     delivery.signature_method = body.signature_method
     delivery.final_pdf_url = final_key
-    delivery.audit_data = {
-        "ip_address": _client_ip(request),
-        "user_agent": request.headers.get("user-agent", "")[:500],
-        "payload_hash": payload_hash,
-    }
+
+    # Phase 2 closeout — hash-chain audit (Part B §13 pitfall #6).
+    delivery.audit_data = await build_signed_audit(
+        db,
+        delivery=delivery,
+        payload_hash=payload_hash,
+        signed_at_iso=signed_at.isoformat(),
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent", ""),
+    )
     # Update campaign counter.
     if delivery.campaign is not None:
         delivery.campaign.total_signed = (delivery.campaign.total_signed or 0) + 1

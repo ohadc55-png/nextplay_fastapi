@@ -63,3 +63,6 @@ schema_diff.md
 # --- Misc ---
 notebooks/
 .ipynb_checkpoints/
+
+# Claude Code local state
+.claude/

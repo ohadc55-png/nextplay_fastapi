@@ -9,12 +9,12 @@ in one transaction.
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
 from src.schemas.org_users import OrgRole
+
 
 # ============================================================================
 # Step 1 — Basics

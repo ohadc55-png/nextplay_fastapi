@@ -139,8 +139,9 @@ async def test_region_manager_cannot_create(
     async with api_session_factory() as s:
         # region_manager needs an active region scope to even log in cleanly;
         # assign one (cross-shape test — region need not be real).
+        from sqlalchemy import update
+
         from src.models.user_organizations import UserOrganization
-        from sqlalchemy import select, update
 
         region = Region(organization_id=creds["organization_id"], name="My Region")
         s.add(region)

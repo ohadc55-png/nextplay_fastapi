@@ -36,7 +36,7 @@ def _load_logo_data_uri() -> str:
     """Read the pre-encoded logo b64 once at startup. Returns '' if missing."""
     path = os.path.join(_TEMPLATES_DIR, "_logo_b64.txt")
     try:
-        with open(path, "r", encoding="ascii") as f:
+        with open(path, encoding="ascii") as f:
             b64 = f.read().strip()
         return f"data:image/png;base64,{b64}" if b64 else ""
     except Exception:

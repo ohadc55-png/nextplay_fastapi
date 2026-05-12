@@ -14,7 +14,6 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.models.document_templates import DocumentTemplate
-from src.models.organizations import Organization
 
 pytestmark = pytest.mark.asyncio
 
@@ -252,3 +251,41 @@ async def test_delete_is_soft_and_preserves_s3_key(
         ).scalar_one()
         assert row.is_active is False
         assert row.uploaded_file_url == original_key  # untouched
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.5 — deliveries visibility
+# ---------------------------------------------------------------------------
+
+
+async def test_template_deliveries_endpoint_returns_empty_for_unused_template(
+    org_admin_client: AsyncClient,
+):
+    """A template with no campaigns yet still returns 200 with zero stats."""
+    r, _ = await _upload(org_admin_client)
+    tid = r.json()["id"]
+
+    r = await org_admin_client.get(f"/org/api/document-templates/{tid}/deliveries")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["template"]["id"] == tid
+    assert body["deliveries"] == []
+    assert body["stats"]["total"] == 0
+    assert body["stats"]["signed"] == 0
+
+
+async def test_template_deliveries_cross_org_404(
+    org_admin_client: AsyncClient, seed_org_admin, api_client,
+):
+    r, _ = await _upload(org_admin_client)
+    tid = r.json()["id"]
+
+    await api_client.post("/org/logout")
+    other = await seed_org_admin(
+        email="b@org.test", org_slug="other-dlv", org_name="Other",
+    )
+    await api_client.post(
+        "/org/login", json={"email": other["email"], "password": other["password"]}
+    )
+    r = await api_client.get(f"/org/api/document-templates/{tid}/deliveries")
+    assert r.status_code == 404

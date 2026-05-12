@@ -68,10 +68,10 @@
         <span class="org-nav-icon">{{ icon('document') }}</span>
         <span class="org-nav-text">מסמכים</span>
       </a>
-      <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
+      <a href="/org/messages"
+         class="org-nav-item {% if active == 'messages' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('chat') }}</span>
         <span class="org-nav-text">הודעות</span>
-        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
       </a>
       <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
         <span class="org-nav-icon">{{ icon('wallet') }}</span>
@@ -82,10 +82,10 @@
 
     <div class="org-nav-section">
       <div class="org-nav-label">תובנות</div>
-      <a href="#" class="org-nav-item is-disabled ai-feature" aria-disabled="true">
+      <a href="/org/analytics"
+         class="org-nav-item {% if active == 'analytics' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('sparkles') }}</span>
-        <span class="org-nav-text">תובנות AI</span>
-        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
+        <span class="org-nav-text">אנליטיקה</span>
       </a>
     </div>
 

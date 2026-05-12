@@ -412,3 +412,134 @@ async def test_complete_page_renders_after_signing(
     r = await client.get(f"/sign/{seed['token']}/complete")
     assert r.status_code == 200
     assert "תודה" in r.text
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 closeout — hash-chain audit
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 closeout — CAPTCHA after 2 failed OTP attempts
+# ---------------------------------------------------------------------------
+
+
+async def test_otp_verify_demands_challenge_after_two_failures(
+    api_client: AsyncClient, api_session_factory,
+):
+    """1st + 2nd wrong code → 400 'Invalid code'. 3rd attempt without a
+    challenge → 400 with `challenge_required` and a fresh challenge."""
+    seed = await _seed(api_session_factory, requires_signature=True)
+    with patch("src.api.public_sign.get_sms_provider") as factory, \
+         patch("src.api.public_sign._generate_otp_code", return_value="123456"):
+        provider = AsyncMock()
+        provider.send = AsyncMock()
+        factory.return_value = provider
+        r = await api_client.post(
+            f"/sign/{seed['token']}/otp/request", json={"phone": "050-1234567"},
+        )
+        assert r.status_code == 200
+
+    # 1st wrong code — no challenge yet.
+    r1 = await api_client.post(
+        f"/sign/{seed['token']}/otp/verify", json={"code": "000000"},
+    )
+    assert r1.status_code == 400
+    assert r1.json().get("challenge_required") is not True
+
+    # 2nd wrong code — server should now require a challenge for the next attempt.
+    r2 = await api_client.post(
+        f"/sign/{seed['token']}/otp/verify", json={"code": "000001"},
+    )
+    assert r2.status_code == 400
+    body2 = r2.json()
+    assert body2.get("challenge_required") is True
+    assert "challenge" in body2
+    challenge = body2["challenge"]
+    assert challenge["token"]
+    assert "a" in challenge and "b" in challenge
+
+    # 3rd attempt WITHOUT solving the challenge — rejected with a fresh challenge.
+    r3 = await api_client.post(
+        f"/sign/{seed['token']}/otp/verify", json={"code": "123456"},
+    )
+    assert r3.status_code == 400
+    body3 = r3.json()
+    assert body3.get("challenge_required") is True
+
+
+async def test_otp_verify_succeeds_with_correct_challenge(
+    api_client: AsyncClient, api_session_factory,
+):
+    """After 2 wrong codes, a 3rd attempt that includes a correct OTP +
+    correct challenge solution succeeds."""
+    seed = await _seed(api_session_factory, requires_signature=True)
+    with patch("src.api.public_sign.get_sms_provider") as factory, \
+         patch("src.api.public_sign._generate_otp_code", return_value="123456"):
+        provider = AsyncMock()
+        provider.send = AsyncMock()
+        factory.return_value = provider
+        await api_client.post(
+            f"/sign/{seed['token']}/otp/request", json={"phone": "050-1234567"},
+        )
+
+    # Burn 2 failed attempts to unlock the challenge gate.
+    await api_client.post(
+        f"/sign/{seed['token']}/otp/verify", json={"code": "000000"},
+    )
+    r2 = await api_client.post(
+        f"/sign/{seed['token']}/otp/verify", json={"code": "000001"},
+    )
+    challenge = r2.json()["challenge"]
+
+    # Now: correct OTP + correct challenge answer.
+    correct_answer = challenge["a"] + challenge["b"]
+    r3 = await api_client.post(
+        f"/sign/{seed['token']}/otp/verify",
+        json={
+            "code": "123456",
+            "challenge_answer": correct_answer,
+            "challenge_expires_at": challenge["expires_at"],
+            "challenge_token": challenge["token"],
+        },
+    )
+    assert r3.status_code == 200, r3.text
+    assert r3.json() == {"status": "verified"}
+
+
+async def test_submit_writes_hash_chain(
+    api_client: AsyncClient, api_session_factory,
+):
+    """Every SIGNED delivery should land with a `prev_hash` + `self_hash`
+    in `audit_data`. First signature in an org → prev_hash is the genesis
+    string. Re-running the verifier should mark the chain valid."""
+    from src.services.audit_chain import GENESIS_HASH, verify_org_chain
+
+    client, seed = await _verified_client(api_client, api_session_factory)
+    with patch("src.services.pdf_generation_service.s3.get_bytes",
+               new=AsyncMock(return_value=_MINIMAL_PDF)), \
+         patch("src.services.pdf_generation_service.s3.put_bytes",
+               new=AsyncMock(return_value=None)):
+        r = await client.post(
+            f"/sign/{seed['token']}/submit",
+            json={
+                "form_response": {"f1": "Dana"},
+                "signature_method": "TYPED",
+                "typed_signature": "Ruth",
+            },
+        )
+    assert r.status_code == 200
+
+    async with api_session_factory() as s:
+        d = await s.get(DocumentDelivery, seed["delivery_id"])
+        assert d.audit_data is not None
+        assert d.audit_data["prev_hash"] == GENESIS_HASH
+        assert d.audit_data["self_hash"]
+        assert len(d.audit_data["self_hash"]) == 64
+        # Verifier confirms the chain is intact.
+        report = await verify_org_chain(
+            s, organization_id=d.organization_id,
+        )
+        assert report["valid"] is True
+        assert report["broken_at"] == []
+        assert report["missing_prev"] == []

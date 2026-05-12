@@ -213,7 +213,7 @@ async def send_password_reset_email(
 
 
 async def send_welcome_email(
-    session: AsyncSession,  # noqa: ARG001 — kept for signature parity with v1
+    session: AsyncSession,
     *,
     user_id: int,
     email: str,

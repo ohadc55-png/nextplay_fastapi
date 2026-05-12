@@ -38,7 +38,12 @@ class DocumentTemplatesRepository(OrgScopedRepository[DocumentTemplate]):
             stmt = stmt.where(DocumentTemplate.category == category)
         if not include_inactive:
             stmt = stmt.where(DocumentTemplate.is_active.is_(True))
-        stmt = stmt.order_by(DocumentTemplate.created_at.desc())
+        # Phase 2.5b — completed templates sink to the bottom; within each
+        # bucket newest-first by creation time.
+        stmt = stmt.order_by(
+            DocumentTemplate.is_completed.asc(),
+            DocumentTemplate.created_at.desc(),
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
 

@@ -24,8 +24,7 @@ from fastapi import BackgroundTasks, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.password_service import hash_password
-from src.core.exceptions import ConflictError, NotFoundError
+from src.core.exceptions import ConflictError
 from src.models.org_invites import OrgInvite
 from src.models.organizations import Organization
 from src.models.user_organizations import UserOrganization

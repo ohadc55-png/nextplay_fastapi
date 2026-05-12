@@ -8,10 +8,9 @@ Three things to guard:
 
 from __future__ import annotations
 
-from sqlalchemy import select, text
-
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select, text
 
 pytestmark = pytest.mark.asyncio
 

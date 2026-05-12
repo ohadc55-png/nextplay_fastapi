@@ -112,6 +112,11 @@ async def create_and_send(
     template = await tpl_repo.get_for_org(template_id, membership.organization_id)
     if template is None or not template.is_active:
         raise NotFoundError("Template not found")
+    if template.is_completed:
+        raise ValidationError(
+            "Template is marked as completed. Reopen it before sending.",
+            code="template_completed",
+        )
 
     try:
         campaign, deliveries = await create_campaign_with_deliveries(

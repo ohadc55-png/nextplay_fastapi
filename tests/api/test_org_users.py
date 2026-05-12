@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select, update
-
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select, update
 
 pytestmark = pytest.mark.asyncio
 
@@ -187,7 +186,6 @@ async def test_region_manager_invite_forced_to_own_region(
 ):
     """region_manager that omits region_id gets it auto-filled to own region.
     Attempting another region's id → 404."""
-    from src.models.org_invites import OrgInvite
     from src.models.user_organizations import UserOrganization
 
     creds = await seed_org_admin(email="rm-scope@org.test", role="region_manager")

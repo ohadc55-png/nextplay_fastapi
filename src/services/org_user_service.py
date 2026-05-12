@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.models.branches import Branch
 from src.models.org_invites import OrgInvite
-from src.models.organizations import Organization
 from src.models.regions import Region
 from src.models.users import User
 from src.repositories.org_invites_repo import OrgInvitesRepository

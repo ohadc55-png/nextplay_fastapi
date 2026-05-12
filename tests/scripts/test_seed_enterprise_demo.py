@@ -11,11 +11,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.demo_seeder import (
-    SeedConfig,
-    cleanup_demo_tenant as _cleanup,
-    seed_demo_tenant as _seed,
-)
 from src.models.branches import Branch
 from src.models.organizations import Organization
 from src.models.player_contacts import PlayerContact
@@ -24,6 +19,15 @@ from src.models.regions import Region
 from src.models.teams import TeamProfile
 from src.models.user_organizations import UserOrganization
 from src.models.users import User
+from src.services.demo_seeder import (
+    SeedConfig,
+)
+from src.services.demo_seeder import (
+    cleanup_demo_tenant as _cleanup,
+)
+from src.services.demo_seeder import (
+    seed_demo_tenant as _seed,
+)
 
 pytestmark = pytest.mark.asyncio
 
