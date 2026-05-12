@@ -12,9 +12,12 @@ from src.crew.agents import (
 
 
 class TestAgentRegistry:
-    def test_five_agents_present(self):
-        # Brad / Hunter / Nexus / Vance / Williams (matches v1 plan).
-        assert set(AGENTS) == {"gm", "scout", "analytics", "tactics", "training"}
+    def test_coach_agents_present(self):
+        # The 5 basketball-coach specialists + Daisy the platform guide.
+        # Brad / Hunter / Nexus / Vance / Williams handle game content;
+        # `guide` (Daisy) is the in-app how-to assistant.
+        assert {"gm", "scout", "analytics", "tactics", "training", "guide"} <= set(AGENTS)
+        assert set(AGENTS) == {"gm", "scout", "analytics", "tactics", "training", "guide"}
 
     def test_default_agent_is_gm(self):
         assert DEFAULT_AGENT == "gm"

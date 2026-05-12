@@ -78,9 +78,14 @@ class TestAnonymousPages:
 
 
 class TestAuthGate:
-    async def test_home_unauthed_returns_401(self, api_client: AsyncClient):
-        r = await api_client.get("/")
-        assert r.status_code == 401
+    async def test_home_unauthed_redirects_to_main(self, api_client: AsyncClient):
+        """Anonymous visitors hitting `/` should land on the public
+        marketing page `/main`, not a 401 JSON. Mirrors v1's
+        `@login_required` redirect behaviour (see `home()` in
+        src/api/pages.py)."""
+        r = await api_client.get("/", follow_redirects=False)
+        assert r.status_code == 303
+        assert r.headers.get("location") == "/main"
 
     async def test_chat_unauthed_returns_401(self, api_client: AsyncClient):
         r = await api_client.get("/chat")

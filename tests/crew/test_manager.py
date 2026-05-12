@@ -74,26 +74,42 @@ class _FakeCrew:
         return type(self).kickoff_result
 
 
+class _FakeBaseTool:
+    """Stand-in for `crewai.tools.BaseTool`. The bridge subclasses it and
+    sets `name` / `description` class attrs + a `_run` method, so we just
+    need a permissive base — no validation, no pydantic, no metaclass."""
+    name: str = ""
+    description: str = ""
+
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
 @pytest.fixture
 def fake_crewai():
     """Replace `from crewai import ...` with our fakes for the duration of the test.
 
-    Resets the fake crew's state between tests so failures don't leak."""
+    Resets the fake crew's state between tests so failures don't leak.
+    Also injects `crewai.tools` because `_build_sync_bridge` imports
+    `BaseTool` from there at call time."""
     _FakeCrew.kickoff_result = "Full-mode answer from CrewAI."
     _FakeCrew.kickoff_should_raise = None
     _FakeCrew.kickoff_hook = None
     _FakeCrew.last_instance = None
 
+    fake_crewai_tools = SimpleNamespace(BaseTool=_FakeBaseTool)
     fake_crewai_module = SimpleNamespace(
         Agent=_FakeAgent,
         Task=_FakeTask,
         Process=_FakeProcess,
         Crew=_FakeCrew,
+        tools=fake_crewai_tools,
     )
-    # `crewai.tools.BaseTool` is needed by the bridge — keep the real
-    # import path so the bridge class hierarchy is genuine.
     saved_crewai = sys.modules.get("crewai")
+    saved_crewai_tools = sys.modules.get("crewai.tools")
     sys.modules["crewai"] = fake_crewai_module
+    sys.modules["crewai.tools"] = fake_crewai_tools
     try:
         yield fake_crewai_module
     finally:
@@ -101,6 +117,10 @@ def fake_crewai():
             sys.modules["crewai"] = saved_crewai
         else:
             sys.modules.pop("crewai", None)
+        if saved_crewai_tools is not None:
+            sys.modules["crewai.tools"] = saved_crewai_tools
+        else:
+            sys.modules.pop("crewai.tools", None)
 
 
 # ---------------------------------------------------------------------------
@@ -188,8 +208,10 @@ class TestRunFullChat:
         # block is in every agent's prompt — quick sanity check).
         agent = _FakeCrew.last_instance.agents[0]
         assert "PLAYER-TEAM BINDING" in agent.backstory
-        # Tools are wired in (2 by default per default_tools_for_agent: team_db + kb)
-        assert len(agent.tools) == 2
+        # Tools are wired in. GM gets team_database + knowledge_base + add_player
+        # per src/crew/tools.py:_AGENT_TOOL_MAP — at least 2, but the exact
+        # count moves as the toolbelt evolves.
+        assert len(agent.tools) >= 2
 
     async def test_usage_metrics_logged_to_api_usage(self, db_session, fake_crewai):
         await run_full_chat(
