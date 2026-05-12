@@ -89,6 +89,31 @@ def _serialize_video(v: ScoutingVideo, *, clip_count: int | None = None) -> dict
     }
 
 
+async def _hydrate_playback_url(video_dict: dict, v: ScoutingVideo) -> dict:
+    """Populate `s3_url` with a fresh playback URL (CloudFront if configured,
+    otherwise a presigned S3 GET valid for 1 hour) for s3-sourced videos.
+
+    Mirrors v1's `backend/scouting/service.py:34` where every video read
+    re-derived `s3_url` from `s3_key`. The DB column itself stays empty
+    on insert — we never persist the presigned URL because it expires.
+
+    Mutates and returns the dict so call sites can chain. Best-effort:
+    on any S3 / config error we log and leave s3_url unchanged so the
+    frontend can fall through to the `/api/scouting/video-proxy` route."""
+    if v.source_type == "s3" and v.s3_key:
+        from src.services import s3 as s3_module
+        try:
+            url = await s3_module.get_video_url(v.s3_key)
+            if url:
+                video_dict["s3_url"] = url
+        except Exception as exc:  # pragma: no cover
+            logger.warning(
+                "[scouting] failed to resolve playback URL for s3_key=%s: %s",
+                v.s3_key, exc,
+            )
+    return video_dict
+
+
 def _serialize_clip(c: VideoClip) -> dict:
     return {
         "id": c.id, "video_id": c.video_id, "title": c.title,
@@ -468,7 +493,7 @@ async def register_video(
     )
     db.add(v)
     await db.flush()
-    return _serialize_video(v, clip_count=0)
+    return await _hydrate_playback_url(_serialize_video(v, clip_count=0), v)
 
 
 @router.post("/videos/external", status_code=201)
@@ -497,7 +522,7 @@ async def register_external_video(
     )
     db.add(v)
     await db.flush()
-    return _serialize_video(v, clip_count=0)
+    return await _hydrate_playback_url(_serialize_video(v, clip_count=0), v)
 
 
 @router.get("/videos")
@@ -515,7 +540,9 @@ async def list_videos(
         clip_count = int(await db.scalar(
             select(func.count()).select_from(VideoClip).where(VideoClip.video_id == v.id)
         ) or 0)
-        out.append(_serialize_video(v, clip_count=clip_count))
+        out.append(await _hydrate_playback_url(
+            _serialize_video(v, clip_count=clip_count), v,
+        ))
     return out
 
 
@@ -538,8 +565,9 @@ async def get_video(
         .where(VideoAnnotation.video_id == video_id)
         .order_by(VideoAnnotation.timestamp)
     )).scalars().all())
+    hydrated = await _hydrate_playback_url(_serialize_video(v, clip_count=len(clips)), v)
     return {
-        **_serialize_video(v, clip_count=len(clips)),
+        **hydrated,
         "clips": [_serialize_clip(c) for c in clips],
         "annotations": [_serialize_annotation(a) for a in annotations],
     }
@@ -569,7 +597,7 @@ async def update_video(
             v.expires_at = datetime.utcnow() + timedelta(days=14)
     v.updated_at = _now()
     await db.flush()
-    return _serialize_video(v)
+    return await _hydrate_playback_url(_serialize_video(v), v)
 
 
 @router.delete("/videos/{video_id}")
@@ -1358,7 +1386,7 @@ async def public_share(
     )).scalars().all())
 
     return {
-        "video": _serialize_video(video),
+        "video": await _hydrate_playback_url(_serialize_video(video), video),
         "clip": _serialize_clip(clips[0]) if clips else None,
         "clips": [_serialize_clip(c) for c in clips],
         "annotations": [_serialize_annotation(a) for a in annotations],

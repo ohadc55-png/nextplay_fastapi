@@ -1101,8 +1101,16 @@ function initVideoPlayer() {
       sources.push({ src: '/api/scouting/video-proxy/' + _currentVideo.id, type: 'video/mp4' });
     }
   }
-  if (_currentVideo.source_type === 's3' && _currentVideo.s3_url) {
-    sources.push({ src: _currentVideo.s3_url, type: 'video/mp4' });
+  if (_currentVideo.source_type === 's3') {
+    if (_currentVideo.s3_url) {
+      sources.push({ src: _currentVideo.s3_url, type: 'video/mp4' });
+    } else {
+      // Fallback: route through the same-origin proxy when the backend
+      // didn't pre-bake a presigned URL (e.g. S3 not configured locally,
+      // expired credentials, presign error). Mirrors v1 behaviour for
+      // safety + keeps canvas annotations same-origin friendly.
+      sources.push({ src: '/api/scouting/video-proxy/' + _currentVideo.id, type: 'video/mp4' });
+    }
   }
 
   if (!sources.length) {
@@ -4475,7 +4483,13 @@ function loadComparisonVideo(videoId) {
     }
   }
   // --- END NEW ---
-  if (video.source_type === 's3' && video.s3_url) sources.push({ src: video.s3_url, type: 'video/mp4' });
+  if (video.source_type === 's3') {
+    if (video.s3_url) {
+      sources.push({ src: video.s3_url, type: 'video/mp4' });
+    } else {
+      sources.push({ src: '/api/scouting/video-proxy/' + video.id, type: 'video/mp4' });
+    }
+  }
 
   if (!sources.length) {
     container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-muted);flex-direction:column;gap:var(--sp-2);">
