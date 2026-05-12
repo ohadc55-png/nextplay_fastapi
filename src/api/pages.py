@@ -575,4 +575,78 @@ async def public_play_page(
     )
 
 
+@router.get("/share/{token}", response_class=HTMLResponse)
+async def public_clip_share_page(
+    request: Request,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Public viewer for shared clips (scouting room). No auth — the
+    share token is the access control. Renders `clip_share.html` with
+    server-injected `video` / `share` / `clips` / `annotations` /
+    `timeline` context so the template can `{{ ... | tojson }}` them
+    without a follow-up API call. Mirrors v1 backend/scouting/routes.py
+    :577 (public_share_page)."""
+    from src.api.scouting import (
+        _hydrate_playback_url,
+        _serialize_annotation,
+        _serialize_clip,
+        _serialize_video,
+    )
+    from src.models.scouting import (
+        ClipShare,
+        ScoutingVideo,
+        VideoAnnotation,
+        VideoClip,
+    )
+
+    share = (await db.execute(
+        select(ClipShare).where(ClipShare.share_token == token)
+    )).scalar_one_or_none()
+    if not share:
+        return templates.TemplateResponse(
+            "clip_share.html",
+            page_context(request, user=None, extra={"error": True}),
+            status_code=404,
+        )
+
+    video = (await db.execute(
+        select(ScoutingVideo).where(ScoutingVideo.id == share.video_id)
+    )).scalar_one_or_none()
+    if not video:
+        return templates.TemplateResponse(
+            "clip_share.html",
+            page_context(request, user=None, extra={"error": True}),
+            status_code=404,
+        )
+
+    clip_ids = [int(x) for x in (share.clip_ids or "").split(",") if x.strip()]
+    clips = list((await db.execute(
+        select(VideoClip).where(VideoClip.id.in_(clip_ids))
+        .order_by(VideoClip.start_time)
+    )).scalars().all()) if clip_ids else []
+    annotations = list((await db.execute(
+        select(VideoAnnotation).where(VideoAnnotation.video_id == share.video_id)
+        .order_by(VideoAnnotation.timestamp)
+    )).scalars().all())
+
+    video_dict = await _hydrate_playback_url(_serialize_video(video), video)
+
+    return templates.TemplateResponse(
+        "clip_share.html",
+        page_context(request, user=None, extra={
+            "error": False,
+            "video": video_dict,
+            "share": {
+                "token": share.share_token,
+                "video_id": share.video_id,
+                "created_at": share.created_at,
+            },
+            "clips": [_serialize_clip(c) for c in clips],
+            "annotations": [_serialize_annotation(a) for a in annotations],
+            "timeline": share.timeline_json,
+        }),
+    )
+
+
 __all__ = ["router"]
