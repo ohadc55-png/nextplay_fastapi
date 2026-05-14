@@ -28,7 +28,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,6 +70,90 @@ async def main_landing(
         "welcome.html",
         page_context(request, user=user, extra=_oauth_flags()),
     )
+
+
+@router.get("/play-creator", response_class=HTMLResponse)
+async def play_creator_landing(
+    request: Request,
+    user: User | None = Depends(get_current_user_optional),
+) -> Any:
+    """SEO landing page targeting 'draw basketball plays' / 'play designer'
+    queries. Top-of-funnel: pulls coaches in through a high-demand keyword,
+    then funnels them to the full AI Coaching Staff trial signup."""
+    return templates.TemplateResponse(
+        "play_creator.html",
+        page_context(request, user=user, extra=_oauth_flags()),
+    )
+
+
+# ---------------------------------------------------------------------------
+# SEO surfaces — robots.txt + sitemap.xml
+# ---------------------------------------------------------------------------
+
+
+_SITE_URL = "https://trynextplay.app"
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+async def robots_txt() -> str:
+    """Tell crawlers what to index. Blocks API/admin/org/auth-gated paths."""
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /admin/\n"
+        "Disallow: /org/\n"
+        "Disallow: /auth/\n"
+        "Disallow: /checkout/\n"
+        "Disallow: /upgrade\n"
+        "Disallow: /profile\n"
+        "Disallow: /settings\n"
+        "Disallow: /chat\n"
+        "Disallow: /history\n"
+        "Disallow: /notebook\n"
+        "Disallow: /team-setup\n"
+        "Disallow: /data-upload\n"
+        "Disallow: /scouting\n"
+        "Disallow: /plays\n"
+        "Disallow: /club-admin\n"
+        "Disallow: /court-preview\n"
+        "Disallow: /player/\n"
+        "Disallow: /clip/\n"
+        "Disallow: /share/\n"
+        "\n"
+        f"Sitemap: {_SITE_URL}/sitemap.xml\n"
+    )
+
+
+@router.get("/sitemap.xml", response_class=Response, include_in_schema=False)
+async def sitemap_xml() -> Response:
+    """List the public, indexable pages. Update this list as new SEO landing
+    pages are added (scouting-report, practice-planner, etc.)."""
+    pages: list[tuple[str, str, str]] = [
+        # (path, changefreq, priority)
+        ("/", "weekly", "1.0"),
+        ("/main", "weekly", "1.0"),
+        ("/play-creator", "weekly", "0.9"),
+        ("/login", "monthly", "0.4"),
+        ("/register", "monthly", "0.6"),
+        ("/contact-sales", "monthly", "0.5"),
+        ("/privacy", "yearly", "0.2"),
+        ("/terms", "yearly", "0.2"),
+    ]
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    lines: list[str] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for path, freq, pri in pages:
+        lines.append(
+            f"  <url><loc>{_SITE_URL}{path}</loc>"
+            f"<lastmod>{today}</lastmod>"
+            f"<changefreq>{freq}</changefreq>"
+            f"<priority>{pri}</priority></url>"
+        )
+    lines.append("</urlset>")
+    return Response("\n".join(lines), media_type="application/xml")
 
 
 @router.get("/privacy", response_class=HTMLResponse)

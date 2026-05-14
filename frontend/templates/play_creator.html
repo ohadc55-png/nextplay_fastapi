@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Play Designer | Draw &amp; Animate Plays Online | NextPlay</title>
+    <meta name="description" content="Browser-based basketball play designer. Draw plays with 6 action types, animate them, share with your staff. Part of NextPlay's AI Coaching Staff. Free 14-day trial.">
+    <link rel="canonical" href="https://trynextplay.app/play-creator">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://trynextplay.app/play-creator">
+    <meta property="og:title" content="Basketball Play Designer | Draw &amp; Animate Plays Online">
+    <meta property="og:description" content="Modern web-based play designer for basketball coaches. Draw, animate, and share plays from any device. Part of NextPlay's AI Coaching Staff.">
+    <meta property="og:image" content="https://trynextplay.app/static/img/play_creator_screenshot.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="NextPlay">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Basketball Play Designer | NextPlay">
+    <meta name="twitter:description" content="Modern, browser-based play designer. Draw, animate, and share plays. Connected to a 5-coach AI staff. Free 14-day trial.">
+    <meta name="twitter:image" content="https://trynextplay.app/static/img/play_creator_screenshot.png">
+
+    {# Google Search Console verification — same token as welcome.html. #}
+    <meta name="google-site-verification" content="REPLACE_WITH_GSC_VERIFICATION_TOKEN">
+
+    <!-- Structured data: SoftwareApplication + FAQPage + BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "NextPlay Play Creator",
+          "applicationCategory": "SportsApplication",
+          "applicationSubCategory": "Basketball Play Designer",
+          "operatingSystem": "Web, iOS (PWA), Android (PWA)",
+          "description": "Browser-based basketball play designer with 6 action types, formation presets, animation playback, and integration with NextPlay's AI Coaching Staff.",
+          "url": "https://trynextplay.app/play-creator",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "14-day free trial — no credit card",
+            "availability": "https://schema.org/InStock"
+          },
+          "featureList": [
+            "Six action types: Pass, Dribble, Cut, Screen, Handoff, Shot",
+            "Formation presets and parallel-alignment tools",
+            "Built-in animation playback",
+            "Click-and-drag editing",
+            "Shareable plays for staff and players",
+            "Works on iPad, Mac, Windows, Chromebook",
+            "Integrated with the NextPlay AI Coaching Staff"
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Can I really draw basketball plays for free?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Start with a 14-day free trial — no credit card required. After the trial, $19/month gets you the Play Creator plus the full AI Coaching Staff with all 5 specialists."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What types of plays can I draw?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Anything you'd diagram on a whiteboard: set plays, motion offense, BLOBs, SLOBs, ATO sets, zone offense, transition, defensive coverages, press breaks. Six action types (Pass, Dribble, Cut, Screen, Handoff, Shot) cover everything you'd draw by hand."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does this work for youth basketball?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Coaches at every level — 8U recreation up to varsity high school and AAU — use the Play Creator. The interface is simple enough for new coaches and powerful enough for advanced systems."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do I need to install anything?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. NextPlay runs in your browser. Works on iPad, Mac, Windows, and Chromebook. You can also install it as a PWA on iOS and Android home screens — there's an Install App button in the top nav."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can my assistants and players access the plays?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Plays are saved to your team's playbook and shareable with your staff and players. They view the plays in their browser — no app to install."
+              }
+            }
+          ]
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://trynextplay.app/main"},
+            {"@type": "ListItem", "position": 2, "name": "Play Creator", "item": "https://trynextplay.app/play-creator"}
+          ]
+        }
+      ]
+    }
+    </script>
+
+    <link rel="icon" href="{{ url_for('static', filename='img/logo_transparent.png') }}" type="image/png">
+    {% include "_pwa_meta.html" %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    {# Reuse the welcome page stylesheet for full visual continuity. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/welcome.css') }}">
+
+    <style>
+        /* ── Background images: unique to /play-creator, generated with
+              Nano Banana (Gemini 2.5 Flash Image). Mobile variants are
+              ~768px wide for faster load on phones. */
+        :root {
+            --bg-img-hero:   url("{{ url_for('static', filename='img/play_creator_hero-mobile.jpg') }}");
+            --pc-img-why:    url("{{ url_for('static', filename='img/play_creator_why-mobile.jpg') }}");
+            --pc-img-levels: url("{{ url_for('static', filename='img/play_creator_levels-mobile.jpg') }}");
+            --pc-img-cta:    url("{{ url_for('static', filename='img/play_creator_cta-mobile.jpg') }}");
+        }
+        @media (min-width: 768px) {
+            :root {
+                --bg-img-hero:   url("{{ url_for('static', filename='img/play_creator_hero.jpg') }}");
+                --pc-img-why:    url("{{ url_for('static', filename='img/play_creator_why.jpg') }}");
+                --pc-img-levels: url("{{ url_for('static', filename='img/play_creator_levels.jpg') }}");
+                --pc-img-cta:    url("{{ url_for('static', filename='img/play_creator_cta.jpg') }}");
+            }
+        }
+
+        /* ── Hero overlay override ─────────────────────────────────
+              welcome.css ramps the hero gradient up to 92% black at the
+              bottom — fine for /main, but it kills the visibility of the
+              /play-creator hero image right where the demo screenshot
+              sits. Tone the gradient down so the bg image stays visible. */
+        .hero .hero-bg::after {
+            background: linear-gradient(to bottom, rgba(10, 14, 20, 0.28), rgba(10, 14, 20, 0.6));
+        }
+
+        /* ── Section background utility — used by the new /play-creator
+              sections that don't have a built-in welcome.css equivalent. */
+        /* Section bg utility — image at full opacity, with a moderate
+           dark overlay on top for text readability. This mirrors how
+           welcome.css does .hero-bg: image stays clearly visible, just
+           tinted darker for contrast with foreground content. */
+        .pc-section-bg {
+            position: relative;
+            isolation: isolate;
+        }
+        .pc-section-bg::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: var(--pc-bg);
+            background-size: cover;
+            background-position: center;
+            z-index: -2;
+        }
+        .pc-section-bg::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(10, 14, 20, 0.7) 0%, rgba(10, 14, 20, 0.78) 100%);
+            z-index: -1;
+        }
+        .pc-section-bg--how    { --pc-bg: var(--pc-img-why); }
+        .pc-section-bg--levels { --pc-bg: var(--pc-img-levels); }
+        .pc-section-bg--final  { --pc-bg: var(--pc-img-cta); }
+
+        /* ── Hero demo: screenshot + subtle motion overlay ───────────
+              No "AI is drawing" framing — this animates the existing
+              arrows the way the in-app PLAY button animates them. */
+        .pc-hero-demo {
+            margin-top: 36px;
+            position: relative;
+            max-width: 760px;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7),
+                        0 0 0 1px rgba(244, 140, 37, 0.18) inset,
+                        0 0 60px -10px rgba(244, 140, 37, 0.2);
+            background: #0a0e14;
+            animation: pcDemoFadeUp 0.9s 0.2s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+        }
+        @keyframes pcDemoFadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .pc-hero-demo img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        /* SVG overlay — animates motion along the existing arrows.
+           Coordinates are tuned to play_creator_screenshot.png. */
+        .pc-hero-overlay {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .pc-overlay-trail {
+            fill: none;
+            stroke: #ff6b35;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-dasharray: 4 6;
+            filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.7));
+            animation: pcTrailFlow 1.6s linear infinite;
+        }
+        .pc-overlay-screen {
+            fill: none;
+            stroke: #ff5fa8;
+            stroke-width: 2;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 5px rgba(255, 95, 168, 0.6));
+            stroke-dasharray: 120;
+            stroke-dashoffset: 120;
+            animation: pcDrawIn 2.4s 0.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        @keyframes pcTrailFlow {
+            from { stroke-dashoffset: 20; }
+            to   { stroke-dashoffset: 0; }
+        }
+        @keyframes pcDrawIn {
+            0%   { stroke-dashoffset: 120; opacity: 0; }
+            15%  { opacity: 1; }
+            55%  { stroke-dashoffset: 0; opacity: 1; }
+            85%  { opacity: 1; }
+            100% { stroke-dashoffset: 0; opacity: 0; }
+        }
+        .pc-overlay-ping {
+            fill: rgba(255, 107, 53, 0.95);
+            filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.8));
+            transform-origin: center;
+            transform-box: fill-box;
+            animation: pcPing 2s ease-in-out infinite;
+        }
+        .pc-overlay-ping.delay-1 { animation-delay: 0.7s; }
+        @keyframes pcPing {
+            0%, 100% { transform: scale(0.9); opacity: 0.7; }
+            50%      { transform: scale(1.4); opacity: 1; }
+        }
+
+        /* "Why coaches switched" comparison cards */
+        .pc-compare-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 22px;
+            margin-top: 40px;
+        }
+        @media (max-width: 820px) {
+            .pc-compare-grid { grid-template-columns: 1fr; }
+        }
+        .pc-compare-card {
+            background: linear-gradient(180deg, rgba(21, 28, 42, 0.92) 0%, rgba(15, 21, 32, 0.92) 100%);
+            border: 1px solid rgba(255, 107, 53, 0.18);
+            border-radius: 16px;
+            padding: 28px 26px;
+            transition: transform 0.25s ease, border-color 0.25s ease;
+            backdrop-filter: blur(4px);
+        }
+        .pc-compare-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 107, 53, 0.4);
+        }
+        .pc-compare-card h3 {
+            color: #ff6b35;
+            font-size: 1.15rem;
+            margin: 0 0 14px 0;
+            letter-spacing: 0.01em;
+        }
+        .pc-compare-card p {
+            color: #c8cdd4;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 0 0 14px 0;
+        }
+        .pc-compare-card .pc-vs {
+            color: #6b7280;
+            font-size: 0.82rem;
+            font-style: italic;
+            border-top: 1px dashed rgba(255, 255, 255, 0.08);
+            padding-top: 12px;
+            margin-top: 4px;
+        }
+
+        /* 3-step "How it works" */
+        .pc-steps-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 40px;
+        }
+        @media (max-width: 820px) {
+            .pc-steps-grid { grid-template-columns: 1fr; }
+        }
+        /* Step cards — identical sized frames. Equal heights come for
+           free from CSS Grid's default align-items:stretch on the
+           parent .pc-steps-grid; chip rows are pushed to the bottom
+           via margin-top:auto so the bottoms align across all 3 cards. */
+        .pc-step {
+            text-align: center;
+            padding: 32px 24px 28px;
+            background: linear-gradient(180deg, rgba(21, 28, 42, 0.92) 0%, rgba(15, 21, 32, 0.92) 100%);
+            border: 1px solid rgba(255, 107, 53, 0.2);
+            border-radius: 16px;
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .pc-step:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 107, 53, 0.45);
+            box-shadow: 0 20px 40px -20px rgba(255, 107, 53, 0.25);
+        }
+        .pc-step .pc-step-chips {
+            margin-top: auto;
+            padding-top: 18px;
+        }
+        .pc-step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(180deg, #ff6b35 0%, #ff5722 100%);
+            color: #fff;
+            font-weight: 800;
+            font-size: 1.3rem;
+            margin-bottom: 18px;
+            box-shadow: 0 8px 20px -6px rgba(255, 107, 53, 0.5);
+        }
+        .pc-step h3 {
+            color: #f0f3f6;
+            font-size: 1.1rem;
+            margin: 0 0 10px 0;
+        }
+        .pc-step p {
+            color: #9ba4b0;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin: 0;
+        }
+        .pc-step-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .pc-step-chip {
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(244, 140, 37, 0.14) 0%, rgba(244, 140, 37, 0.06) 100%);
+            border: 1px solid rgba(244, 140, 37, 0.32);
+            color: #ffb270;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+        .pc-step-chip:hover {
+            transform: translateY(-1px);
+            border-color: rgba(244, 140, 37, 0.55);
+            background: rgba(244, 140, 37, 0.18);
+        }
+
+        /* Two-column feature rows */
+        .pc-feature-row {
+            display: grid;
+            grid-template-columns: 1.05fr 1fr;
+            gap: 48px;
+            align-items: center;
+            margin-top: 40px;
+        }
+        .pc-feature-row.reverse { grid-template-columns: 1fr 1.05fr; }
+        .pc-feature-row.reverse .pc-feature-text { order: 2; }
+        .pc-feature-row.reverse .pc-feature-visual { order: 1; }
+        @media (max-width: 820px) {
+            .pc-feature-row,
+            .pc-feature-row.reverse {
+                grid-template-columns: 1fr;
+                gap: 28px;
+            }
+            .pc-feature-row.reverse .pc-feature-text { order: 1; }
+            .pc-feature-row.reverse .pc-feature-visual { order: 2; }
+        }
+        .pc-feature-text h3 {
+            color: #f0f3f6;
+            font-size: 1.6rem;
+            margin: 0 0 16px 0;
+            letter-spacing: -0.01em;
+        }
+        .pc-feature-text p {
+            color: #c8cdd4;
+            font-size: 1rem;
+            line-height: 1.65;
+            margin: 0 0 12px 0;
+        }
+        .pc-feature-text ul {
+            list-style: none;
+            padding: 0;
+            margin: 18px 0 0 0;
+        }
+        .pc-feature-text ul li {
+            color: #c8cdd4;
+            padding: 6px 0 6px 24px;
+            position: relative;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .pc-feature-text ul li::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #f48c25;
+            font-weight: 700;
+        }
+        .pc-feature-visual {
+            background: linear-gradient(180deg, rgba(21, 28, 42, 0.92) 0%, rgba(15, 21, 32, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            min-height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+        /* Media variants (video + image) — fill the card edge-to-edge,
+           no inner padding. Shared treatment so animation + playbook
+           visuals look like siblings on the page. */
+        .pc-feature-visual--video,
+        .pc-feature-visual--image {
+            padding: 0;
+            min-height: 0;
+            background: #0a0e14;
+            overflow: hidden;
+            border: 1px solid rgba(255, 107, 53, 0.2);
+            box-shadow: 0 20px 50px -25px rgba(0, 0, 0, 0.6),
+                        0 0 40px -15px rgba(244, 140, 37, 0.18);
+        }
+        .pc-feature-video,
+        .pc-feature-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 16px;
+        }
+
+        /* "Built for every level" chips */
+        .pc-levels-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-top: 40px;
+        }
+        @media (max-width: 900px) {
+            .pc-levels-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .pc-levels-grid { grid-template-columns: 1fr; }
+        }
+        .pc-level-card {
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 22px 18px;
+            text-align: center;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .pc-level-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(244, 140, 37, 0.35);
+            background: rgba(244, 140, 37, 0.04);
+        }
+        .pc-level-card h4 {
+            color: #f0f3f6;
+            font-size: 1rem;
+            margin: 0 0 8px 0;
+        }
+        .pc-level-card p {
+            color: #9ba4b0;
+            font-size: 0.85rem;
+            line-height: 1.45;
+            margin: 0;
+        }
+
+        /* ★ Conversion hook — pivots from "play drawer" to "AI coaching staff" */
+        .pc-conversion-hook {
+            margin: 0 auto;
+            max-width: 940px;
+            background: linear-gradient(135deg, rgba(255, 107, 53, 0.18) 0%, rgba(255, 87, 34, 0.1) 100%);
+            border: 1px solid rgba(255, 107, 53, 0.4);
+            border-radius: 22px;
+            padding: 48px 40px;
+            text-align: center;
+            box-shadow: 0 30px 80px -20px rgba(255, 107, 53, 0.2);
+        }
+        @media (max-width: 600px) {
+            .pc-conversion-hook { padding: 32px 22px; }
+        }
+        .pc-conversion-hook h2 {
+            color: #ffb270;
+            font-size: 1.8rem;
+            margin: 0 0 12px 0;
+            letter-spacing: -0.01em;
+        }
+        .pc-conversion-hook > p {
+            color: #f0f3f6;
+            font-size: 1.05rem;
+            margin: 0 0 28px 0;
+            line-height: 1.55;
+        }
+        .pc-specialists {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 28px 0;
+            text-align: left;
+        }
+        @media (max-width: 820px) {
+            .pc-specialists { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .pc-specialists { grid-template-columns: 1fr; }
+        }
+        .pc-specialist {
+            background: rgba(10, 14, 20, 0.6);
+            border: 1px solid rgba(255, 107, 53, 0.18);
+            border-radius: 12px;
+            padding: 16px 14px;
+        }
+        .pc-specialist-role {
+            color: #ff6b35;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .pc-specialist h4 {
+            color: #f0f3f6;
+            font-size: 0.95rem;
+            margin: 0 0 6px 0;
+        }
+        .pc-specialist p {
+            color: #9ba4b0;
+            font-size: 0.82rem;
+            line-height: 1.45;
+            margin: 0;
+        }
+        .pc-tool-note {
+            color: #c8cdd4;
+            font-size: 0.92rem;
+            margin: 20px 0 26px 0;
+            padding: 14px 18px;
+            background: rgba(10, 14, 20, 0.4);
+            border-radius: 10px;
+            border-left: 3px solid rgba(244, 140, 37, 0.6);
+            display: inline-block;
+            text-align: left;
+        }
+        .pc-tool-note strong { color: #ffb270; }
+        .pc-pricing-line {
+            color: #c8cdd4;
+            font-size: 0.95rem;
+            margin: 0 0 24px 0;
+        }
+        .pc-pricing-line strong { color: #ffb270; }
+
+        /* Final CTA spacing */
+        .pc-final {
+            text-align: center;
+            padding: 96px 24px 80px;
+            position: relative;
+        }
+        .pc-final h2 {
+            color: #f0f3f6;
+            font-size: 2.2rem;
+            margin: 0 0 14px 0;
+            letter-spacing: -0.01em;
+        }
+        .pc-final > p {
+            color: #c8cdd4;
+            font-size: 1.05rem;
+            margin: 0 auto 32px auto;
+            max-width: 540px;
+            line-height: 1.6;
+        }
+        .pc-final-ctas {
+            display: inline-flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Mobile sticky CTA bar */
+        .pc-mobile-cta {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            background: linear-gradient(180deg, rgba(15, 21, 32, 0.92) 0%, rgba(10, 14, 20, 0.98) 100%);
+            border-top: 1px solid rgba(255, 107, 53, 0.25);
+            backdrop-filter: blur(10px);
+            z-index: 998;
+        }
+        .pc-mobile-cta-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            max-width: 520px;
+            margin: 0 auto;
+        }
+        .pc-mobile-cta span {
+            color: #c8cdd4;
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+        .pc-mobile-cta a {
+            padding: 10px 20px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #ff6b35 0%, #ff5722 100%);
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.92rem;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        @media (max-width: 768px) {
+            .pc-mobile-cta { display: block; }
+            body { padding-bottom: 80px; }
+        }
+
+        .pc-hero-trust {
+            margin-top: 14px;
+            color: rgba(240, 243, 246, 0.65);
+            font-size: 0.85rem;
+        }
+
+        /* Compensate for the removed .hero-logo-icon so the H1 stays
+           anchored where the logo used to start. welcome.css defines
+           the logo as 140x140 + 28px margin-bottom = 168px of space
+           above the H1 (100x100 + 28px = 128px on mobile). */
+        .hero-content {
+            padding-top: 168px;
+        }
+        @media (max-width: 768px) {
+            .hero-content {
+                padding-top: 128px;
+            }
+        }
+
+        /* ── Google Sign-In button — welcome.css does NOT define
+              .btn-google-signin (it lives in welcome.html's inline
+              <style>, which /play-creator doesn't include). Without
+              these rules the SVG renders at its viewBox intrinsic
+              size, blowing up to fill the page. */
+        .google-signin-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            margin-top: 20px;
+        }
+        .google-signin-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(240, 243, 246, 0.45);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            width: 100%;
+            max-width: 360px;
+        }
+        .google-signin-divider::before,
+        .google-signin-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(240, 243, 246, 0.12);
+        }
+        .btn-google-signin {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 28px;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #1f1f1f;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+            min-width: 260px;
+        }
+        .btn-google-signin:hover {
+            background: #f8fafc;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 6px 18px rgba(0, 0, 0, 0.08);
+        }
+        .btn-google-signin:active { transform: translateY(0); }
+        .btn-google-signin svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAVBAR — identical to /main (welcome.html). Same IDs and classes
+         so the existing welcome.css + welcome.js bind correctly. -->
+    <nav class="navbar" id="navbar">
+        <div class="container">
+            <a href="/main" class="nav-brand">
+                <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+                <span>NEXTPLAY</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="/main#features">Features</a></li>
+                <li><a href="/main#coaches">Coaches</a></li>
+                <li><a href="/main#pricing">Pricing</a></li>
+                <li><a href="#pc-faq">FAQ</a></li>
+            </ul>
+            <div class="nav-actions">
+                <button type="button" class="btn-install-app" data-pwa-install
+                        aria-label="Install NEXTPLAY as an app">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span data-pwa-label>Install App</span>
+                </button>
+                <a href="/login" class="btn-ghost">Sign In</a>
+                <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=nav" class="btn-primary">Start Free Trial</a>
+            </div>
+            <button class="nav-hamburger" id="hamburgerBtn" aria-label="Open menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MOBILE MENU — identical to /main -->
+    <div class="mobile-menu" id="mobileMenu">
+        <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">&times;</button>
+        <a href="/main#features" class="mobile-menu-link">Features</a>
+        <a href="/main#coaches" class="mobile-menu-link">Coaches</a>
+        <a href="/main#pricing" class="mobile-menu-link">Pricing</a>
+        <a href="#pc-faq" class="mobile-menu-link">FAQ</a>
+        <button type="button" class="mobile-menu-link" data-pwa-install
+                style="background:transparent;border:0;text-align:inherit;font:inherit;padding:0;cursor:pointer;color:inherit;width:100%;">
+            <span data-pwa-label>📲 Install App</span>
+        </button>
+        <a href="/login" class="mobile-menu-link">Sign In</a>
+        <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=mobile-menu" class="btn-primary btn-large">Start Free Trial</a>
+    </div>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-orb hero-orb-1"></div>
+        <div class="hero-orb hero-orb-2"></div>
+        <div class="hero-orb hero-orb-3"></div>
+        <div class="hero-content">
+            <h1>The Modern Way to <span class="accent-word">Draw Basketball Plays</span></h1>
+            <p class="hero-sub">Browser-based play designer for basketball coaches. Six action types, formation presets, built-in animation, share by link. Part of the <strong>NextPlay AI Coaching Staff</strong>.</p>
+            <div class="hero-ctas">
+                <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=hero" class="btn-primary btn-large">Start Drawing Free &rarr;</a>
+                <a href="#pc-how" class="btn-ghost btn-large">See How It Works</a>
+            </div>
+            <p class="pc-hero-trust">No credit card &middot; 14-day free trial &middot; Full AI Coaching Staff included</p>
+
+            <!-- Demo: screenshot with subtle motion overlay matching the
+                 in-app PLAY button's animation. -->
+            <div class="pc-hero-demo">
+                <img src="{{ url_for('static', filename='img/play_creator_screenshot.png') }}" alt="NextPlay Play Creator showing a half-court with 5 players, a pass arrow from the point guard to the wing, and a screen action across the paint" width="1200" height="675">
+
+                <svg class="pc-hero-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <path class="pc-overlay-trail" d="M 47 86 Q 60 70, 80 50" />
+                    <path class="pc-overlay-screen" d="M 38 55 Q 50 50, 62 56" />
+                    <circle class="pc-overlay-ping" cx="47" cy="86" r="2.2" />
+                    <circle class="pc-overlay-ping delay-1" cx="80" cy="48" r="2.2" />
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- WHY COACHES SWITCHED -->
+    <section class="section pc-section-bg pc-section-bg--how">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Why Switch</span>
+                <h2>Why Coaches Are Switching From FastDraw &amp; CoachLogic</h2>
+                <p>Three reasons coaches are moving off legacy desktop play-drawing software.</p>
+            </div>
+
+            <div class="pc-compare-grid">
+                <div class="pc-compare-card animate-on-scroll">
+                    <h3>Modern &amp; Intuitive</h3>
+                    <p>Six action types &mdash; <strong>Pass, Dribble, Cut, Screen, Handoff, Shot</strong> &mdash; with click-and-drag. Formation presets get you started in seconds. Built-in PLAY button animates any set.</p>
+                    <p class="pc-vs">FastDraw &amp; CoachLogic: dense ribbons of menus and tools designed for 2005.</p>
+                </div>
+                <div class="pc-compare-card animate-on-scroll">
+                    <h3>Works Anywhere</h3>
+                    <p>Opens on your iPad in the locker room, your Mac at home, your phone on the bus. No software to install, no machine to sync.</p>
+                    <p class="pc-vs">FastDraw: Windows desktop only. Plays trapped on one machine.</p>
+                </div>
+                <div class="pc-compare-card animate-on-scroll">
+                    <h3>Part of an AI Coaching Suite</h3>
+                    <p>Your plays don't sit in a folder &mdash; the NextPlay AI specialists reference them in scouting reports, practice plans, and game plans. $19/month for everything.</p>
+                    <p class="pc-vs">FastDraw: $199/year for a stand-alone play drawer.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- HOW IT WORKS -->
+    <section class="section" id="pc-how">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">How It Works</span>
+                <h2>From Blank Court to Shareable Play in 3 Steps</h2>
+                <p>The drawing UI was designed so the first play takes under 2 minutes.</p>
+            </div>
+
+            <div class="pc-steps-grid">
+                <div class="pc-step animate-on-scroll">
+                    <div class="pc-step-num">1</div>
+                    <h3>Set Up Your Court</h3>
+                    <p>Pick a formation preset (Box, Stack, 1-4 High, Horns&hellip;) or drag the five players to where you want them. The PARALLEL tool aligns them cleanly.</p>
+                    <div class="pc-step-chips">
+                        <span class="pc-step-chip">Formation</span>
+                        <span class="pc-step-chip">Parallel</span>
+                        <span class="pc-step-chip">Undo</span>
+                    </div>
+                </div>
+                <div class="pc-step animate-on-scroll">
+                    <div class="pc-step-num">2</div>
+                    <h3>Draw the Actions</h3>
+                    <p>Click a player, pick an action, drag to the target. Six action types cover everything you'd diagram by hand.</p>
+                    <div class="pc-step-chips">
+                        <span class="pc-step-chip">Pass</span>
+                        <span class="pc-step-chip">Dribble</span>
+                        <span class="pc-step-chip">Cut</span>
+                        <span class="pc-step-chip">Screen</span>
+                        <span class="pc-step-chip">Handoff</span>
+                        <span class="pc-step-chip">Shot</span>
+                    </div>
+                </div>
+                <div class="pc-step animate-on-scroll">
+                    <div class="pc-step-num">3</div>
+                    <h3>Animate &amp; Share</h3>
+                    <p>Hit PLAY to watch the set animate in real motion. Save to your team's playbook and share with assistants and players.</p>
+                    <div class="pc-step-chips">
+                        <span class="pc-step-chip">Play</span>
+                        <span class="pc-step-chip">Save</span>
+                        <span class="pc-step-chip">Share</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align:center; margin-top: 48px;" class="animate-on-scroll">
+                <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=how-it-works" class="btn-primary btn-large">Try It Free &mdash; No Credit Card</a>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- ANIMATE PLAYS -->
+    <section class="section">
+        <div class="container">
+            <div class="pc-feature-row animate-on-scroll">
+                <div class="pc-feature-text">
+                    <span class="section-label" style="display:inline-block; margin-bottom: 14px;">Animation</span>
+                    <h3>See the Motion, Not Just the X's and O's</h3>
+                    <p>Static diagrams are dead. Your players need to <strong>see</strong> the motion &mdash; when to cut, where to screen, who to look for.</p>
+                    <ul>
+                        <li>One click on PLAY animates the full set in real motion</li>
+                        <li>Save to your playbook so the animation stays with the play</li>
+                        <li>Players watch on their phone before practice</li>
+                        <li>Loop the timing on key actions until it lands</li>
+                    </ul>
+                </div>
+                <div class="pc-feature-visual pc-feature-visual--video">
+                    <video class="pc-feature-video"
+                           autoplay muted loop playsinline preload="metadata"
+                           poster="{{ url_for('static', filename='media/play_creator_animation_poster.jpg') }}"
+                           aria-label="Play Creator demo — a basketball play animating in real motion">
+                        <source src="{{ url_for('static', filename='media/play_creator_animation.webm') }}" type="video/webm">
+                        <source src="{{ url_for('static', filename='media/play_creator_animation.mp4') }}" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PLAYBOOK -->
+    <section class="section">
+        <div class="container">
+            <div class="pc-feature-row reverse animate-on-scroll">
+                <div class="pc-feature-text">
+                    <span class="section-label" style="display:inline-block; margin-bottom: 14px;">Playbook</span>
+                    <h3>One Playbook. Shared With Your Staff and Players.</h3>
+                    <p>Plays save to your team's playbook the moment you hit SAVE. Your assistants edit. Your players view. The whole staff is on the same page.</p>
+                    <ul>
+                        <li>Saved automatically to your team workspace</li>
+                        <li>Assistants edit; players view (no edit access)</li>
+                        <li>Browser-based &mdash; no app for players to install</li>
+                        <li>Update a play during scouting and the whole team sees it</li>
+                    </ul>
+                </div>
+                <div class="pc-feature-visual pc-feature-visual--image">
+                    <picture>
+                        <source media="(max-width: 640px)"
+                                srcset="{{ url_for('static', filename='img/play_creator_playbook-mobile.jpg') }}">
+                        <img class="pc-feature-image"
+                             src="{{ url_for('static', filename='img/play_creator_playbook.jpg') }}"
+                             alt="NextPlay playbook on an iPad — a grid of basketball plays with court diagrams, names, and category tags"
+                             width="1280" height="663"
+                             loading="lazy" decoding="async">
+                    </picture>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- BUILT FOR EVERY LEVEL -->
+    <section class="section pc-section-bg pc-section-bg--levels">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Every Level</span>
+                <h2>Built for Every Level of Basketball</h2>
+                <p>The interface is simple enough for first-year coaches and powerful enough for advanced systems.</p>
+            </div>
+
+            <div class="pc-levels-grid">
+                <div class="pc-level-card animate-on-scroll">
+                    <h4>High School</h4>
+                    <p>Varsity, JV, freshman. Full set play library.</p>
+                </div>
+                <div class="pc-level-card animate-on-scroll">
+                    <h4>AAU &amp; Club</h4>
+                    <p>Tournament-ready playbooks in a weekend.</p>
+                </div>
+                <div class="pc-level-card animate-on-scroll">
+                    <h4>Youth (8U &ndash; 14U)</h4>
+                    <p>Simple concepts, fundamentals-first.</p>
+                </div>
+                <div class="pc-level-card animate-on-scroll">
+                    <h4>College Assistants</h4>
+                    <p>Scout-driven sets and advanced coverages.</p>
+                </div>
+                <div class="pc-level-card animate-on-scroll">
+                    <h4>International</h4>
+                    <p>FIBA half-court, EuroLeague-style sets.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- ★ CONVERSION HOOK — pivot to full AI Coaching Staff -->
+    <section class="section">
+        <div class="container">
+            <div class="pc-conversion-hook animate-on-scroll">
+                <h2>The Play Creator Is Just the Tool. The Staff Is What's New.</h2>
+                <p>Drawing a play is the easy part. What makes NextPlay different is the <strong>five AI coaches</strong> that work with your plays in the background &mdash; building scouting reports, practice plans, and game plans around your sets.</p>
+
+                <div class="pc-specialists">
+                    <div class="pc-specialist">
+                        <div class="pc-specialist-role">GM</div>
+                        <h4>Brad Binn</h4>
+                        <p>Routes every question to the right specialist.</p>
+                    </div>
+                    <div class="pc-specialist">
+                        <div class="pc-specialist-role">Scout</div>
+                        <h4>Jack Hunter</h4>
+                        <p>Researches opponents and matches their tendencies to your sets.</p>
+                    </div>
+                    <div class="pc-specialist">
+                        <div class="pc-specialist-role">Analytics</div>
+                        <h4>Dr. Nexus</h4>
+                        <p>Player metrics, lineup data, and performance trends.</p>
+                    </div>
+                    <div class="pc-specialist">
+                        <div class="pc-specialist-role">Tactics</div>
+                        <h4>Ed Vance</h4>
+                        <p>Game plans built around <em>your</em> roster and <em>your</em> playbook.</p>
+                    </div>
+                    <div class="pc-specialist">
+                        <div class="pc-specialist-role">Training</div>
+                        <h4>Duncan Bucket</h4>
+                        <p>Practice plans that drill your sets and target team weaknesses.</p>
+                    </div>
+                </div>
+
+                <p class="pc-tool-note">
+                    <strong>+ The Play Creator you're using here.</strong>
+                    Manual drawing, animated playback, team-wide sharing &mdash; included in every plan.
+                </p>
+
+                <p class="pc-pricing-line">All 5 specialists + the Play Creator. One subscription. <strong>$19/month</strong> after your free trial.</p>
+
+                <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=conversion-hook" class="btn-primary btn-large">Get the Full AI Coaching Staff Free &rarr;</a>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- FAQ -->
+    <section class="section" id="pc-faq">
+        <div class="container">
+            <div class="section-header animate-on-scroll">
+                <span class="section-label">Support</span>
+                <h2>Frequently Asked Questions</h2>
+            </div>
+            <div class="faq-list">
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Can I really draw basketball plays for free?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Yes. Start with a 14-day free trial &mdash; no credit card required. After the trial, $19/month gets you the Play Creator plus the full AI Coaching Staff with all 5 specialists.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        What types of plays can I draw?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Anything you'd diagram on a whiteboard: set plays, motion offense, BLOBs, SLOBs, ATO sets, zone offense, transition, defensive coverages, press breaks. Six action types &mdash; Pass, Dribble, Cut, Screen, Handoff, Shot &mdash; cover everything you'd draw by hand.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Does this work for youth basketball?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Yes. Coaches at every level &mdash; 8U recreation up to varsity high school and AAU &mdash; use the Play Creator. The interface is simple enough for new coaches and powerful enough for advanced systems.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Do I need to install anything?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>No. NextPlay runs in your browser. Works on iPad, Mac, Windows, and Chromebook. You can also install it as a PWA on iOS and Android home screens &mdash; use the <strong>Install App</strong> button in the top nav.</p></div>
+                </div>
+                <div class="faq-item animate-on-scroll">
+                    <button class="faq-question">
+                        Can my assistants and players access the plays?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer"><p>Yes. Plays save to your team's playbook and are shareable with your staff and players. They view the plays in their browser &mdash; no app to install.</p></div>
+                </div>
+            </div>
+
+            <div style="text-align:center; margin-top: 48px;" class="animate-on-scroll">
+                <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=after-faq" class="btn-primary btn-large">Start 14-Day Free Trial &rarr;</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="final-cta pc-final pc-section-bg pc-section-bg--final">
+        <div class="container animate-on-scroll">
+            <h2>Ready to Stop Drawing Plays by Hand?</h2>
+            <p>Join coaches who switched from FastDraw, CoachLogic, and pen-and-paper to a modern, browser-based play designer &mdash; with a full AI Coaching Staff thrown in.</p>
+            <div class="pc-final-ctas final-cta-btns">
+                <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=final-cta" class="btn-primary btn-large">Start 14-Day Free Trial</a>
+                <a href="/login" class="btn-ghost btn-large">Sign In</a>
+            </div>
+            {% if has_google %}
+            <div class="google-signin-wrap">
+                <div class="google-signin-divider">or</div>
+                <a href="/auth/google" class="btn-google-signin">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    Sign in with Google
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-brand">
+                        <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" loading="lazy" decoding="async">
+                        <span>NEXTPLAY</span>
+                    </div>
+                    <p class="footer-desc">AI-powered basketball coaching platform. Five specialized AI coaches working together to help you scout, analyze, strategize, and plan.</p>
+                    <p class="footer-copy">&copy; 2024&ndash;2026 NextPlay. All rights reserved.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="/main#features">Features</a></li>
+                        <li><a href="/main#pricing">Pricing</a></li>
+                        <li><a href="/play-creator">Play Creator</a></li>
+                        <li><a href="#pc-faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/terms">Terms of Service</a></li>
+                        <li><a href="/privacy">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">Built with passion for the game.</div>
+        </div>
+    </footer>
+
+    <!-- Mobile sticky CTA bar -->
+    <div class="pc-mobile-cta">
+        <div class="pc-mobile-cta-inner">
+            <span>Try Free &mdash; 14 days</span>
+            <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=mobile-sticky">Start Drawing &rarr;</a>
+        </div>
+    </div>
+
+    {# Floating install CTA — same pattern as /main, kept visible while
+       the user scrolls. Bound by pwa-install-banner.js below. #}
+    <button type="button" class="floating-install-cta" data-pwa-install
+            aria-label="Install NEXTPLAY as an app">
+        <svg class="floating-install-cta__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span class="floating-install-cta__label" data-pwa-label>Install App</span>
+        <span class="floating-install-cta__flame" aria-hidden="true">🔥</span>
+    </button>
+
+    {# Page-local JS — covers everything /play-creator needs without
+       depending on welcome.js. welcome.js hard-references #registerForm
+       and other /main-only elements, which throws a TypeError on this
+       page and kills the IntersectionObserver. This inline version
+       handles the navbar, mobile menu, smooth scroll, FAQ accordion,
+       and .animate-on-scroll fade-ins — all defensively (null checks). #}
+    <script>
+    (function () {
+        'use strict';
+
+        // ── Navbar scroll-shadow ─────────────────────────────────────
+        var navbar = document.getElementById('navbar');
+        if (navbar) {
+            window.addEventListener('scroll', function () {
+                if (window.scrollY > 50) navbar.classList.add('scrolled');
+                else navbar.classList.remove('scrolled');
+            }, { passive: true });
+        }
+
+        // ── Mobile menu open/close ───────────────────────────────────
+        var hamburgerBtn = document.getElementById('hamburgerBtn');
+        var mobileMenu = document.getElementById('mobileMenu');
+        var mobileMenuClose = document.getElementById('mobileMenuClose');
+        function openMenu() {
+            if (!mobileMenu) return;
+            mobileMenu.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeMenu() {
+            if (!mobileMenu) return;
+            mobileMenu.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+        if (hamburgerBtn) hamburgerBtn.addEventListener('click', openMenu);
+        if (mobileMenuClose) mobileMenuClose.addEventListener('click', closeMenu);
+        document.querySelectorAll('.mobile-menu-link').forEach(function (link) {
+            link.addEventListener('click', closeMenu);
+        });
+
+        // ── Smooth scroll for anchor links ───────────────────────────
+        document.querySelectorAll('a[href^="#"]').forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                var href = this.getAttribute('href');
+                if (!href || href === '#' || href.length < 2) return;
+                var target;
+                try { target = document.querySelector(href); } catch (_) { return; }
+                if (target) {
+                    e.preventDefault();
+                    closeMenu();
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // ── FAQ accordion ────────────────────────────────────────────
+        document.querySelectorAll('.faq-question').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var item = btn.closest('.faq-item');
+                if (!item) return;
+                var willOpen = !item.classList.contains('open');
+                document.querySelectorAll('.faq-item.open').forEach(function (el) {
+                    if (el !== item) el.classList.remove('open');
+                });
+                item.classList.toggle('open', willOpen);
+            });
+        });
+
+        // ── Respect prefers-reduced-motion: pause autoplay videos ──
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.querySelectorAll('video[autoplay]').forEach(function (v) {
+                v.removeAttribute('autoplay');
+                v.pause();
+            });
+        }
+
+        // ── Scroll-triggered fade-in for .animate-on-scroll ─────────
+        if ('IntersectionObserver' in window) {
+            var observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
+            document.querySelectorAll('.animate-on-scroll').forEach(function (el) {
+                observer.observe(el);
+            });
+        } else {
+            // Older browser — just show everything immediately.
+            document.querySelectorAll('.animate-on-scroll').forEach(function (el) {
+                el.classList.add('visible');
+            });
+        }
+    })();
+    </script>
+
+    {# PWA: service worker + install-prompt — needed to make the
+       "Install App" buttons actually trigger the install flow. #}
+    <script src="{{ url_for('static', filename='js/pwa-register.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/pwa-install-banner.js') }}" defer></script>
+</body>
+</html>

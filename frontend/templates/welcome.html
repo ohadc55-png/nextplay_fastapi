@@ -3,8 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NextPlay — AI-Powered Basketball Coaching</title>
-    <meta name="description" content="NextPlay is an AI-powered basketball coaching platform with five specialized AI coaches that help you scout, analyze, strategize, and plan.">
+    <title>AI Basketball Coaching Staff | Scout, Plan & Design Plays | NextPlay</title>
+    <meta name="description" content="AI coaching staff for basketball coaches. Scout opponents, plan practices, design plays, and analyze players — powered by 5 specialist AI coaches. 14-day free trial, no credit card.">
+    <link rel="canonical" href="https://trynextplay.app/main">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+
+    <!-- Open Graph (Facebook, LinkedIn, WhatsApp, Slack) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://trynextplay.app/main">
+    <meta property="og:title" content="AI Basketball Coaching Staff | Scout, Plan & Design Plays">
+    <meta property="og:description" content="5 specialist AI coaches that help you scout opponents, plan practices, design plays, and analyze players. Built for basketball coaches.">
+    <meta property="og:image" content="https://trynextplay.app/static/img/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="NextPlay">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AI Basketball Coaching Staff | Scout, Plan & Design Plays">
+    <meta name="twitter:description" content="5 specialist AI coaches built for basketball coaches. Scout, plan, design plays, analyze players. Free 14-day trial.">
+    <meta name="twitter:image" content="https://trynextplay.app/static/img/og-image.png">
+
+    {# Google Search Console verification — replace content="..." with the
+       value Google gives you in Search Console → Add property → HTML tag. #}
+    <meta name="google-site-verification" content="REPLACE_WITH_GSC_VERIFICATION_TOKEN">
+
+    <!-- Structured data: Organization + SoftwareApplication + FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://trynextplay.app/#organization",
+          "name": "NextPlay",
+          "url": "https://trynextplay.app",
+          "logo": "https://trynextplay.app/static/img/logo_transparent.png",
+          "description": "AI-powered coaching assistant for basketball coaches.",
+          "founder": {"@type": "Person", "name": "Ohad Cohen"}
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://trynextplay.app/#software",
+          "name": "NextPlay",
+          "applicationCategory": "SportsApplication",
+          "operatingSystem": "Web, iOS (PWA), Android (PWA)",
+          "description": "AI coaching staff for basketball coaches: 5 specialist AI agents that scout opponents, design plays, plan practices, and analyze players.",
+          "offers": {
+            "@type": "Offer",
+            "price": "19",
+            "priceCurrency": "USD",
+            "priceSpecification": {
+              "@type": "UnitPriceSpecification",
+              "price": "19",
+              "priceCurrency": "USD",
+              "unitText": "MONTH"
+            },
+            "availability": "https://schema.org/InStock"
+          },
+          "audience": {
+            "@type": "Audience",
+            "audienceType": "Basketball Coaches"
+          },
+          "featureList": [
+            "AI play designer — draw basketball plays from text",
+            "AI opponent scouting reports",
+            "AI practice plan generator",
+            "Player performance analytics",
+            "Video tagging and clip compilation",
+            "Multi-team management"
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is NextPlay?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "NextPlay is an AI-powered basketball coaching platform with five specialized AI coaches that help you scout opponents, analyze statistics, design plays, plan practices, and manage your team."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does the AI coaching staff work?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Each AI coach specializes in a different area. When you ask a question, the GM automatically routes it to the right specialist — scouting, analytics, tactics, or training."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I upload game footage?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. The Video Hub lets you upload, annotate, clip, and compare game footage with a full drawing toolkit for frame-by-frame analysis."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is there a free trial?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, every new account gets a 14-day free trial with full access. No credit card required."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I manage multiple teams?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Depending on your plan, you can manage 2-5 teams or more with separate rosters and coaching data for each."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+
     <link rel="icon" href="{{ url_for('static', filename='img/logo_transparent.png') }}" type="image/png">
     {% include "_pwa_meta.html" %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
