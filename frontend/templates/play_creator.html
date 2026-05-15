@@ -185,11 +185,14 @@
               No "AI is drawing" framing — this animates the existing
               arrows the way the in-app PLAY button animates them. */
         .pc-hero-demo {
-            margin-top: 36px;
+            margin: 36px auto 0;
             position: relative;
-            max-width: 760px;
-            margin-left: auto;
-            margin-right: auto;
+            max-width: 640px;
+            /* Matches the cropped web video (1280x1032). The video file
+               itself was trimmed so there are no dark side bars; this
+               aspect makes the container fit the visible content edge
+               to edge. */
+            aspect-ratio: 1280 / 1032;
             border-radius: 18px;
             overflow: hidden;
             box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7),
@@ -208,56 +211,54 @@
             height: auto;
         }
 
-        /* SVG overlay — animates motion along the existing arrows.
-           Coordinates are tuned to play_creator_screenshot.png. */
-        .pc-hero-overlay {
-            position: absolute;
-            inset: 0;
+        /* Hero demo videos — two <video> tags, CSS switches visibility
+           based on viewport. Chrome doesn't honor `media` on <source>
+           inside <video>, so this is the canonical approach.
+           Using !important to win over any inherited rule. */
+        .pc-hero-video {
             width: 100%;
             height: 100%;
-            pointer-events: none;
+            object-fit: contain;
+            border-radius: 18px;
         }
-        .pc-overlay-trail {
-            fill: none;
-            stroke: #ff6b35;
-            stroke-width: 2;
-            stroke-linecap: round;
-            stroke-dasharray: 4 6;
-            filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.7));
-            animation: pcTrailFlow 1.6s linear infinite;
+        .pc-hero-demo .pc-hero-video--desktop { display: block !important; }
+        .pc-hero-demo .pc-hero-video--mobile  { display: none  !important; }
+
+        @media (max-width: 768px) {
+            .pc-hero-demo .pc-hero-video--desktop { display: none  !important; }
+            .pc-hero-demo .pc-hero-video--mobile  { display: block !important; }
+            /* Constrain the portrait mobile video so it doesn't take
+               over the entire viewport height. */
+            .pc-hero-demo {
+                max-width: 280px;
+                aspect-ratio: 9 / 16;
+                margin: 28px auto 0;
+            }
         }
-        .pc-overlay-screen {
-            fill: none;
-            stroke: #ff5fa8;
-            stroke-width: 2;
-            stroke-linecap: round;
-            filter: drop-shadow(0 0 5px rgba(255, 95, 168, 0.6));
-            stroke-dasharray: 120;
-            stroke-dashoffset: 120;
-            animation: pcDrawIn 2.4s 0.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-        @keyframes pcTrailFlow {
-            from { stroke-dashoffset: 20; }
-            to   { stroke-dashoffset: 0; }
-        }
-        @keyframes pcDrawIn {
-            0%   { stroke-dashoffset: 120; opacity: 0; }
-            15%  { opacity: 1; }
-            55%  { stroke-dashoffset: 0; opacity: 1; }
-            85%  { opacity: 1; }
-            100% { stroke-dashoffset: 0; opacity: 0; }
-        }
-        .pc-overlay-ping {
-            fill: rgba(255, 107, 53, 0.95);
-            filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.8));
-            transform-origin: center;
-            transform-box: fill-box;
-            animation: pcPing 2s ease-in-out infinite;
-        }
-        .pc-overlay-ping.delay-1 { animation-delay: 0.7s; }
-        @keyframes pcPing {
-            0%, 100% { transform: scale(0.9); opacity: 0.7; }
-            50%      { transform: scale(1.4); opacity: 1; }
+
+        /* Mobile hero refinements — stack CTAs full-width for thumb-
+           sized tap targets, lighten the trust line, tighten spacing. */
+        @media (max-width: 600px) {
+            .hero-content {
+                padding-top: 96px;
+            }
+            .hero-ctas {
+                flex-direction: column;
+                width: 100%;
+                max-width: 320px;
+                margin: 0 auto;
+                gap: 12px;
+            }
+            .hero-ctas .btn-large {
+                width: 100%;
+                justify-content: center;
+            }
+            .pc-hero-trust {
+                font-size: 0.78rem;
+                line-height: 1.5;
+                padding: 0 20px;
+                margin-top: 16px;
+            }
         }
 
         /* "Why coaches switched" comparison cards */
@@ -807,17 +808,26 @@
             </div>
             <p class="pc-hero-trust">No credit card &middot; 14-day free trial &middot; Full AI Coaching Staff included</p>
 
-            <!-- Demo: screenshot with subtle motion overlay matching the
-                 in-app PLAY button's animation. -->
+            <!-- Responsive hero demo videos — two <video> tags because
+                 Chrome ignores the `media` attribute on <source> inside
+                 <video>. CSS shows the right one based on viewport.
+                 preload="none" on the hidden video so the browser
+                 doesn't download a file the user will never see. -->
             <div class="pc-hero-demo">
-                <img src="{{ url_for('static', filename='img/play_creator_screenshot.png') }}" alt="NextPlay Play Creator showing a half-court with 5 players, a pass arrow from the point guard to the wing, and a screen action across the paint" width="1200" height="675">
-
-                <svg class="pc-hero-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <path class="pc-overlay-trail" d="M 47 86 Q 60 70, 80 50" />
-                    <path class="pc-overlay-screen" d="M 38 55 Q 50 50, 62 56" />
-                    <circle class="pc-overlay-ping" cx="47" cy="86" r="2.2" />
-                    <circle class="pc-overlay-ping delay-1" cx="80" cy="48" r="2.2" />
-                </svg>
+                <video class="pc-hero-video pc-hero-video--desktop"
+                       autoplay muted loop playsinline preload="auto"
+                       poster="{{ url_for('static', filename='media/play_creator_hero_web_poster.jpg') }}"
+                       aria-label="NextPlay Play Creator demo — drawing a basketball play">
+                    <source src="{{ url_for('static', filename='media/play_creator_hero_web.mp4') }}" type="video/mp4">
+                    <source src="{{ url_for('static', filename='media/play_creator_hero_web.webm') }}" type="video/webm">
+                </video>
+                <video class="pc-hero-video pc-hero-video--mobile"
+                       muted loop playsinline preload="none"
+                       poster="{{ url_for('static', filename='media/play_creator_hero_mobile_poster.jpg') }}"
+                       aria-label="NextPlay Play Creator demo — drawing a basketball play on mobile">
+                    <source src="{{ url_for('static', filename='media/play_creator_hero_mobile.mp4') }}" type="video/mp4">
+                    <source src="{{ url_for('static', filename='media/play_creator_hero_mobile.webm') }}" type="video/webm">
+                </video>
             </div>
         </div>
     </section>
@@ -826,26 +836,23 @@
     <section class="section pc-section-bg pc-section-bg--how">
         <div class="container">
             <div class="section-header animate-on-scroll">
-                <span class="section-label">Why Switch</span>
-                <h2>Why Coaches Are Switching From FastDraw &amp; CoachLogic</h2>
-                <p>Three reasons coaches are moving off legacy desktop play-drawing software.</p>
+                <span class="section-label">Why Coaches Choose Us</span>
+                <h2>Built for Coaches Who Want More Than a Whiteboard</h2>
+                <p>Three reasons NEXTPLAY is the modern way to design plays.</p>
             </div>
 
             <div class="pc-compare-grid">
                 <div class="pc-compare-card animate-on-scroll">
                     <h3>Modern &amp; Intuitive</h3>
                     <p>Six action types &mdash; <strong>Pass, Dribble, Cut, Screen, Handoff, Shot</strong> &mdash; with click-and-drag. Formation presets get you started in seconds. Built-in PLAY button animates any set.</p>
-                    <p class="pc-vs">FastDraw &amp; CoachLogic: dense ribbons of menus and tools designed for 2005.</p>
                 </div>
                 <div class="pc-compare-card animate-on-scroll">
                     <h3>Works Anywhere</h3>
-                    <p>Opens on your iPad in the locker room, your Mac at home, your phone on the bus. No software to install, no machine to sync.</p>
-                    <p class="pc-vs">FastDraw: Windows desktop only. Plays trapped on one machine.</p>
+                    <p>Opens on your iPad in the locker room, your Mac at home, your phone on the bus. No software to install, no machine to sync. Your playbook follows you.</p>
                 </div>
                 <div class="pc-compare-card animate-on-scroll">
                     <h3>Part of an AI Coaching Suite</h3>
-                    <p>Your plays don't sit in a folder &mdash; the NextPlay AI specialists reference them in scouting reports, practice plans, and game plans. $19/month for everything.</p>
-                    <p class="pc-vs">FastDraw: $199/year for a stand-alone play drawer.</p>
+                    <p>Your plays don't sit in a folder &mdash; the NextPlay AI specialists reference them in scouting reports, practice plans, and game plans. All 5 specialists + Play Creator for $19/month.</p>
                 </div>
             </div>
         </div>
@@ -1106,7 +1113,7 @@
     <section class="final-cta pc-final pc-section-bg pc-section-bg--final">
         <div class="container animate-on-scroll">
             <h2>Ready to Stop Drawing Plays by Hand?</h2>
-            <p>Join coaches who switched from FastDraw, CoachLogic, and pen-and-paper to a modern, browser-based play designer &mdash; with a full AI Coaching Staff thrown in.</p>
+            <p>Join coaches who upgraded to a modern, browser-based play designer &mdash; with a full AI Coaching Staff thrown in.</p>
             <div class="pc-final-ctas final-cta-btns">
                 <a href="/register?utm_source=play-creator&utm_medium=organic&utm_content=final-cta" class="btn-primary btn-large">Start 14-Day Free Trial</a>
                 <a href="/login" class="btn-ghost btn-large">Sign In</a>
@@ -1249,6 +1256,62 @@
             document.querySelectorAll('video[autoplay]').forEach(function (v) {
                 v.removeAttribute('autoplay');
                 v.pause();
+            });
+        } else {
+            // ── Hero responsive video — only the visible one plays ──
+            // CSS hides one of .pc-hero-video--desktop / --mobile based
+            // on viewport. We start the visible one and pause/clear the
+            // hidden one so the browser doesn't waste bandwidth on a
+            // file the user will never see.
+            function tuneHeroVideos() {
+                var isMobile = window.matchMedia('(max-width: 768px)').matches;
+                var desk = document.querySelector('.pc-hero-video--desktop');
+                var mob  = document.querySelector('.pc-hero-video--mobile');
+                var active = isMobile ? mob : desk;
+                var hidden = isMobile ? desk : mob;
+                console.log('[hero-video] viewport=' + window.innerWidth + ' isMobile=' + isMobile);
+                if (hidden) {
+                    try { hidden.pause(); } catch (e) {}
+                    hidden.style.display = 'none';
+                    hidden.removeAttribute('autoplay');
+                }
+                if (active) {
+                    active.style.display = 'block';
+                    active.muted = true; active.loop = true; active.playsInline = true;
+                    var p = active.play();
+                    if (p && typeof p.then === 'function') {
+                        p.catch(function () {
+                            // Autoplay blocked → start on first interaction.
+                            var unblock = function () {
+                                active.play().catch(function () {});
+                                ['click','touchstart','keydown','scroll'].forEach(function (evt) {
+                                    document.removeEventListener(evt, unblock);
+                                });
+                            };
+                            ['click','touchstart','keydown','scroll'].forEach(function (evt) {
+                                document.addEventListener(evt, unblock, { once: true, passive: true });
+                            });
+                        });
+                    }
+                }
+            }
+            tuneHeroVideos();
+            // Re-evaluate if the user resizes across the breakpoint.
+            window.addEventListener('resize', tuneHeroVideos);
+
+            // ── Also handle other autoplay videos (e.g. .pc-feature-video) ──
+            document.querySelectorAll('video[autoplay]').forEach(function (v) {
+                if (v.classList.contains('pc-hero-video')) return;
+                var p = v.play();
+                if (p && typeof p.then === 'function') {
+                    p.catch(function () {
+                        var unblock = function () {
+                            v.play().catch(function () {});
+                            document.removeEventListener('click', unblock);
+                        };
+                        document.addEventListener('click', unblock, { once: true, passive: true });
+                    });
+                }
             });
         }
 

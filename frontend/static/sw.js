@@ -94,6 +94,18 @@ self.addEventListener('fetch', function (event) {
     return; // pass through to network
   }
 
+  // Media files (videos, audio) — pass through to the network. Browsers
+  // request these with HTTP Range headers and receive 206 Partial Content
+  // responses, which the Cache API's put() cannot store (throws TypeError).
+  // Letting the network handle them directly preserves <video> seeking +
+  // streaming and avoids breaking the page with cache errors.
+  if (
+    url.pathname.startsWith('/static/media/') ||
+    /\.(mp4|webm|mov|m4v|ogv|mp3|m4a|ogg|wav)$/i.test(url.pathname)
+  ) {
+    return; // pass through to network
+  }
+
   // Static assets: cache-first. They're cache-busted via ?v= so a new deploy
   // mints new URLs and the old entries become unreachable + auto-evicted.
   if (url.pathname.startsWith('/static/')) {
@@ -116,18 +128,24 @@ async function cacheFirst(req, cacheName) {
     // Refresh in background — eventual consistency is fine for static assets.
     fetch(req)
       .then(function (resp) {
-        if (resp && resp.ok) cache.put(req, resp.clone());
+        if (isCacheable(resp)) cache.put(req, resp.clone()).catch(function () {});
       })
       .catch(function () {});
     return cached;
   }
   try {
     const resp = await fetch(req);
-    if (resp && resp.ok) cache.put(req, resp.clone());
+    if (isCacheable(resp)) cache.put(req, resp.clone()).catch(function () {});
     return resp;
   } catch (e) {
     return new Response('', { status: 504, statusText: 'offline' });
   }
+}
+
+// Only cache full successful responses. 206 Partial Content (Range requests
+// for media) and opaque/error responses throw on Cache.put().
+function isCacheable(resp) {
+  return resp && resp.ok && resp.status === 200 && resp.type === 'basic';
 }
 
 async function networkFirstPage(req) {
