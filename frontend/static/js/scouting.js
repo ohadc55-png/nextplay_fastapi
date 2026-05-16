@@ -4101,15 +4101,150 @@ async function deleteClip(clipId) {
 }
 
 // --- NEW: Public Clip Sharing ---
+
+// Extract the most useful error message we can give the user. API.post throws
+// an Error with the server's body attached (under `.response` or `.data`);
+// fall back to the raw message. Recognise the 403 trial-expired payload so
+// the user sees "Trial expired — upgrade" instead of a cryptic "Forbidden".
+function _shareErrorMessage(e) {
+  try {
+    var body = (e && (e.response || e.data || e.body)) || null;
+    if (body && typeof body === 'object') {
+      if (body.code === 'trial_expired') return 'Trial expired — upgrade to keep sharing videos.';
+      if (body.code === 'pro_required') return 'Video sharing requires the Pro plan.';
+      if (body.message) return body.message;
+      if (body.detail) return body.detail;
+    }
+  } catch (_) { /* fall through */ }
+  return (e && e.message) || 'Unknown error';
+}
+
+// Open a modal that always displays the share URL — so even when the
+// Clipboard API throws (insecure context, permission denied, mobile
+// quirks) the user can still see and manually copy the link. If the
+// auto-copy succeeded the UI shows a green confirmation; otherwise it
+// invites the user to copy from the input field.
+function _showShareLinkModal(url, label) {
+  var existing = document.getElementById('shareLinkModal');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'shareLinkModal';
+  overlay.className = 'share-link-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,.6);' +
+    'display:flex;align-items:center;justify-content:center;z-index:9999;';
+
+  var box = document.createElement('div');
+  box.style.cssText =
+    'background:#1a1f29;color:#fff;border-radius:14px;padding:24px;' +
+    'max-width:520px;width:90vw;box-shadow:0 12px 48px rgba(0,0,0,.5);' +
+    'border:1px solid rgba(255,255,255,.08);font-family:inherit;';
+
+  var title = document.createElement('h3');
+  title.textContent = label || 'Share link';
+  title.style.cssText = 'margin:0 0 8px;font-size:18px;font-weight:600;';
+
+  var hint = document.createElement('p');
+  hint.id = 'shareLinkHint';
+  hint.style.cssText = 'margin:0 0 16px;font-size:13px;color:#9ca3af;';
+  hint.textContent = 'Copied to your clipboard. You can also copy it manually:';
+
+  var row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:stretch;';
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.readOnly = true;
+  input.value = url;
+  input.style.cssText =
+    'flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);' +
+    'background:#0f1218;color:#fff;font-size:13px;font-family:monospace;';
+  input.addEventListener('focus', function () { input.select(); });
+
+  var copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.textContent = 'Copy';
+  copyBtn.style.cssText =
+    'padding:10px 16px;border-radius:8px;border:0;background:#f97316;color:#fff;' +
+    'font-weight:600;cursor:pointer;';
+  copyBtn.addEventListener('click', function () {
+    _copyToClipboardFallback(url).then(function (ok) {
+      copyBtn.textContent = ok ? 'Copied!' : 'Press Ctrl+C';
+      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1800);
+    });
+  });
+
+  var closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText =
+    'margin-top:16px;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.12);' +
+    'background:transparent;color:#9ca3af;cursor:pointer;float:right;';
+  closeBtn.addEventListener('click', function () { overlay.remove(); });
+
+  row.appendChild(input);
+  row.appendChild(copyBtn);
+  box.appendChild(title);
+  box.appendChild(hint);
+  box.appendChild(row);
+  box.appendChild(closeBtn);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+  setTimeout(function () { input.focus(); input.select(); }, 50);
+
+  return {
+    markCopied: function () {
+      hint.textContent = 'Copied to your clipboard.';
+    },
+    markManual: function () {
+      hint.textContent = 'Auto-copy was blocked. Use the Copy button or press Ctrl+C.';
+    },
+  };
+}
+
+// Tries the modern Clipboard API first, falls back to a hidden textarea +
+// execCommand('copy') for older Safari / mobile contexts where the
+// Promise-based API throws on focus or permissions.
+async function _copyToClipboardFallback(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) { /* fall through */ }
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function shareClip(clipId) {
   if (!_currentVideo) return;
   try {
     const res = await API.post(`/api/scouting/clips/${clipId}/share`, { video_id: _currentVideo.id });
     const url = res.data.url;
-    await navigator.clipboard.writeText(url);
-    Toast.success('Share link copied to clipboard!');
+    const modal = _showShareLinkModal(url, 'Clip share link');
+    const copied = await _copyToClipboardFallback(url);
+    if (copied) { modal.markCopied(); Toast.success('Share link copied!'); }
+    else { modal.markManual(); }
   } catch (e) {
-    Toast.error('Failed to create share link: ' + (e.message || ''));
+    console.error('shareClip failed', e);
+    Toast.error('Failed to create share link: ' + _shareErrorMessage(e));
   }
 }
 
@@ -4134,10 +4269,15 @@ async function shareSelectedClips() {
     } else {
       res = await API.post('/api/scouting/clips/share-multi', { video_id: _currentVideo.id, clip_ids: clipIds });
     }
-    await navigator.clipboard.writeText(res.data.url);
-    Toast.success(`Share link for ${clipIds.length} clip${clipIds.length > 1 ? 's' : ''} copied!`);
+    const url = res.data.url;
+    const label = clipIds.length === 1 ? 'Clip share link' : `Share link (${clipIds.length} clips)`;
+    const modal = _showShareLinkModal(url, label);
+    const copied = await _copyToClipboardFallback(url);
+    if (copied) { modal.markCopied(); Toast.success(`Share link for ${clipIds.length} clip${clipIds.length > 1 ? 's' : ''} copied!`); }
+    else { modal.markManual(); }
   } catch (e) {
-    Toast.error('Failed to create share link: ' + (e.message || ''));
+    console.error('shareSelectedClips failed', e);
+    Toast.error('Failed to create share link: ' + _shareErrorMessage(e));
   }
 }
 
@@ -4157,10 +4297,14 @@ async function shareTimeline() {
       video_id: _currentVideo.id,
       timeline: timeline
     });
-    await navigator.clipboard.writeText(res.data.url);
-    Toast.success('Timeline share link copied!');
+    const url = res.data.url;
+    const modal = _showShareLinkModal(url, 'Timeline share link');
+    const copied = await _copyToClipboardFallback(url);
+    if (copied) { modal.markCopied(); Toast.success('Timeline share link copied!'); }
+    else { modal.markManual(); }
   } catch (e) {
-    Toast.error('Failed to share timeline: ' + (e.message || ''));
+    console.error('shareTimeline failed', e);
+    Toast.error('Failed to share timeline: ' + _shareErrorMessage(e));
   }
 }
 // --- END NEW ---
