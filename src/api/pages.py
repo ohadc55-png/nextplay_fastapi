@@ -76,13 +76,22 @@ async def main_landing(
 async def play_creator_landing(
     request: Request,
     user: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
     """SEO landing page targeting 'draw basketball plays' / 'play designer'
     queries. Top-of-funnel: pulls coaches in through a high-demand keyword,
-    then funnels them to the full AI Coaching Staff trial signup."""
+    then funnels them to the full AI Coaching Staff trial signup.
+
+    Authed visitors get `_team_data` mixed in so the `np-has-team` meta in
+    base.html is populated — without it, feature-gate.js sees a stale
+    "no team" signal and blocks subsequent navigation from this page."""
+    extra: dict[str, Any] = dict(_oauth_flags())
+    if user is not None:
+        team_ctx = await _team_data(db, user)
+        extra.update(team_ctx)
     return templates.TemplateResponse(
         "play_creator.html",
-        page_context(request, user=user, extra=_oauth_flags()),
+        page_context(request, user=user, extra=extra),
     )
 
 
@@ -231,24 +240,53 @@ async def register_page(
 
 async def _team_data(db: AsyncSession, user: User) -> dict[str, Any]:
     """Fetch the navbar + dashboard inputs every authed page needs.
-    Mirrors the boilerplate at the top of every v1 page route."""
+    Mirrors the boilerplate at the top of every v1 page route.
+
+    Self-heals a stale `active_team_id`: if the user has teams but
+    `active_team_id` is None or points at a non-existent team, we
+    auto-select the most-recently-updated team. Without this, feature
+    pages render their `home.html` fallback and the client-side gate
+    in feature-gate.js opens the "Add a team first" modal even though
+    the user has teams.
+    """
     from src.models.memory import SessionSummary
     from src.models.players import Player
     from src.models.teams import TeamProfile
     from src.models.uploads import Upload
 
+    teams_list = list((await db.execute(
+        select(TeamProfile)
+        .where(TeamProfile.user_id == user.id)
+        .order_by(TeamProfile.updated_at.desc().nulls_last())
+    )).scalars().all())
+
     tid = user.active_team_id
+    if teams_list and (tid is None or not any(t.id == tid for t in teams_list)):
+        tid = teams_list[0].id
+        user.active_team_id = tid
+        await db.flush()
 
     profile = None
+    program_name: str | None = None
     players: list = []
     uploads: list = []
     sessions: list = []
-    teams_list: list = []
 
     if tid is not None:
         profile = (await db.execute(
             select(TeamProfile).where(TeamProfile.id == tid)
         )).scalar_one_or_none()
+        # Phase 14.6 — enterprise teams carry `program_id` pointing at the
+        # org's Program ("סל טק", "שער שיוויון", …). Surface the name to the
+        # coach so they see which program owns their team. Private-coach
+        # teams have program_id = NULL → name stays None and the template
+        # falls back to the existing league/division subtitle.
+        if profile is not None and profile.program_id is not None:
+            from src.models.programs import Program
+
+            program_name = (await db.execute(
+                select(Program.name).where(Program.id == profile.program_id)
+            )).scalar_one_or_none()
         players = list((await db.execute(
             select(Player)
             .where(Player.user_id == user.id, Player.team_id == tid, Player.active.is_(True))
@@ -269,14 +307,9 @@ async def _team_data(db: AsyncSession, user: User) -> dict[str, Any]:
         except Exception:
             sessions = []
 
-    teams_list = list((await db.execute(
-        select(TeamProfile)
-        .where(TeamProfile.user_id == user.id)
-        .order_by(TeamProfile.updated_at.desc().nulls_last())
-    )).scalars().all())
-
     return {
         "profile": profile,
+        "program_name": program_name,
         "players": players,
         "uploads": uploads,
         "sessions": sessions,
@@ -420,9 +453,14 @@ async def player_profile(
 async def data_upload(
     request: Request,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
+    # `_team_data` is required so the `np-has-team` meta tag in base.html
+    # gets a fresh `teams` list — feature-gate.js reads it to decide
+    # whether to block sidebar links with the "Add a team first" modal.
+    data = await _team_data(db, user)
     return templates.TemplateResponse(
-        "data_upload.html", page_context(request, user=user),
+        "data_upload.html", page_context(request, user=user, extra=data),
     )
 
 
@@ -522,9 +560,11 @@ async def coach_settings_page(
 async def upgrade_page(
     request: Request,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
+    data = await _team_data(db, user)
     return templates.TemplateResponse(
-        "upgrade.html", page_context(request, user=user),
+        "upgrade.html", page_context(request, user=user, extra=data),
     )
 
 
@@ -534,6 +574,7 @@ async def checkout_page(
     plan: str,
     billing: str = "monthly",
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
     if plan not in ("basic", "pro"):
         return RedirectResponse(url="/upgrade", status_code=302)
@@ -543,9 +584,11 @@ async def checkout_page(
         "basic": {"monthly": 19, "yearly": 190},
         "pro": {"monthly": 29, "yearly": 290},
     }
+    data = await _team_data(db, user)
     return templates.TemplateResponse(
         "checkout.html",
         page_context(request, user=user, extra={
+            **data,
             "plan": plan, "billing": billing,
             "price": prices[plan][billing],
         }),
@@ -556,9 +599,11 @@ async def checkout_page(
 async def court_preview(
     request: Request,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
+    data = await _team_data(db, user)
     return templates.TemplateResponse(
-        "court_preview.html", page_context(request, user=user),
+        "court_preview.html", page_context(request, user=user, extra=data),
     )
 
 
@@ -566,11 +611,13 @@ async def court_preview(
 async def club_admin(
     request: Request,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> Any:
     if not getattr(user, "is_club_admin", False):
         return RedirectResponse(url="/", status_code=302)
+    data = await _team_data(db, user)
     return templates.TemplateResponse(
-        "club_admin.html", page_context(request, user=user),
+        "club_admin.html", page_context(request, user=user, extra=data),
     )
 
 
