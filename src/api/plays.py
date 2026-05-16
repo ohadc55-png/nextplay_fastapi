@@ -7,7 +7,10 @@ Endpoints:
   PUT    /api/plays/{id}                  update
   DELETE /api/plays/{id}                  delete
   POST   /api/plays/share                 snapshot a play, return token + URL
-  GET    /play/{token}                    public read-only share (no auth)
+
+The public share viewer (`GET /play/{token}`) is HTML-only and lives in
+`src/api/pages.py` — see `public_play_page`. Do not add a JSON version
+here; it shadowed the HTML route and broke the share viewer in prod.
 
 Multi-tenancy: list/get/update/delete enforce `user_id` ownership.
 team_id is captured at create time from the user's active team but
@@ -29,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps.auth import get_current_user
 from src.core.database import get_db
 from src.models.plays import Play, PlayShare
+from src.models.teams import TeamProfile
 from src.models.users import User
 
 logger = logging.getLogger(__name__)
@@ -190,14 +194,31 @@ async def share_play(
 ) -> dict:
     """Snapshot any play data (doesn't have to be a saved Play row) under a
     short URL-safe token. The token is returned alongside a fully-qualified
-    URL so the JS can copy it to clipboard."""
+    URL so the JS can copy it to clipboard.
+
+    Frontend sends `n` (play name) inside `body` when sharing a saved play.
+    Here we also stamp `tn` (team name) from the user's active team at
+    snapshot time, so the public viewer can render "<Team> — <Play name>"
+    without the recipient needing access to the user's data.
+    """
     if not body:
         raise HTTPException(status_code=400, detail="Play data required")
+
+    snapshot_body: dict[str, Any] = dict(body)
+    if user.active_team_id:
+        team_name = (await db.execute(
+            select(TeamProfile.team_name).where(
+                TeamProfile.id == user.active_team_id,
+                TeamProfile.user_id == user.id,
+            )
+        )).scalar_one_or_none()
+        if team_name:
+            snapshot_body["tn"] = team_name
 
     token = secrets.token_urlsafe(8)  # ~11 chars, URL-safe
     snapshot = PlayShare(
         token=token,
-        play_json=body,
+        play_json=snapshot_body,
         user_id=user.id,
         created_at=datetime.utcnow().isoformat(),
     )
@@ -206,17 +227,3 @@ async def share_play(
 
     base_url = str(request.base_url).rstrip("/")
     return {"token": token, "url": f"{base_url}/play/{token}"}
-
-
-@router.get("/play/{token}")
-async def public_play(
-    token: str,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Public, read-only — no auth. Returns the JSON snapshot or 404."""
-    row = (await db.execute(
-        select(PlayShare.play_json).where(PlayShare.token == token)
-    )).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Not found")
-    return {"play_data": row}

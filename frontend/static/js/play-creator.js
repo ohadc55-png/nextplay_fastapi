@@ -173,7 +173,7 @@ class PlayCreator {
     this.saved=this.saved.filter(s=>s.id!==id);this._save();this.render();
   }
 
-  async share(){if(!this.actions.length)return;const d={o:this.offTpl,d:this.defTpl,i:this.initPlayers,a:this.actions,b:this.initBallId,fc:this.fullCourt?1:0};try{const res=await fetch('/api/plays/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});const data=await res.json();this.shareUrl=data.url||'';} catch(e){this.shareUrl=window.location.origin+'/plays?p='+btoa(encodeURIComponent(JSON.stringify(d)));}this.showShareModal=true;this.render();}
+  async share(){if(!this.actions.length)return;const d={o:this.offTpl,d:this.defTpl,i:this.initPlayers,a:this.actions,b:this.initBallId,fc:this.fullCourt?1:0,n:this._currentPlayName||null};try{const res=await fetch('/api/plays/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});const data=await res.json();this.shareUrl=data.url||'';} catch(e){this.shareUrl=window.location.origin+'/plays?p='+btoa(encodeURIComponent(JSON.stringify(d)));}this.showShareModal=true;this.render();}
   shareWhatsApp(){if(!this.shareUrl)return;const text=encodeURIComponent('Check out this basketball play: '+this.shareUrl);window.open('https://wa.me/?text='+text,'_blank');}
   shareEmail(){if(!this.shareUrl)return;const subject=encodeURIComponent('Basketball Play');const body=encodeURIComponent('Check out this play:\n'+this.shareUrl);window.location.href='mailto:?subject='+subject+'&body='+body;}
 

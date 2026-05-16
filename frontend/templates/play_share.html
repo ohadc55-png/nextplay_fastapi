@@ -51,9 +51,34 @@
       flex-direction: column;
       align-items: center;
       padding: 24px 16px;
-      max-width: 960px;
+      max-width: 1280px;
       margin: 0 auto;
       width: 100%;
+    }
+
+    /* ── Title (team + play name) above the viewer ── */
+    .play-title-bar {
+      width: 100%;
+      margin-bottom: 16px;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, rgba(244,140,37,0.08), rgba(244,140,37,0.02));
+      border: 1px solid rgba(244,140,37,0.15);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .play-title-team {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .play-title-name {
+      font-size: 1.35rem;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.01em;
     }
 
     /* ── Court + controls layout ── */
@@ -61,7 +86,7 @@
       width: 100%;
       display: flex;
       gap: 16px;
-      align-items: flex-start;
+      align-items: stretch;
     }
     .play-court-area {
       flex: 1;
@@ -71,24 +96,75 @@
       border-radius: 12px;
       overflow: hidden;
     }
+    /* Right-side panel: stacks the playback buttons + CTA next to the
+       court so the CTA stays visible without forcing the viewer to
+       scroll. Fixed-ish width keeps the call-to-action readable. */
+    .play-side-panel {
+      width: 200px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
 
     /* ── Hide ALL editing UI from play-creator ── */
     .play-court-area .pc-toolbar,
     .play-court-area .pc-sidebar,
     .play-court-area .pc-step-actions,
     .play-court-area .pc-tools,
+    .play-court-area .pc-right-toolbar,
+    .play-court-area .pc-status,
+    .play-court-area .pc-curve-toggle,
+    .play-court-area .pc-cp,
     .play-court-area [data-a="save"],
     .play-court-area [data-a="share"],
     .play-court-area [data-a="newPlay"],
     .play-court-area [data-a="pmode"],
+    .play-court-area [data-a="edit"],
+    .play-court-area [data-a="stop"],
     .play-court-area [data-a="toggleCourt"] { display: none !important; }
+
+    /* Inside `.pc-controls` PlayCreator renders duplicate play/pause/stop
+       buttons next to its progress bar. Hide just the buttons so the
+       progress bar + time stay visible — our side panel owns playback. */
+    .play-court-area .pc-controls [data-a="play"],
+    .play-court-area .pc-controls [data-a="pause"],
+    .play-court-area .pc-controls [data-a="stop"] { display: none !important; }
+
+    /* ── PlayCreator internal layout overrides ──
+       The editor's CSS reserves a 240px sidebar inside `.pc-body` and
+       hardcodes `.pc` to `calc(100vh - 32px)`. In the share viewer we
+       hide the sidebar but the grid still leaves a 240px void on the
+       right; collapse to a single column so the canvas claims the full
+       width. Also relax `.pc` height so the layout sizes to the court
+       rather than the viewport. */
+    .play-court-area .pc {
+      height: auto !important;
+      min-height: 0 !important;
+    }
+    .play-court-area .pc-body {
+      grid-template-columns: 1fr !important;
+      min-height: 0 !important;
+    }
+    .play-court-area .pc-canvas-wrap {
+      /* Aspect-ratio matches the half-court SVG's viewBox (≈ 5:4.7);
+         full-court plays render shorter, so cap height to keep them
+         visible without scrolling. */
+      max-height: calc(100vh - 200px);
+    }
+
+    /* Belt-and-suspenders read-only: even if a click slips through CSS
+       hiding, the SVG players can't be grabbed. The JS also forces
+       `pc.mode='play'` after load so the drag handler `_pd` early-returns. */
+    .play-court-area svg .pp { cursor: default !important; pointer-events: none !important; }
 
     /* ── Playback controls panel ── */
     .play-controls {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      justify-content: center;
       gap: 8px;
-      padding: 8px;
+      padding: 10px;
       background: rgba(22, 29, 40, 0.95);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 12px;
@@ -119,64 +195,31 @@
       color: #f48c25;
     }
 
-    /* ── Progress bar ── */
-    .play-progress-wrap {
-      width: 100%;
-      margin-top: 12px;
-      padding: 12px 16px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-    }
-    .play-progress-bar {
-      width: 100%;
-      height: 6px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .play-progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #f48c25, #ff6b35);
-      border-radius: 3px;
-      width: 0%;
-      transition: width 0.15s linear;
-    }
-    .play-progress-label {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 6px;
-      font-size: 0.72rem;
-      color: #64748b;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* ── CTA (matches clip_share) ── */
+    /* ── CTA (side-panel variant, stacks below playback controls) ── */
     .share-cta {
-      width: 100%;
-      margin-top: 24px;
-      padding: 20px 24px;
+      padding: 16px;
       background: linear-gradient(135deg, rgba(244,140,37,0.1), rgba(244,140,37,0.05));
       border: 1px solid rgba(244,140,37,0.2);
       border-radius: 12px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
     }
-    .share-cta-text { font-size: 0.95rem; color: #cbd5e1; }
-    .share-cta-text strong { color: #f48c25; }
+    .share-cta-text { font-size: 0.85rem; color: #cbd5e1; line-height: 1.35; }
+    .share-cta-text strong { color: #f48c25; display: block; margin-bottom: 2px; font-size: 0.9rem; }
     .share-cta-btn {
-      padding: 10px 24px;
+      padding: 10px 12px;
       background: #f48c25;
       color: #fff;
       border: none;
       border-radius: 8px;
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       cursor: pointer;
       text-decoration: none;
       white-space: nowrap;
+      display: block;
     }
     .share-cta-btn:hover { background: #e07b1a; }
 
@@ -191,16 +234,44 @@
 
     /* ── Mobile ── */
     @media (max-width: 640px) {
-      .share-main { padding: 12px 8px; }
-      .play-viewer-wrap { flex-direction: column; }
+      /* Tighter chrome so the court itself gets every pixel — most
+         viewers open shared links on a phone. */
+      .share-header { padding: 10px 14px; }
+      .share-logo { height: 32px; }
+      .share-brand { font-size: 1rem; }
+      .share-badge { font-size: 0.7rem; }
+
+      .share-main { padding: 10px 8px; gap: 10px; }
+      .play-title-bar { padding: 10px 14px; margin-bottom: 10px; }
+      .play-title-team { font-size: 0.78rem; }
+      .play-title-name { font-size: 1.15rem; }
+
+      .play-viewer-wrap { flex-direction: column; gap: 10px; }
+
+      /* Edge-to-edge court: the `.play-court-area` border + radius look
+         heavy on a 375px screen; let the court SVG breathe. */
+      .play-court-area {
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+      }
+      .play-court-area .pc-canvas-wrap {
+        max-height: calc(100vh - 260px); /* leave room for title + controls + CTA */
+      }
+
+      .play-side-panel { width: 100%; flex-direction: column; gap: 10px; }
       .play-controls {
         flex-direction: row;
         justify-content: center;
+        gap: 12px;
         width: 100%;
       }
-      .play-ctrl-btn { width: 44px; height: 44px; }
-      .share-cta { flex-direction: column; text-align: center; }
-      .share-cta-btn { width: 100%; text-align: center; }
+      .play-ctrl-btn { width: 52px; height: 52px; }
+      .play-ctrl-btn .material-symbols-outlined { font-size: 26px; }
+
+      .share-cta { padding: 12px 14px; }
+      .share-cta-text { font-size: 0.82rem; }
+      .share-cta-btn { width: 100%; text-align: center; padding: 12px; }
     }
   </style>
 </head>
@@ -222,34 +293,33 @@
     </div>
     {% else %}
 
+    {% if play_data.tn or play_data.n %}
+    <div class="play-title-bar">
+      {% if play_data.tn %}<div class="play-title-team">{{ play_data.tn }}</div>{% endif %}
+      {% if play_data.n %}<div class="play-title-name">{{ play_data.n }}</div>{% endif %}
+    </div>
+    {% endif %}
+
     <div class="play-viewer-wrap">
       <div class="play-court-area">
         <div id="playCreatorRoot"></div>
       </div>
 
-      <div class="play-controls">
-        <button class="play-ctrl-btn" id="btnPlay" onclick="togglePlay()" title="Play">
-          <span class="material-symbols-outlined">play_arrow</span>
-        </button>
-        <button class="play-ctrl-btn" id="btnRestart" onclick="restartPlay()" title="Restart">
-          <span class="material-symbols-outlined">replay</span>
-        </button>
-      </div>
-    </div>
+      <aside class="play-side-panel">
+        <div class="play-controls">
+          <button class="play-ctrl-btn" id="btnPlay" onclick="togglePlay()" title="Play">
+            <span class="material-symbols-outlined">play_arrow</span>
+          </button>
+          <button class="play-ctrl-btn" id="btnRestart" onclick="restartPlay()" title="Restart">
+            <span class="material-symbols-outlined">replay</span>
+          </button>
+        </div>
 
-    <div class="play-progress-wrap">
-      <div class="play-progress-bar">
-        <div class="play-progress-fill" id="progressFill"></div>
-      </div>
-      <div class="play-progress-label">
-        <span id="progressTime">0.0s</span>
-        <span id="progressDuration">0.0s</span>
-      </div>
-    </div>
-
-    <div class="share-cta">
-      <div class="share-cta-text"><strong>NextPlay</strong> — AI Basketball Coaching Platform</div>
-      <a href="/register" class="share-cta-btn">Try NextPlay Free</a>
+        <div class="share-cta">
+          <div class="share-cta-text"><strong>NextPlay</strong>AI Basketball Coaching Platform</div>
+          <a href="/register" class="share-cta-btn">Try NextPlay Free</a>
+        </div>
+      </aside>
     </div>
 
     {% endif %}
@@ -260,15 +330,66 @@
   <script nonce="{{ g.csp_nonce }}">
     const pc = new PlayCreator(document.getElementById('playCreatorRoot'));
     let isPlaying = false;
-    let progressInterval = null;
+    let endWatch = null;
 
     try {
       pc.loadPlay({{ play_data | tojson }});
     } catch(e) { console.error('Failed to load shared play:', e); }
 
-    // Update duration label
-    const durLabel = document.getElementById('progressDuration');
-    if (durLabel && pc.duration) durLabel.textContent = pc.duration.toFixed(1) + 's';
+    // Read-only enforcement. `loadPlay` defaults to `mode='edit'`, which
+    // is what enables drag handlers in `_pd`. Lock the viewer to play
+    // mode and stop any subsequent code path (including `pc.stop`) from
+    // flipping it back — recipients of a share link should never be
+    // able to grab players around the court.
+    function lockReadOnly() {
+      pc.mode = 'play';
+      pc.selPlayer = null;
+      pc.selAction = null;
+      pc.editingCurve = null;
+      pc.showTpl = false;
+    }
+    lockReadOnly();
+    pc.render();
+
+    // Resume animation from the current `pc.progress` instead of restarting
+    // from 0. PlayCreator's own `play()` always resets progress to 0 (good
+    // for the editor where you re-run from the start each time); the share
+    // viewer wants Pause/Resume behavior, so we bypass `pc.play()` and
+    // adjust the loop's start timestamp `_as` so the math
+    // `(now - _as) / 1000 == progress` stays continuous.
+    function resumeFromCurrent() {
+      if (pc.playing) return;
+      pc.mode = 'play';
+      pc._calcDur && pc._calcDur();
+      // If we're at (or past) the end, restart from the beginning.
+      if (!pc.duration || pc.progress >= pc.duration) {
+        pc.progress = 0;
+      }
+      pc.playing = true;
+      pc._as = performance.now() - pc.progress * 1000;
+      pc._aloop();
+    }
+
+    // Watch for end-of-animation so we can flip the Play button back to
+    // "play_arrow" when PlayCreator's own loop sets `pc.playing=false`
+    // at the final frame. The progress bar inside `.pc-controls` is
+    // updated by `pc._ctrl()` from within `_aloop`, so we don't need
+    // to mirror it elsewhere.
+    function startEndWatch() {
+      stopEndWatch();
+      endWatch = setInterval(() => {
+        if (!pc.playing && isPlaying) {
+          isPlaying = false;
+          const btn = document.getElementById('btnPlay');
+          btn.querySelector('.material-symbols-outlined').textContent = 'play_arrow';
+          btn.classList.remove('active');
+          stopEndWatch();
+        }
+      }, 100);
+    }
+    function stopEndWatch() {
+      if (endWatch) { clearInterval(endWatch); endWatch = null; }
+    }
 
     function togglePlay() {
       const btn = document.getElementById('btnPlay');
@@ -278,49 +399,30 @@
         isPlaying = false;
         icon.textContent = 'play_arrow';
         btn.classList.remove('active');
-        stopProgress();
+        stopEndWatch();
       } else {
-        pc.play();
+        resumeFromCurrent();
         isPlaying = true;
         icon.textContent = 'pause';
         btn.classList.add('active');
-        startProgress();
+        startEndWatch();
       }
     }
 
     function restartPlay() {
-      pc.stop();
+      // Don't call `pc.stop()` — it sets `mode='edit'`, which re-enables
+      // dragging. Reset progress + animation state manually instead.
+      pc.pause();
+      pc.progress = 0;
+      lockReadOnly();
+      pc.render();
       isPlaying = false;
       const btn = document.getElementById('btnPlay');
-      const icon = btn.querySelector('.material-symbols-outlined');
-      icon.textContent = 'play_arrow';
+      btn.querySelector('.material-symbols-outlined').textContent = 'play_arrow';
       btn.classList.remove('active');
-      document.getElementById('progressFill').style.width = '0%';
-      document.getElementById('progressTime').textContent = '0.0s';
-      stopProgress();
+      stopEndWatch();
       // Auto-play after restart
       setTimeout(() => togglePlay(), 300);
-    }
-
-    function startProgress() {
-      stopProgress();
-      progressInterval = setInterval(() => {
-        if (!pc.duration) return;
-        const pct = Math.min(100, (pc.progress / pc.duration) * 100);
-        document.getElementById('progressFill').style.width = pct + '%';
-        document.getElementById('progressTime').textContent = pc.progress.toFixed(1) + 's';
-        if (pc.progress >= pc.duration) {
-          isPlaying = false;
-          const btn = document.getElementById('btnPlay');
-          btn.querySelector('.material-symbols-outlined').textContent = 'play_arrow';
-          btn.classList.remove('active');
-          stopProgress();
-        }
-      }, 100);
-    }
-
-    function stopProgress() {
-      if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
     }
 
     // Auto-play on load

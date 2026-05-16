@@ -77,12 +77,17 @@ class TestPlayShare:
         url = r.json()["url"]
         assert token in url
 
-        # Public fetch — no auth, anyone can read by token
+        # Public fetch — no auth, anyone can read by token.
+        # Returns the HTML viewer (play_share.html) with play_data embedded
+        # via Jinja's `| tojson` filter into a <script> tag.
         r = await api_client.get(f"/play/{token}")
         assert r.status_code == 200
-        assert r.json()["play_data"]["name"] == "Shareable"
+        assert "text/html" in r.headers.get("content-type", "")
+        assert "Shareable" in r.text
 
     async def test_unknown_token_returns_404(self, api_client: AsyncClient):
+        # 404 with the same HTML viewer (rendered with play_data=None,
+        # which the template displays as "Play not found").
         r = await api_client.get("/play/no-such-token")
         assert r.status_code == 404
 
