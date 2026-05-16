@@ -135,8 +135,13 @@ async def admin_dashboard(
     from src.models.users import User
 
     now = datetime.now(UTC)
-    week_ago = now - timedelta(days=7)
-    month_ago = now - timedelta(days=30)
+    # User.created_at is stored as TEXT (legacy v1 schema). Comparing it
+    # against a Python datetime works in SQLite (loose typing) but blows
+    # up in Postgres with `operator does not exist: text >= timestamptz`.
+    # Convert the cutoffs to ISO strings (space separator matches what
+    # `func.now()` writes to the TEXT column) so both sides are TEXT.
+    week_ago_iso = (now - timedelta(days=7)).isoformat(sep=" ")
+    month_ago_iso = (now - timedelta(days=30)).isoformat(sep=" ")
 
     total_users = (await db.execute(
         select(func.count()).select_from(User)
@@ -144,11 +149,11 @@ async def admin_dashboard(
     )).scalar_one()
     new_7d = (await db.execute(
         select(func.count()).select_from(User)
-        .where(User.deleted_at.is_(None), User.created_at >= week_ago)
+        .where(User.deleted_at.is_(None), User.created_at >= week_ago_iso)
     )).scalar_one()
     new_30d = (await db.execute(
         select(func.count()).select_from(User)
-        .where(User.deleted_at.is_(None), User.created_at >= month_ago)
+        .where(User.deleted_at.is_(None), User.created_at >= month_ago_iso)
     )).scalar_one()
 
     task_counts: dict[str, int] = {}
