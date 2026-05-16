@@ -200,7 +200,17 @@ class TestSubscriptionGuards:
         assert r.json()["code"] == "trial_expired"
 
     async def test_active_endpoint_allows_trial(self, client: AsyncClient, seed_user):
-        u = await seed_user(email="trial@x.com", subscription_plan="trial")
+        # Trial users get access only while `trial_days_left > 0` — set a
+        # `trial_ends_at` 14 days out so the gate at deps/auth.py sees a
+        # real, in-window trial. A missing `trial_ends_at` is now treated
+        # as already-expired (defensive: cost-gated endpoints shouldn't
+        # fire OpenAI calls for a user with no trial deadline).
+        future = (datetime.now(UTC) + timedelta(days=14)).isoformat()
+        u = await seed_user(
+            email="trial@x.com",
+            subscription_plan="trial",
+            trial_ends_at=future,
+        )
         with patch.object(settings, "JWT_SECRET_KEY", JWT_SECRET):
             token = create_access_token(user_id=u.id, email=u.email)
             r = await client.get("/active-only", headers={"Authorization": f"Bearer {token}"})

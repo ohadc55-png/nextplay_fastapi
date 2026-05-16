@@ -48,17 +48,65 @@ _STATIC_MOUNT = "/static"
 # ---------------------------------------------------------------------------
 
 
-def _url_for(endpoint: str, **values: Any) -> str:
-    """Flask-compatible `url_for` for the few patterns templates use.
+_ADMIN_ROUTES: dict[str, str] = {
+    # Map Flask-style endpoint names (used verbatim in admin templates
+    # ported from v1) to the FastAPI paths defined in src/api/admin_pages.py.
+    # Keep in sync when admin routes are added or renamed.
+    "admin.login":              "/admin/login",
+    "admin.logout":             "/admin/logout",
+    "admin.dashboard":          "/admin/dashboard",
+    "admin.users":              "/admin/users",
+    "admin.api_costs":          "/admin/api-costs",
+    "admin.feature_usage":      "/admin/feature-usage",
+    "admin.feedback":           "/admin/feedback",
+    "admin.geography":          "/admin/geography",
+    "admin.user_activity":      "/admin/user-activity",
+    "admin.sales_inquiries":    "/admin/sales-inquiries",
+    "admin.research_sources":   "/admin/research-sources",
+    "admin.email_log_view":     "/admin/email-log",
+    "admin.mailing_lists_view": "/admin/email-lists",
+    "admin.email_compose_view": "/admin/email-compose",
+    "admin.orgs":               "/admin/orgs",
+    "admin.org_detail":         "/admin/orgs/{org_id}",
+    "admin.orgs_wizard":        "/admin/orgs/wizard",
+}
 
-    v1 templates only call `url_for('static', filename='...')`. We support
-    that path; anything else returns "#" so a typo doesn't crash render.
+
+def _url_for(endpoint: str, **values: Any) -> str:
+    """Flask-compatible `url_for` for the patterns the v1 templates use.
+
+    Handles:
+      - `url_for('static', filename='...')` → /static/...
+      - `url_for('admin.<name>', **query)` → /admin/<path>?<query>
+        (admin templates ported from v1's Flask blueprints — without
+        this map their links rendered as `#` and clicking did nothing)
+    Unknown endpoints return "#" so a typo doesn't crash a template render.
     """
     if endpoint == "static":
         filename = values.get("filename", "")
         return f"{_STATIC_MOUNT}/{filename.lstrip('/')}"
-    # Future: route-name lookup if we ever need it. For now, fail soft.
-    return "#"
+
+    base = _ADMIN_ROUTES.get(endpoint)
+    if base is None:
+        return "#"
+
+    # Fill in any {placeholder} segments from kwargs; remaining kwargs
+    # become the query string.
+    path_kwargs: dict[str, Any] = {}
+    query_kwargs: dict[str, Any] = {}
+    for k, v in values.items():
+        if v is None:
+            continue
+        if "{" + k + "}" in base:
+            path_kwargs[k] = v
+        else:
+            query_kwargs[k] = v
+    if path_kwargs:
+        base = base.format(**path_kwargs)
+    if query_kwargs:
+        from urllib.parse import urlencode
+        return f"{base}?{urlencode(query_kwargs)}"
+    return base
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +166,7 @@ def _build_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=_TEMPLATES_DIR)
     env = templates.env
     env.globals["url_for"] = _url_for
-    env.globals["config"] = _ConfigShim(css_version="17")
+    env.globals["config"] = _ConfigShim(css_version="23")
     # `g` is normally per-request; we expose a fallback empty Box so
     # templates rendered outside a request context (eg, error pages)
     # don't NameError. The page-route handlers override it via the
@@ -159,6 +207,7 @@ def page_context(
 
     plan = "trial"
     trial_days_left = 0
+    trial_hours_left = 0
     days_until_purge = 0
     is_club_member = False
     is_club_admin = False
@@ -172,6 +221,12 @@ def page_context(
         trial_days_left = max(
             0, _days_left(getattr(user, "trial_ends_at", None)),
         ) if plan == "trial" else 0
+        # `trial_hours_left` powers the "Trial ends in 4h" banner when
+        # `trial_days_left == 0`, so the user gets a real-time signal in
+        # the final 24h rather than a stuck "0 days left" message.
+        trial_hours_left = _hours_left(
+            getattr(user, "trial_ends_at", None),
+        ) if plan == "trial" else 0
         days_until_purge = max(
             0, _days_left(getattr(user, "data_purge_at", None)),
         ) if plan == "expired" else 0
@@ -184,6 +239,7 @@ def page_context(
         "min_suffix": _min_suffix(),
         "subscription_plan": plan,
         "trial_days_left": trial_days_left,
+        "trial_hours_left": trial_hours_left,
         "days_until_purge": days_until_purge,
         "is_club_member": is_club_member,
         "is_club_admin": is_club_admin,
@@ -192,7 +248,7 @@ def page_context(
         # pages don't pass org_ctx; the value stays None and the templates that
         # don't reference it stay unaffected.
         "org_ctx": org_ctx,
-        "config": _ConfigShim(css_version="17"),
+        "config": _ConfigShim(css_version="23"),
     }
     if extra:
         ctx.update(extra)
@@ -218,6 +274,28 @@ def _days_left(target) -> int:
             target = target.replace(tzinfo=UTC)
         delta = target - now
         return delta.days
+    except Exception:
+        return 0
+
+
+def _hours_left(target) -> int:
+    """Whole hours from now until `target`. Returns 0 if past/missing.
+
+    Used for the "Trial ends in 4h" banner when `_days_left` already
+    rounded down to 0 — same input semantics as `_days_left`.
+    """
+    if target is None:
+        return 0
+    from datetime import datetime
+
+    try:
+        if isinstance(target, str):
+            target = datetime.fromisoformat(target)
+        now = datetime.now(UTC)
+        if getattr(target, "tzinfo", None) is None:
+            target = target.replace(tzinfo=UTC)
+        delta = target - now
+        return max(0, int(delta.total_seconds() // 3600))
     except Exception:
         return 0
 

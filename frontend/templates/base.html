@@ -162,9 +162,13 @@
         <div id="sidebarTeamSection"></div>
 
         {% if subscription_plan == 'trial' and trial_days_left is defined %}
-        <a href="/upgrade" class="trial-banner" title="Upgrade your plan" aria-label="Upgrade your plan - trial period">
+        <a href="/upgrade" class="trial-banner{% if trial_days_left == 0 %} trial-banner-urgent{% endif %}" title="Upgrade your plan" aria-label="Upgrade your plan - trial period">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            {% if trial_days_left == 0 and trial_hours_left is defined and trial_hours_left > 0 %}
+            Trial ends in {{ trial_hours_left }}h
+            {% else %}
             Trial: {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }} left
+            {% endif %}
         </a>
         {% elif subscription_plan == 'expired' %}
         <a href="/upgrade" class="trial-banner trial-banner-expired" title="Trial ended — upgrade to continue" aria-label="Trial ended">

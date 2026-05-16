@@ -208,12 +208,52 @@ def should_purge(user: User) -> bool:
     return datetime.now(UTC) >= purge_due
 
 
+def trial_days_left(trial_ends_at: str | None) -> int:
+    """Whole days remaining in trial. Returns 0 within the final 24h.
+
+    Used by both the API gate (auth.py) and the /api/me display
+    aggregator (composite.py) so "0 days left" on screen aligns 1:1
+    with "blocked at the gate" — keep these two callsites in sync."""
+    if not trial_ends_at:
+        return 0
+    try:
+        ends = datetime.fromisoformat(trial_ends_at)
+    except (ValueError, TypeError):
+        return 0
+    if ends.tzinfo is None:
+        ends = ends.replace(tzinfo=UTC)
+    delta = ends - datetime.now(UTC)
+    return max(0, delta.days)
+
+
+def trial_hours_left(trial_ends_at: str | None) -> int:
+    """Whole hours remaining in trial (for "Trial ends in 4h" UX when
+    `trial_days_left` already shows 0). Returns 0 if expired or unset."""
+    if not trial_ends_at:
+        return 0
+    try:
+        ends = datetime.fromisoformat(trial_ends_at)
+    except (ValueError, TypeError):
+        return 0
+    if ends.tzinfo is None:
+        ends = ends.replace(tzinfo=UTC)
+    delta = ends - datetime.now(UTC)
+    return max(0, int(delta.total_seconds() // 3600))
+
+
 async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
     """Detect trial-just-expired and convert to 'expired' state. Mirrors
     `backend/auth/decorators.py:225`. Returns True if the user was flipped
     (caller may want to refresh their in-memory `user` view).
 
-    Club members never flip (they're exempt from the trial mechanic)."""
+    Club members never flip (they're exempt from the trial mechanic).
+
+    "Expired" is reached when either (a) the wall clock is past
+    `trial_ends_at` (v1 semantics, kept for parity) or (b) the displayed
+    `trial_days_left` is 0 — i.e. less than 24h remain. (b) prevents the
+    UX bug where users see "0 days left" but the gate hasn't fired yet,
+    and aligns the persisted plan with what the user sees on screen.
+    """
     if user.club_id is not None:
         return False
     if user.subscription_plan != "trial":
@@ -227,7 +267,10 @@ async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
         return False
     if ends.tzinfo is None:
         ends = ends.replace(tzinfo=UTC)
-    if datetime.now(UTC) <= ends:
+    now = datetime.now(UTC)
+    past_wall_clock = now > ends
+    last_24h = (ends - now).days <= 0  # `.days` floors; 0 = within 24h
+    if not past_wall_clock and not last_24h:
         return False
 
     await flip_to_expired_and_schedule_purge(session, user.id)
@@ -240,4 +283,6 @@ __all__ = [
     "maybe_flip_expired",
     "purge_user_data",
     "should_purge",
+    "trial_days_left",
+    "trial_hours_left",
 ]

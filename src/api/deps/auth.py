@@ -22,7 +22,12 @@ from fastapi import Cookie, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.jwt_service import decode_access_token
-from src.auth.purge_service import maybe_flip_expired, purge_user_data, should_purge
+from src.auth.purge_service import (
+    maybe_flip_expired,
+    purge_user_data,
+    should_purge,
+    trial_days_left,
+)
 from src.core.database import get_db
 from src.core.exceptions import ForbiddenError, SubscriptionError, UnauthorizedError
 from src.models.users import User
@@ -134,10 +139,22 @@ def require_active_subscription(
     user: User = Depends(get_current_user),
 ) -> User:
     """Cost-leak stop. Mirrors v1.0-flask `check_subscription` for API routes:
-    `expired` plan → 403. Club members bypass everything."""
+    `expired` plan → 403. Club members bypass everything.
+
+    Defense-in-depth: also blocks when `trial_days_left == 0` even if the
+    persisted plan is still 'trial' — `maybe_flip_expired` in
+    `get_current_user` should have flipped them already, but if anything
+    swallowed that write (e.g. a read-only replica), this catches the user
+    here so cost-gated endpoints don't keep firing OpenAI calls for free.
+    """
     if user.club_id is not None:
         return user  # club covers the seat
     if user.subscription_plan == "expired":
+        raise SubscriptionError("Trial expired", code="trial_expired")
+    if (
+        user.subscription_plan == "trial"
+        and trial_days_left(user.trial_ends_at) <= 0
+    ):
         raise SubscriptionError("Trial expired", code="trial_expired")
     return user
 

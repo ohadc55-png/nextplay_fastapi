@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps.auth import get_current_user
+from src.auth.purge_service import trial_days_left, trial_hours_left
 from src.core.database import get_db
 from src.models.coach import CoachPreference, Feedback
 from src.models.conversations import Conversation
@@ -105,17 +106,10 @@ async def _fetch_user_teams(db: AsyncSession, user_id: int) -> list[TeamProfile]
     )).scalars().all())
 
 
-def _trial_days_left(trial_ends_at: str | None) -> int:
-    if not trial_ends_at:
-        return 0
-    try:
-        ends = datetime.fromisoformat(trial_ends_at)
-    except (ValueError, TypeError):
-        return 0
-    if ends.tzinfo is None:
-        ends = ends.replace(tzinfo=UTC)
-    delta = ends - datetime.now(UTC)
-    return max(0, delta.days)
+# `_trial_days_left` moved to `src.auth.purge_service.trial_days_left` so the
+# gate (deps/auth.py) and the /api/me display share one source of truth.
+# Local wrapper preserved for any external callers; prefer the import.
+_trial_days_left = trial_days_left
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +129,11 @@ async def api_me(
     )
 
     plan = user.subscription_plan or "trial"
-    days_left = _trial_days_left(user.trial_ends_at) if plan == "trial" else 0
+    days_left = trial_days_left(user.trial_ends_at) if plan == "trial" else 0
+    # `trial_hours_left` exists so the UI can show "Trial ends in 4h"
+    # when `trial_days_left` is 0 — without it, users see "0 days left"
+    # for up to 24h and assume the app is broken.
+    hours_left = trial_hours_left(user.trial_ends_at) if plan == "trial" else 0
 
     return {
         "user": {
@@ -150,6 +148,7 @@ async def api_me(
         "upload_count": len(uploads),
         "subscription_plan": plan,
         "trial_days_left": days_left,
+        "trial_hours_left": hours_left,
     }
 
 
