@@ -34,10 +34,14 @@ import json
 import logging
 import re
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from src.crew.agents import DEFAULT_AGENT
-from src.crew.llm import get_client
+from src.crew.llm import get_client, log_response
 from src.crew.prompts import ROUTER_PROMPT
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -188,9 +192,19 @@ def _cache_key(msg_norm: str, roster_fp: str) -> tuple[str, str]:
     return msg_norm, roster_fp
 
 
-async def _llm_classify(message: str, team_ctx: str) -> str:
+async def _llm_classify(
+    message: str,
+    team_ctx: str,
+    *,
+    db: "AsyncSession | None" = None,
+    user_id: int | None = None,
+    team_id: int | None = None,
+) -> str:
     """Cached gpt-4o-mini classifier. Returns an agent key or 'gm' on any
-    failure (safe default — coach can re-prompt with an explicit agent)."""
+    failure (safe default — coach can re-prompt with an explicit agent).
+
+    When `db` is provided the LLM call is logged to `api_usage_logs` with
+    `endpoint='router'`. Cache hits are NOT logged — they're free."""
     msg_norm = (message or "").strip().lower()[:600]
     roster_fp = (team_ctx or "")[:600].strip()
 
@@ -214,6 +228,12 @@ async def _llm_classify(message: str, team_ctx: str) -> str:
             max_completion_tokens=120,
             response_format=_ROUTING_SCHEMA,
         )
+        if db is not None:
+            await log_response(
+                db, resp,
+                user_id=user_id, team_id=team_id,
+                agent_key="router", endpoint="router",
+            )
         raw = resp.choices[0].message.content or "{}"
         data = json.loads(raw)
         agent = data.get("agent", "gm")
@@ -243,14 +263,27 @@ async def _llm_classify(message: str, team_ctx: str) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
-async def route_query(message: str, *, team_ctx: str = "") -> str:
+async def route_query(
+    message: str,
+    *,
+    team_ctx: str = "",
+    db: "AsyncSession | None" = None,
+    user_id: int | None = None,
+    team_id: int | None = None,
+) -> str:
     """Pick the best agent for this message. Cheap layers first, LLM
-    only on truly ambiguous cases. Always returns a valid agent key."""
+    only on truly ambiguous cases. Always returns a valid agent key.
+
+    Pass `db` + `user_id` + `team_id` so the Layer-3 LLM call is logged
+    to api_usage_logs. Layers 1+2 are free and never logged."""
     pick = _deterministic_pick(message, team_ctx)
     if pick is not None:
         logger.info("[router] deterministic → %s", pick)
         return pick
-    return await _llm_classify(message, team_ctx)
+    return await _llm_classify(
+        message, team_ctx,
+        db=db, user_id=user_id, team_id=team_id,
+    )
 
 
 def _reset_cache_for_tests() -> None:

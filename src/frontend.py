@@ -166,7 +166,7 @@ def _build_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=_TEMPLATES_DIR)
     env = templates.env
     env.globals["url_for"] = _url_for
-    env.globals["config"] = _ConfigShim(css_version="23")
+    env.globals["config"] = _ConfigShim(css_version="24")
     # `g` is normally per-request; we expose a fallback empty Box so
     # templates rendered outside a request context (eg, error pages)
     # don't NameError. The page-route handlers override it via the
@@ -248,7 +248,7 @@ def page_context(
         # pages don't pass org_ctx; the value stays None and the templates that
         # don't reference it stay unaffected.
         "org_ctx": org_ctx,
-        "config": _ConfigShim(css_version="23"),
+        "config": _ConfigShim(css_version="24"),
     }
     if extra:
         ctx.update(extra)

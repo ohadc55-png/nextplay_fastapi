@@ -395,7 +395,10 @@ async def send_message(
     )
     # Auto-route via the 3-layer router when the SPA didn't pin an agent.
     if not agent:
-        agent = await route_query(message, team_ctx=team_context)
+        agent = await route_query(
+            message, team_ctx=team_context,
+            db=db, user_id=user.id, team_id=user.active_team_id,
+        )
     agent_key, system_prompt = build_agent_prompt(agent, team_context)
 
     # If the coach is in the Brad-led scouting walkthrough, append the
@@ -554,7 +557,10 @@ async def stream_message(
         db, user_id=user.id, team_id=user.active_team_id,
     )
     if not agent:
-        agent = await route_query(message, team_ctx=team_context)
+        agent = await route_query(
+            message, team_ctx=team_context,
+            db=db, user_id=user.id, team_id=user.active_team_id,
+        )
     agent_key, system_prompt = build_agent_prompt(agent, team_context)
     # Inject the Brad-led player walkthrough context when the coach
     # arrived via `?onboarding=scouting`. Same hook v1 has, just lifted

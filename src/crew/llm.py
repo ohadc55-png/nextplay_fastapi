@@ -64,11 +64,26 @@ def reset_client() -> None:
     _client_instance = None
 
 
+def _resolve_pricing(model: str) -> dict[str, float]:
+    """Match a model name (possibly a dated variant returned by OpenAI
+    like `gpt-4o-2024-08-06` or `gpt-4o-mini-2024-07-18`) to its pricing
+    row. Exact hit first, then longest-prefix match against MODEL_PRICING
+    keys so the most specific known family wins (`gpt-4o-mini-*` resolves
+    to `gpt-4o-mini`, not to `gpt-4o`). Unknown models fall back to
+    gpt-4o-mini — the cheapest tier — so the spend log understates rather
+    than overstates if a new model slips through."""
+    if model in MODEL_PRICING:
+        return MODEL_PRICING[model]
+    for key in sorted(MODEL_PRICING, key=len, reverse=True):
+        if model.startswith(key):
+            return MODEL_PRICING[key]
+    return MODEL_PRICING["gpt-4o-mini"]
+
+
 def calc_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """USD cost for a single call. Falls back to the cheapest tier if the
-    model is unknown so an unfamiliar model name doesn't silently zero
-    out the spend log. Matches v1 calc_cost() exactly."""
-    pricing = MODEL_PRICING.get(model) or MODEL_PRICING["gpt-4o-mini"]
+    """USD cost for a single call. See `_resolve_pricing` for how dated
+    OpenAI model variants are mapped back to a known family."""
+    pricing = _resolve_pricing(model)
     input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
     output_cost = (completion_tokens / 1_000_000) * pricing["output"]
     return round(input_cost + output_cost, 6)

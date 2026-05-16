@@ -138,14 +138,13 @@
             </thead>
             <tbody>
                 {% for a in agent_detail %}
-                {% set pricing = model_pricing.get(a.model, model_pricing.get('gpt-4o', {})) %}
                 <tr>
                     <td>
                         <span class="agent-badge agent-{{ a.agent_key }}">{{ a.agent_key | upper }}</span>
                     </td>
                     <td class="mono" style="font-size: 0.85em">{{ a.model }}</td>
-                    <td class="text-right mono">${{ '%.2f' | format(pricing.get('input', 0)) }}</td>
-                    <td class="text-right mono">${{ '%.2f' | format(pricing.get('output', 0)) }}</td>
+                    <td class="text-right mono">${{ '%.2f' | format(a.price_input) }}</td>
+                    <td class="text-right mono">${{ '%.2f' | format(a.price_output) }}</td>
                     <td class="text-right mono">{{ '{:,}'.format(a.input_tokens | int) }}</td>
                     <td class="text-right mono">{{ '{:,}'.format(a.output_tokens | int) }}</td>
                     <td class="text-right mono accent">${{ '%.4f' | format(a.cost) }}</td>

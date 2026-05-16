@@ -19,7 +19,7 @@
     <!-- Top Navigation -->
     <nav class="admin-nav">
         <div class="admin-nav-inner">
-            <a href="/" class="admin-brand">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-brand">
                 <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay" class="admin-brand-logo">
                 <h1>NextPlay <span class="brand-tag">Admin</span></h1>
             </a>
