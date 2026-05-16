@@ -7,24 +7,61 @@ var NicoWidget = (function() {
   var _isOpen = false;
   var _isSending = false;
 
+  // Per-user namespace for the AI guide's session id and chat history.
+  // Without scoping, Coach B logging in on a browser previously used by
+  // Coach A would inherit Coach A's chat session + transcript — both
+  // a privacy leak and a server-side cost leak (the same session id
+  // gets reused, mixing memory).
+  function _userId() {
+    var m = document.querySelector('meta[name="np-user-id"]');
+    return (m && m.content) ? m.content : '';
+  }
+  function _sessionKey() {
+    var uid = _userId();
+    return uid ? ('np_nico_session_' + uid) : null;
+  }
+  function _messagesKey() {
+    var uid = _userId();
+    return uid ? ('np_nico_messages_' + uid) : null;
+  }
+  // One-time migration: clear the legacy un-scoped keys so a coach
+  // switching accounts can't see the previous coach's chat history.
+  try {
+    localStorage.removeItem('np_nico_session');
+    localStorage.removeItem('np_nico_messages');
+  } catch(e) {}
+
   function _getSession() {
-    var s = localStorage.getItem('np_nico_session');
+    var key = _sessionKey();
+    if (!key) {
+      // Anonymous — keep a session in memory only.
+      if (!_anonSession) {
+        _anonSession = 'guide-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+      }
+      return _anonSession;
+    }
+    var s = localStorage.getItem(key);
     if (!s) {
       s = 'guide-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
-      localStorage.setItem('np_nico_session', s);
+      try { localStorage.setItem(key, s); } catch(e) {}
     }
     return s;
   }
 
   function _getMessages() {
-    try { return JSON.parse(localStorage.getItem('np_nico_messages') || '[]'); }
+    var key = _messagesKey();
+    if (!key) return [];
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); }
     catch(e) { return []; }
   }
 
   function _saveMessages(msgs) {
+    var key = _messagesKey();
+    if (!key) return;
     if (msgs.length > MAX_MESSAGES) msgs = msgs.slice(-MAX_MESSAGES);
-    localStorage.setItem('np_nico_messages', JSON.stringify(msgs));
+    try { localStorage.setItem(key, JSON.stringify(msgs)); } catch(e) {}
   }
+  var _anonSession = null;
 
   function _buildDOM() {
     var widget = document.createElement('div');
@@ -237,8 +274,11 @@ var NicoWidget = (function() {
   }
 
   function _clearChat() {
-    localStorage.removeItem('np_nico_messages');
-    localStorage.removeItem('np_nico_session');
+    var msgKey = _messagesKey();
+    var sessKey = _sessionKey();
+    if (msgKey) { try { localStorage.removeItem(msgKey); } catch(e) {} }
+    if (sessKey) { try { localStorage.removeItem(sessKey); } catch(e) {} }
+    _anonSession = null;
     _messagesEl.textContent = '';
     _showWelcome();
   }

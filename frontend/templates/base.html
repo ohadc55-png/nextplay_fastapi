@@ -498,6 +498,48 @@ document.querySelectorAll('.sidebar-nav a').forEach(link => {
 
 // ── Logout ──────────────────────────────────────────────────
 async function logout() {
+    // Wipe per-user client-side state BEFORE redirecting so the next
+    // coach signing in on the same browser doesn't inherit anything:
+    //   - PlayCreator saved-plays cache (`coach_ai_plays_<uid>`)
+    //   - Daisy Chain (AI guide) session + transcript (`np_nico_*_<uid>`)
+    //   - Notebook view preferences (`nb_*_<uid>`)
+    //   - Team-setup onboarding flags (`np_team_setup_intro_dismissed_<uid>`,
+    //     `np_scout_with_brad_complete_<uid>`)
+    //   - Tour progress (`np_tour_u<uid>_<page>`)
+    //   - Welcome-spotlight flag (`np_welcomed_<uid>`)
+    // Also nuke any legacy un-scoped keys that pre-date the per-user
+    // namespacing (defensive — they should already have been deleted on
+    // page load, but a coach who never visited those pages won't have
+    // triggered the cleanup).
+    try {
+        var doomed = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (!k) continue;
+            if (
+                k === 'coach_ai_plays' ||
+                k === 'np_nico_session' ||
+                k === 'np_nico_messages' ||
+                k === 'np_nico_open' ||
+                k === 'nb_grouped_mode' ||
+                k === 'nb_collapsed_groups' ||
+                k === 'np_team_setup_intro_dismissed' ||
+                k === 'np_scout_with_brad_complete' ||
+                k.indexOf('coach_ai_plays_') === 0 ||
+                k.indexOf('np_nico_session_') === 0 ||
+                k.indexOf('np_nico_messages_') === 0 ||
+                k.indexOf('nb_grouped_mode_') === 0 ||
+                k.indexOf('nb_collapsed_groups_') === 0 ||
+                k.indexOf('np_team_setup_intro_dismissed_') === 0 ||
+                k.indexOf('np_scout_with_brad_complete_') === 0 ||
+                k.indexOf('np_tour_') === 0 ||
+                k.indexOf('np_welcomed_') === 0
+            ) {
+                doomed.push(k);
+            }
+        }
+        doomed.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+    } catch (e) { /* localStorage might be disabled — proceed with logout anyway */ }
     await fetch('/api/auth/logout', { method: 'POST' });
     window.location.href = '/login';
 }

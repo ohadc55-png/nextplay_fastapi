@@ -877,13 +877,25 @@ let selectedPeriod = 'weekly';
 let searchTimeout = null;
 
 // Grouped-view state (declared early so init code below can reference it
-// without hitting the let-temporal-dead-zone). Persisted in localStorage.
+// without hitting the let-temporal-dead-zone). Persisted in localStorage
+// under a per-user key — without scoping, Coach B inherits Coach A's
+// "grouped" / "collapsed groups" preferences on the same browser.
+function _nbUserScope() {
+    var m = document.querySelector('meta[name="np-user-id"]');
+    return (m && m.content) ? m.content : '';
+}
+function _nbKey(suffix) {
+    var u = _nbUserScope();
+    return u ? ('nb_' + suffix + '_' + u) : null;
+}
+// One-time migration: drop the legacy un-scoped keys.
+try { localStorage.removeItem('nb_grouped_mode'); localStorage.removeItem('nb_collapsed_groups'); } catch (e) {}
 let groupedMode = (function () {
-    try { return localStorage.getItem('nb_grouped_mode') === '1'; }
+    try { var k = _nbKey('grouped_mode'); return k && localStorage.getItem(k) === '1'; }
     catch (e) { return false; }
 })();
 let collapsedGroups = (function () {
-    try { return JSON.parse(localStorage.getItem('nb_collapsed_groups') || '{}') || {}; }
+    try { var k = _nbKey('collapsed_groups'); return k ? (JSON.parse(localStorage.getItem(k) || '{}') || {}) : {}; }
     catch (e) { return {}; }
 })();
 const GROUP_ICONS = {
@@ -1126,7 +1138,7 @@ function renderTimeline() {
 // Toggle the global flat ↔ grouped mode and re-render.
 function toggleGroupedMode() {
     groupedMode = !groupedMode;
-    try { localStorage.setItem('nb_grouped_mode', groupedMode ? '1' : '0'); }
+    try { const k = _nbKey('grouped_mode'); if (k) localStorage.setItem(k, groupedMode ? '1' : '0'); }
     catch (e) {}
     const btn = document.getElementById('nbGroupToggle');
     if (btn) btn.classList.toggle('active', groupedMode);
@@ -1140,7 +1152,7 @@ function toggleGroupCollapse(type, ev) {
     const isNowCollapsed = !collapsedGroups[type];
     if (isNowCollapsed) collapsedGroups[type] = true;
     else delete collapsedGroups[type];
-    try { localStorage.setItem('nb_collapsed_groups', JSON.stringify(collapsedGroups)); }
+    try { const k = _nbKey('collapsed_groups'); if (k) localStorage.setItem(k, JSON.stringify(collapsedGroups)); }
     catch (e) {}
     // Toggle the class directly without re-rendering — keeps any expanded rows intact.
     const groupEl = document.querySelector('.nb-group[data-type="' + type + '"]');

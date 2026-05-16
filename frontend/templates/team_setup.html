@@ -872,10 +872,27 @@ document.querySelectorAll('canvas[id^="miniRadar-"]').forEach(drawMiniRadar);
 })();
 
 // ═══ Onboarding guidance + Brad CTA ═══════════════════════════
+// User-scoped flags so two coaches on the same browser don't dismiss
+// each other's onboarding banners.
+function _tsUserScope() {
+    var m = document.querySelector('meta[name="np-user-id"]');
+    return (m && m.content) ? m.content : '';
+}
+function _tsKey(name) {
+    var u = _tsUserScope();
+    return u ? (name + '_' + u) : null;
+}
+// One-time migration: drop the legacy un-scoped flags.
+try {
+    localStorage.removeItem('np_team_setup_intro_dismissed');
+    localStorage.removeItem('np_scout_with_brad_complete');
+} catch (e) {}
+
 (function () {
     // Empty-roster guidance card — show once until dismissed
     var guidance = document.getElementById('setupGuidanceCard');
-    if (guidance && !localStorage.getItem('np_team_setup_intro_dismissed')) {
+    var introKey = _tsKey('np_team_setup_intro_dismissed');
+    if (guidance && (!introKey || !localStorage.getItem(introKey))) {
         guidance.hidden = false;
     }
 
@@ -885,7 +902,8 @@ document.querySelectorAll('canvas[id^="miniRadar-"]').forEach(drawMiniRadar);
     //    profiles), the banner is dismissed permanently via the
     //    np_scout_with_brad_complete flag and never shows again.
     var bradBanner = document.getElementById('bradCtaBanner');
-    if (bradBanner && !localStorage.getItem('np_scout_with_brad_complete')) {
+    var bradKey = _tsKey('np_scout_with_brad_complete');
+    if (bradBanner && (!bradKey || !localStorage.getItem(bradKey))) {
         fetch('/api/onboarding/players-status', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
@@ -899,7 +917,7 @@ document.querySelectorAll('canvas[id^="miniRadar-"]').forEach(drawMiniRadar);
 
                 // Roster fully built — set permanent flag and stop showing forever.
                 if (total >= 8 && pending === 0) {
-                    try { localStorage.setItem('np_scout_with_brad_complete', '1'); } catch (e) {}
+                    try { if (bradKey) localStorage.setItem(bradKey, '1'); } catch (e) {}
                     return;
                 }
 
@@ -915,7 +933,7 @@ document.querySelectorAll('canvas[id^="miniRadar-"]').forEach(drawMiniRadar);
 function dismissSetupGuidance() {
     var el = document.getElementById('setupGuidanceCard');
     if (el) el.hidden = true;
-    try { localStorage.setItem('np_team_setup_intro_dismissed', '1'); } catch (e) {}
+    try { var k = _tsKey('np_team_setup_intro_dismissed'); if (k) localStorage.setItem(k, '1'); } catch (e) {}
 }
 
 function dismissBradCta() {

@@ -56,7 +56,14 @@ class PlayCreator {
     this.shareUrl='';this.showShareModal=false;
     this.showConfirmModal=false;this.pendingLoad=null;
     this.showNewConfirm=false;this._currentPlayName=null;
-    try{const s=localStorage.getItem('coach_ai_plays');if(s)this.saved=JSON.parse(s);}catch(e){}
+    // Per-user localStorage namespace. The legacy key `coach_ai_plays`
+    // was un-scoped, so Coach A's saved plays would appear in Coach B's
+    // sidebar when they shared a browser. Migrate by deleting the legacy
+    // key once and read/write only under the per-user key going forward.
+    // For anonymous contexts (public share viewer), `_storageKey()`
+    // returns null and we skip localStorage entirely.
+    try{localStorage.removeItem('coach_ai_plays');}catch(e){}
+    try{const k=this._storageKey();if(k){const s=localStorage.getItem(k);if(s)this.saved=JSON.parse(s);}}catch(e){}
 
     // ── On-screen debug overlay (toggle with ?debug=1 in URL) ──
     this._dbg=null;this._dbgLines=[];
@@ -141,7 +148,8 @@ class PlayCreator {
   }
 
   _updateUI(){const b=this.el.querySelector('.pc-parallel-indicator');if(b)b.style.display=this.parallelMode?'inline-flex':'none';}
-  _save(){localStorage.setItem('coach_ai_plays',JSON.stringify(this.saved));}
+  _storageKey(){const m=document.querySelector('meta[name="np-user-id"]');const uid=m&&m.content;return uid?('coach_ai_plays_'+uid):null;}
+  _save(){const k=this._storageKey();if(k){try{localStorage.setItem(k,JSON.stringify(this.saved));}catch(e){}}}
   _calcDur(){this.duration=this.actions.length>0?Math.max(...this.actions.map(a=>a.t+ACT_SPC)):0;}
   _getXY(e){const svg=this.el.querySelector('.pc-svg');if(!svg)return null;const pt=svg.createSVGPoint();pt.x=e.touches?.[0]?.clientX??e.clientX;pt.y=e.touches?.[0]?.clientY??e.clientY;const ctm=svg.getScreenCTM();if(!ctm)return null;const s=pt.matrixTransform(ctm.inverse());const maxY=this.fullCourt?168:84;return{x:clamp(s.x,4,96),y:clamp(s.y,4,maxY)};}
   _bez(sx,sy,cx,cy,ex,ey,t){const m=1-t;return{x:m*m*sx+2*m*t*cx+t*t*ex,y:m*m*sy+2*m*t*cy+t*t*ey};}
