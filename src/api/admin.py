@@ -233,11 +233,15 @@ async def admin_dashboard(
         task_counts[p] = int(n or 0)
     open_total = sum(task_counts.values())
 
+    # `due_date` is a real DATE column in Postgres. Pass a Python date
+    # (not an ISO string) so asyncpg binds it as DATE and the `<` operator
+    # resolves. ISO string vs DATE blows up with `operator does not exist:
+    # date < character varying` — same family as the /admin/dashboard fix.
     overdue = await _scalar(
         db,
         "SELECT COUNT(*) FROM admin_tasks "
         "WHERE status != 'done' AND due_date IS NOT NULL AND due_date < :today",
-        today=today.isoformat(),
+        today=today,
     )
 
     return {

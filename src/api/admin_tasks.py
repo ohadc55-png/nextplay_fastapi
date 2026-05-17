@@ -203,10 +203,21 @@ async def list_tasks(
         if valid:
             stmt = stmt.where(AdminTask.type.in_(valid))
 
+    # `due_from` / `due_to` arrive as ISO strings from the query string but
+    # `AdminTask.due_date` is a real DATE column in Postgres. Comparing
+    # `date >= varchar` raises `UndefinedFunctionError`. Parse to `date`
+    # objects so the bind type matches. Invalid input is silently dropped
+    # (matches v1's lenient query-param handling).
     if due_from:
-        stmt = stmt.where(AdminTask.due_date >= due_from)
+        try:
+            stmt = stmt.where(AdminTask.due_date >= date.fromisoformat(due_from))
+        except ValueError:
+            pass
     if due_to:
-        stmt = stmt.where(AdminTask.due_date <= due_to)
+        try:
+            stmt = stmt.where(AdminTask.due_date <= date.fromisoformat(due_to))
+        except ValueError:
+            pass
 
     if q:
         like = f"%{q.lower()}%"
