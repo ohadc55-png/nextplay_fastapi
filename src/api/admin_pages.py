@@ -351,7 +351,13 @@ async def admin_api_costs_page(
     from src.models.conversations import Conversation
     from src.models.users import User
 
-    now = datetime.now(UTC)
+    # ApiUsageLog.created_at + Conversation.created_at are DateTime (no
+    # timezone=True) so Postgres maps them to TIMESTAMP WITHOUT TIME ZONE.
+    # asyncpg refuses tz-aware bind params for that column type with
+    # `DataError: can't subtract offset-naive and offset-aware datetimes`.
+    # Drop tzinfo before binding so both sides are naive; semantically
+    # they're still UTC because that's the only thing we ever store.
+    now = datetime.now(UTC).replace(tzinfo=None)
     day_ago = now - timedelta(days=1)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
@@ -570,7 +576,9 @@ async def admin_feature_usage_page(
     ]
 
     # Daily message volume (last 30 days)
-    month_ago = datetime.now(UTC) - timedelta(days=30)
+    # Conversation.created_at is DateTime tz-naive in Postgres — strip tz
+    # before binding (see api-costs handler for the full explanation).
+    month_ago = (datetime.now(UTC) - timedelta(days=30)).replace(tzinfo=None)
     daily_messages = [
         {"day": str(d), "cnt": int(c or 0)}
         for d, c in (await db.execute(
@@ -1030,7 +1038,9 @@ async def admin_research_sources_page(
 
     from src.models.analytics import ResearchUrlLog
 
-    month_ago = datetime.now(UTC) - timedelta(days=30)
+    # ResearchUrlLog.used_at is DateTime tz-naive in Postgres — strip tz
+    # before binding (see api-costs handler for the full explanation).
+    month_ago = (datetime.now(UTC) - timedelta(days=30)).replace(tzinfo=None)
 
     total_extracts = (await db.execute(
         select(func.count()).select_from(ResearchUrlLog)
@@ -1159,7 +1169,10 @@ async def admin_email_log_page(
 
     from src.models.email import EmailLog
 
-    now = datetime.now(UTC)
+    # EmailLog.sent_at + EmailLog.created_at are DateTime tz-naive in
+    # Postgres — strip tz before binding (see api-costs handler for the
+    # full explanation).
+    now = datetime.now(UTC).replace(tzinfo=None)
     day_ago = now - timedelta(days=1)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
