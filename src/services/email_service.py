@@ -86,7 +86,15 @@ async def _issue_auth_token(
     `users` row (e.g. ``org_invite``)."""
     raw = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw)
-    expires_at = datetime.now(UTC) + timedelta(hours=expires_in_hours)
+    # `auth_tokens.expires_at` is DateTime without tz (TIMESTAMP WITHOUT TIME
+    # ZONE on Postgres). asyncpg refuses tz-aware values for this column type
+    # with "can't subtract offset-naive and offset-aware datetimes". Stored as
+    # UTC by convention; readers (e.g. org.py:547-551) reattach tzinfo=UTC for
+    # comparison. SQLite stored as TEXT so this divergence only manifests in
+    # the asyncpg path.
+    expires_at = (
+        datetime.now(UTC) + timedelta(hours=expires_in_hours)
+    ).replace(tzinfo=None)
     row = AuthToken(
         user_id=user_id,
         token_hash=token_hash,

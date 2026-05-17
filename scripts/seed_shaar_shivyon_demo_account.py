@@ -3,16 +3,20 @@
 Idempotent — re-running produces the same final state. Use to spin up a
 demoable slice of the Enterprise/Coach Calendar flow on staging or production.
 
+The org slug is `shaar-shivyon-demo` (NOT plain `shaar-shivyon`) so the
+demo data never collides with a real customer org. The Phase 13 slug URLs
+expose this org at `trynextplay.app/shaar-shivyon-demo/dashboard`.
+
 What gets created:
-  * Organization slug=`shaar-shivyon` (existing one is reused if present).
+  * Organization slug=`shaar-shivyon-demo` (existing one is reused if present).
   * 6 Sha'ar Shivyon programs (verbatim from `seed_shaar_shivyon_programs.py`).
   * Region "מחוז מרכז" (Center) with `program_id=NULL` (Phase 12 shared).
   * Team "תל אביב דרום" in (region=Center, program=Sal-Tech), `user_id=NULL`
     so the user can invite a real coach via the Phase 14 UI on production.
   * 3 demo users + 3 `UserOrganization` rows:
-      ceo@shaar-shivyon.demo.nextplay.local           → org_admin
-      pm-saltech@shaar-shivyon.demo.nextplay.local    → program_manager (sal-tech)
-      rm-merkaz@shaar-shivyon.demo.nextplay.local     → region_manager (Center)
+      ceo@shaar-shivyon-demo.demo.nextplay.local           → org_admin
+      pm-saltech@shaar-shivyon-demo.demo.nextplay.local    → program_manager (sal-tech)
+      rm-merkaz@shaar-shivyon-demo.demo.nextplay.local     → region_manager (Center)
     All passwords: `demo123` (matches `src/services/demo_seeder.py` convention).
   * 20 Player rows on the team with realistic mixed Israeli names.
 
@@ -61,8 +65,8 @@ log = logging.getLogger("seed_demo")
 # scripts on the same DB produces different results depending on order.
 # ---------------------------------------------------------------------------
 
-DEFAULT_ORG_SLUG = "shaar-shivyon"
-DEFAULT_ORG_NAME = "עמותת שער שיוויון"
+DEFAULT_ORG_SLUG = "shaar-shivyon-demo"
+DEFAULT_ORG_NAME = "עמותת שער שיוויון (דמו)"
 DEFAULT_REGION_NAME = "מחוז מרכז"
 DEFAULT_TEAM_NAME = "תל אביב דרום"
 DEFAULT_PROGRAM_SLUG = "sal-tech"
@@ -79,7 +83,7 @@ SHA_AR_SHIVYON_PROGRAMS: list[tuple[str, str]] = [
 # Demo account convention from src/services/demo_seeder.py:46-47.
 # Hash once and reuse — bcrypt is ~250ms per call.
 DEMO_PASSWORD = "demo123"
-DEMO_EMAIL_DOMAIN = "shaar-shivyon.demo.nextplay.local"
+DEMO_EMAIL_DOMAIN = "shaar-shivyon-demo.demo.nextplay.local"
 
 # (email-local-part, display-name, role-tag-for-scoping)
 DEMO_USERS: list[tuple[str, str, str]] = [
@@ -133,6 +137,40 @@ async def _get_or_create_org(
     if row is not None:
         log.info(f"  [org] existing id={row.id} slug={row.slug!r}")
         return row
+
+    # In-place rename: if a prior run of this seed used the old slug
+    # `shaar-shivyon` (collides with the real Sha'ar Shivyon org concept),
+    # migrate it to the new slug + bring user emails along. One-shot, then
+    # the existing-row branch above takes over on subsequent runs.
+    if slug == "shaar-shivyon-demo":
+        legacy = (
+            await session.execute(
+                select(Organization).where(Organization.slug == "shaar-shivyon")
+            )
+        ).scalar_one_or_none()
+        if legacy is not None:
+            legacy.slug = slug
+            if legacy.name == "עמותת שער שיוויון":
+                legacy.name = name
+            # Rename user emails: @shaar-shivyon.demo.nextplay.local
+            # -> @shaar-shivyon-demo.demo.nextplay.local
+            old_dom = "shaar-shivyon.demo.nextplay.local"
+            new_dom = "shaar-shivyon-demo.demo.nextplay.local"
+            users = (
+                await session.execute(
+                    select(User).where(User.email.like(f"%@{old_dom}"))
+                )
+            ).scalars().all()
+            for u in users:
+                local = u.email.split("@", 1)[0]
+                u.email = f"{local}@{new_dom}"
+            await session.flush()
+            log.info(
+                f"  [org] renamed legacy id={legacy.id} slug='shaar-shivyon' -> "
+                f"{slug!r}; updated {len(users)} user emails to @{new_dom}"
+            )
+            return legacy
+
     org = Organization(slug=slug, name=name, status="active", plan="enterprise")
     session.add(org)
     await session.flush()
