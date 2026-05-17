@@ -48,13 +48,28 @@ class TeamsRepository(BaseRepository[TeamProfile]):
         self,
         organization_id: int | None,
         *,
+        program_id: int | None = None,
         region_id: int | None = None,
         branch_id: int | None = None,
         coach_user_id: int | None = None,
+        q: str | None = None,
     ) -> list[TeamProfile]:
-        """Teams inside a specific org, optionally narrowed by region (via
-        the team's branch), branch, or owning coach. Defensive: returns []
-        when organization_id is None."""
+        """Teams inside a specific org with optional filters.
+
+        Filter semantics:
+          program_id    → teams whose region belongs to that program (via
+                          regions.program_id), OR whose branch's region
+                          belongs to the program (legacy path).
+          region_id     → teams matching `team.region_id == X` OR
+                          `branch.region_id == X` (dual path)
+          branch_id     → exact match on team.branch_id
+          coach_user_id → exact match on team.user_id
+          q             → case-insensitive substring on team_name
+
+        Defensive: returns [] when organization_id is None.
+        """
+        from sqlalchemy import or_
+
         from src.models.branches import Branch
 
         if organization_id is None:
@@ -65,14 +80,22 @@ class TeamsRepository(BaseRepository[TeamProfile]):
         if branch_id is not None:
             stmt = stmt.where(TeamProfile.branch_id == branch_id)
         if region_id is not None:
-            # Teams whose branch lives in this region.
-            stmt = stmt.where(
-                TeamProfile.branch_id.in_(
-                    select(Branch.id).where(Branch.region_id == region_id)
-                )
+            branches_in_region = (
+                select(Branch.id).where(Branch.region_id == region_id)
             )
+            stmt = stmt.where(or_(
+                TeamProfile.region_id == region_id,
+                TeamProfile.branch_id.in_(branches_in_region),
+            ))
+        if program_id is not None:
+            # Phase 12 — program is now a direct attribute on TeamProfile.
+            # Pre-decoupling we walked Region.program_id (one program per
+            # region); that mapping is gone and regions are shared geography.
+            stmt = stmt.where(TeamProfile.program_id == program_id)
         if coach_user_id is not None:
             stmt = stmt.where(TeamProfile.user_id == coach_user_id)
+        if q:
+            stmt = stmt.where(TeamProfile.team_name.ilike(f"%{q.strip()}%"))
         stmt = stmt.order_by(TeamProfile.team_name)
         return list((await self.session.execute(stmt)).scalars().all())
 

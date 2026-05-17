@@ -69,6 +69,15 @@
     </div>
 
     <div class="hero-content">
+        {# Phase 14.6 — enterprise teams display the program name as a small
+           kicker above the team title so the coach sees which org program
+           their team belongs to (e.g. "סל טק" / "שער שיוויון"). Private-coach
+           teams have no program → this block is omitted. #}
+        {% if program_name %}
+        <div style="font-size: 0.85rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent, #ff6a1f); margin-bottom: 4px;">
+            {{ program_name }}
+        </div>
+        {% endif %}
         <h1>{{ profile.team_name|upper }}</h1>
         <p>{{ profile.league or '' }} {{ '· ' + profile.division if profile.division else '' }}</p>
 

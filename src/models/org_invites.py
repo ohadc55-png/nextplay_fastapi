@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from src.models.auth import AuthToken
     from src.models.branches import Branch
     from src.models.organizations import Organization
+    from src.models.programs import Program
     from src.models.regions import Region
     from src.models.users import User
 
@@ -35,15 +36,32 @@ class OrgInvite(Base):
     )
     email: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(Text, nullable=False)
+    program_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("programs.id", ondelete="SET NULL"), nullable=True
+    )
     region_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("regions.id", ondelete="SET NULL"), nullable=True
     )
     branch_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True
     )
+    # Phase 14 — coach invites can pre-assign a team. Set by PM/RM during
+    # the invite UI (single team per invite). At redeem time the team's
+    # `user_id` is rewritten to the new coach and `users.active_team_id`
+    # is stamped so the Coach App opens straight on this team. NULL for
+    # invites where role != "coach" (other roles don't own teams).
+    team_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("team_profile.id", ondelete="SET NULL"), nullable=True
+    )
     auth_token_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("auth_tokens.id", ondelete="CASCADE"), nullable=False, unique=True
     )
+    # Short human-readable redemption code (8 chars, unambiguous alphabet). The
+    # invitee enters this on /org/join to self-register + auto-join the org.
+    # Nullable so pre-existing rows stay valid; new invites always set it.
+    # One-time-use: redemption marks the auth_token used, so neither the magic
+    # link nor the code can be re-used.
+    short_code: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
     invited_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -52,6 +70,9 @@ class OrgInvite(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     organization: Mapped[Organization] = relationship("Organization", lazy="raise")
+    program: Mapped[Program | None] = relationship(
+        "Program", lazy="raise", foreign_keys=[program_id]
+    )
     region: Mapped[Region | None] = relationship("Region", lazy="raise", foreign_keys=[region_id])
     branch: Mapped[Branch | None] = relationship("Branch", lazy="raise", foreign_keys=[branch_id])
     auth_token: Mapped[AuthToken] = relationship("AuthToken", lazy="raise")
@@ -61,6 +82,8 @@ class OrgInvite(Base):
         Index("idx_org_invites_org", "organization_id"),
         Index("idx_org_invites_email", "email"),
         Index("idx_org_invites_status", "status"),
+        Index("idx_org_invites_short_code", "short_code"),
+        Index("idx_org_invites_team", "team_id"),
     )
 
     def __repr__(self) -> str:  # pragma: no cover

@@ -46,6 +46,16 @@
   --org-info:       #06B6D4;
   --org-info-bg:    #CFFAFE;
 
+  /* === Cyan scale (Phase 12 — paired with the blue scale for the mesh) === */
+  --org-cyan-50:   #ECFEFF;
+  --org-cyan-100:  #CFFAFE;
+  --org-cyan-300:  #67E8F9;
+  --org-cyan-500:  #06B6D4;
+  --org-cyan-600:  #0891B2;
+  --org-cyan-700:  #0E7490;
+  --org-sky-100:   #E0F2FE;
+  --org-sky-300:   #7DD3FC;
+
   /* === Special: AI accent (purple) === */
   --org-purple-100: #EDE9FE;
   --org-purple-500: #8B5CF6;
@@ -114,7 +124,11 @@
   font-size: var(--org-text-base);
   line-height: 1.5;
   color: var(--org-gray-800);
-  background: #F4F7FB;  /* soft blue-tinted neutral so sidebar + main flow */
+  /* Phase 12 refresh — soft vertical blue-tinted gradient instead of flat
+   * neutral. Pairs with the .org-bg mesh below (4 radial blobs) so the page
+   * never reads as plain white. */
+  background:
+    linear-gradient(180deg, #EEF4FC 0%, #F2F7FC 50%, #E9F3FB 100%);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -175,10 +189,15 @@
 
 .org-sidebar {
   grid-area: sidebar;
-  /* Light blue tint that flows into the main canvas. Not jarring against
-   * the white-ish main; brand color hint without being loud. */
+  /* Phase 12 refresh — gradient now leans cyan at the bottom so the rail
+   * carries the same blue→cyan thread as the main canvas mesh. Opaque so the
+   * mesh stays clearly "behind data" rather than diffusing through the rail. */
   background:
-    linear-gradient(180deg, #FFFFFF 0%, #EEF4FB 70%, #E6EFF9 100%);
+    linear-gradient(180deg,
+      #FFFFFF 0%,
+      #F2F7FC 35%,
+      #E6F1FA 70%,
+      #DCEDF7 100%);
   color: var(--org-gray-700);
   display: flex;
   flex-direction: column;
@@ -197,19 +216,21 @@
   width: 100%;
 }
 
-/* OFFICE-BG: very soft radial tint behind main content. CSS-only until
- * frontend/static/img/office-bg.jpg is supplied — then change the
- * background-image line marked /* OFFICE-BG */
-/* to: url('/static/img/office-bg.jpg'). */
+/* Phase 12 refresh — full-viewport 4-blob mesh. Fixed so it doesn't scroll;
+ * sits behind everything (z:-1). Opaque sidebar masks it on the right edge,
+ * but the main canvas reads as a soft blue-cyan "atmosphere" instead of flat.
+ *
+ * Why 4 blobs at 14-24% rather than the prior 2 at 4-5%: at low opacity the
+ * mesh disappears against the F2F7FC base. 14-24% reads as visible texture
+ * without washing out card content. */
 .org-bg {
   position: fixed;
-  inset-block-start: var(--org-header-h);
-  inset-inline-end: 0;
-  inset-block-end: 0;
-  inset-inline-start: var(--org-sidebar-w);
+  inset: 0;
   background:
-    radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.05), transparent 35%),
-    radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.04), transparent 35%);
+    radial-gradient(ellipse 70% 60% at 95% 5%,   rgba(59, 130, 246, 0.22), transparent 62%),
+    radial-gradient(ellipse 75% 55% at 5% 95%,   rgba(6, 182, 212, 0.24),  transparent 62%),
+    radial-gradient(ellipse 55% 50% at 60% 45%,  rgba(56, 189, 248, 0.14), transparent 65%),
+    radial-gradient(ellipse 45% 45% at 8% 8%,    rgba(125, 211, 252, 0.16), transparent 62%);
   z-index: -1;
   pointer-events: none;
 }
@@ -301,14 +322,15 @@
   width: 32px;
   height: 32px;
   border-radius: var(--org-radius-full);
-  background: linear-gradient(135deg, var(--org-blue-500), var(--org-blue-700));
+  /* Phase 12 refresh — gradient now spans blue→cyan to match the page mesh. */
+  background: linear-gradient(135deg, var(--org-blue-600), var(--org-info));
   color: var(--org-white);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: var(--org-text-sm);
   font-weight: 600;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 2px 6px -1px rgba(6, 182, 212, 0.35);
 }
 
 .org-header-link {
@@ -414,14 +436,16 @@
 }
 
 .org-nav-item.is-active {
-  background: linear-gradient(135deg, var(--org-blue-500), var(--org-blue-700));
+  /* Phase 12 refresh — gradient now blue-700 → cyan-600 to match the canvas
+   * mesh. Shadow color picks up cyan so the rail's active state feels lit. */
+  background: linear-gradient(135deg, var(--org-blue-700), var(--org-cyan-700, #0E7490));
   color: var(--org-white);
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 14px -2px rgba(6, 182, 212, 0.32);
 }
 .org-nav-item.is-active:hover {
   color: var(--org-white);
-  background: linear-gradient(135deg, var(--org-blue-500), var(--org-blue-700));
+  background: linear-gradient(135deg, var(--org-blue-700), var(--org-cyan-700, #0E7490));
 }
 
 .org-nav-item.is-disabled {
@@ -1588,3 +1612,361 @@
   border-radius: 4px;
   transition: width 0.3s ease;
 }
+
+/* ============================================================================
+ * PHASE 12 REFRESH — Dashboard glass + KPI v2 + charts + mini calendar
+ * ----------------------------------------------------------------------------
+ * New component classes used by the redesigned dashboard / calendar / shell.
+ * Additive only — existing .org-stat, .org-card, .org-page-header, etc. are
+ * untouched so non-refreshed pages keep working. Cards here are glass-style
+ * (semi-transparent white + backdrop-blur) so the .org-bg mesh peeks through
+ * the edges and gives the page depth.
+ * ========================================================================= */
+
+/* === Glass panel: canonical card from Phase 12 onward === */
+.org-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: var(--org-radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--org-shadow-sm);
+  transition: box-shadow var(--org-trans-base);
+}
+.org-panel:hover { box-shadow: var(--org-shadow-md); }
+.org-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 14px;
+}
+.org-panel__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--org-gray-900);
+}
+.org-panel__link {
+  font-size: 11.5px;
+  color: var(--org-blue-600);
+  font-weight: 500;
+}
+.org-panel__link:hover { color: var(--org-blue-700); }
+
+/* === Page head: title + subtitle on the inline-start, actions on inline-end.
+ * Distinct from the legacy .org-page-header which stacks differently. === */
+.org-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-block-end: 16px;
+  margin-block-end: 20px;
+  border-block-end: 1px solid rgba(15, 23, 42, 0.06);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.org-page-head__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--org-gray-900);
+  margin: 0;
+}
+.org-page-head__sub {
+  font-size: 12.5px;
+  color: var(--org-gray-500);
+  margin-block-start: 3px;
+}
+.org-page-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* === KPI v2 — bigger number, hover lift, delta chip slot below === */
+.org-kpi {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: var(--org-radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--org-shadow-sm);
+  transition: all var(--org-trans-base);
+}
+.org-kpi:hover {
+  transform: translateY(-2px);
+  border-color: var(--org-blue-200);
+  box-shadow: var(--org-shadow-md);
+}
+.org-kpi__label {
+  font-size: 11px;
+  color: var(--org-gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin-block-end: 8px;
+}
+.org-kpi__value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--org-gray-900);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.org-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+@media (max-width: 900px) {
+  .org-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Delta chip — up/down indicator under KPI numbers + general purpose */
+.org-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-block-start: 8px;
+}
+.org-delta--up   { color: #047857; }
+.org-delta--down { color: #B91C1C; }
+.org-delta__muted { color: var(--org-gray-500); font-weight: 500; }
+
+/* === Gradient primary button — blue→cyan accent for the hero CTA ===
+ * Specificity note: `.org-body a` is more specific than a single class, so
+ * when the gradient btn is rendered as an <a> the base link color wins and
+ * the white text disappears against the blue gradient. Scope these rules
+ * under `.org-body` to match that specificity. */
+.org-body .org-btn--gradient,
+.org-btn--gradient {
+  background: linear-gradient(135deg, var(--org-blue-700), var(--org-blue-600));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 3px 10px -2px rgba(29, 78, 216, 0.35);
+}
+.org-body .org-btn--gradient:hover,
+.org-btn--gradient:hover {
+  background: linear-gradient(135deg, var(--org-blue-800), var(--org-blue-700));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px -2px rgba(29, 78, 216, 0.45);
+}
+
+/* === Gradient time pill — for practice rows (today's training list) === */
+.org-time-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--org-radius-sm);
+  font-weight: 600;
+  font-size: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--org-blue-600), var(--org-info));
+  box-shadow: 0 2px 6px -2px rgba(6, 182, 212, 0.4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* === List dot (activity feed) — soft halo === */
+.org-list-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--org-blue-500);
+  box-shadow: 0 0 0 2.5px rgba(59, 130, 246, 0.12);
+}
+.org-list-dot--cyan { background: var(--org-info); box-shadow: 0 0 0 2.5px rgba(6, 182, 212, 0.12); }
+.org-list-dot--gray { background: var(--org-gray-400); box-shadow: 0 0 0 2.5px rgba(148, 163, 184, 0.12); }
+
+/* === Horizontal bar chart — single-row grid (name | track | value) ===
+ * Distinct from .org-bar-row (stacked head→track layout, used elsewhere). */
+.org-hbar {
+  display: grid;
+  grid-template-columns: 90px 1fr 44px;
+  gap: 12px;
+  align-items: center;
+  margin-block-end: 12px;
+  font-size: 12px;
+}
+.org-hbar:last-child { margin-block-end: 0; }
+.org-hbar__name { color: var(--org-gray-700); font-weight: 500; }
+.org-hbar__track {
+  height: 9px;
+  background: var(--org-gray-100);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.org-hbar__fill {
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--org-info), var(--org-blue-500));
+  transition: width var(--org-trans-slow);
+}
+.org-hbar__value {
+  color: var(--org-gray-700);
+  font-weight: 600;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Donut chart wrapper — SVG goes inside, legend beside === */
+.org-donut-wrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+}
+.org-donut {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+.org-donut__center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  pointer-events: none;
+}
+.org-donut__big {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--org-gray-900);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.org-donut__small {
+  font-size: 10.5px;
+  color: var(--org-gray-500);
+  margin-block-start: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.org-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11.5px;
+}
+.org-donut-legend__row { display: flex; align-items: center; gap: 8px; }
+.org-donut-legend__swatch { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.org-donut-legend__name { flex: 1; color: var(--org-gray-700); }
+.org-donut-legend__value {
+  font-weight: 600;
+  color: var(--org-gray-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Mini calendar — compact 7×6 grid for dashboard preview === */
+.org-mini-cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+.org-mini-cal__dow {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--org-gray-500);
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px;
+}
+.org-mini-cal__cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--org-gray-100);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px 2px;
+  font-size: 11px;
+  color: var(--org-gray-700);
+  transition: all var(--org-trans-fast);
+}
+.org-mini-cal__cell.is-other {
+  color: var(--org-gray-300);
+  background: rgba(243, 244, 246, 0.5);
+}
+.org-mini-cal__cell.is-today {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.10), rgba(6, 182, 212, 0.10));
+  border-color: var(--org-blue-300);
+  color: var(--org-blue-700);
+  font-weight: 700;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.10);
+}
+.org-mini-cal__cell:not(.is-other):hover {
+  border-color: var(--org-blue-200);
+  background: rgba(59, 130, 246, 0.05);
+}
+.org-mini-cal__dots {
+  display: flex;
+  gap: 1.5px;
+  margin-block-start: auto;
+  padding-block-end: 1px;
+}
+.org-mini-cal__dot {
+  width: 4.5px;
+  height: 4.5px;
+  border-radius: 50%;
+  background: var(--org-blue-500);
+}
+.org-mini-cal__dot--cyan { background: var(--org-info); }
+
+/* === Two-column rows used by dashboard === */
+.org-2col {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+  margin-block-end: 22px;
+}
+@media (max-width: 900px) {
+  .org-2col { grid-template-columns: 1fr; }
+}
+
+.org-charts-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+  margin-block-end: 22px;
+}
+@media (max-width: 900px) {
+  .org-charts-row { grid-template-columns: 1fr; }
+}
+
+/* === Activity feed + practice list — shared "row" pattern === */
+.org-feed { list-style: none; margin: 0; padding: 0; }
+.org-feed__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-block-end: 1px solid var(--org-gray-100);
+}
+.org-feed__row:last-child { border: 0; }
+.org-feed__body { flex: 1; min-width: 0; }
+.org-feed__main {
+  font-size: 13px;
+  color: var(--org-gray-800);
+  line-height: 1.45;
+}
+.org-feed__sub {
+  font-size: 11.5px;
+  color: var(--org-gray-500);
+  margin-block-start: 1px;
+}
+.org-feed__when {
+  font-size: 11.5px;
+  color: var(--org-gray-400);
+  white-space: nowrap;
+  margin-block-start: 2px;
+}
+
+/* === Counter (data-counter JS hook) — ensure tabular nums while ticking === */
+[data-counter] { font-variant-numeric: tabular-nums; }

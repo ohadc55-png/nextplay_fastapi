@@ -61,4 +61,25 @@ async def run_scheduled_messages(
     return await scheduled_message_worker.run_scheduled(dry_run=dry_run, limit=limit)
 
 
+@router.post("/run-calendar-pushes")
+async def run_calendar_pushes(
+    x_cron_secret: str | None = Header(default=None, alias="X-Cron-Secret"),
+) -> dict:
+    """Phase 15 — Coach Calendar push reminders.
+
+    Runs `push_service.run_push_jobs()` which fires:
+      - calendar_3h:      ~3h before each upcoming event
+      - calendar_summary: ~1h after each event ends, only if no summary
+                          was recorded
+      - inactive_coach:   (pre-existing) inactive-user nudge
+
+    Idempotent: each push checks `push_log` for a recent duplicate before
+    sending. Safe to call every ~10 min.
+    """
+    from src.services import push_service
+
+    _check_secret(x_cron_secret)
+    return await push_service.run_push_jobs()
+
+
 __all__ = ["router"]

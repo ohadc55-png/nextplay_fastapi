@@ -6,26 +6,37 @@
 {% block content %}
 <div class="org-page-header">
   <div>
-    <h1 class="org-page-title">אזורים</h1>
-    <p class="org-page-subtitle">חלוקה גיאוגרפית של הארגון. כל אזור מכיל סניפים.</p>
+    <h1 class="org-page-title">מחוזות</h1>
+    <p class="org-page-subtitle">חלוקה של הארגון לתוכניות ולמחוזות. לחץ על מחוז כדי לצלול לפרטים.</p>
   </div>
   {% if org_ctx.role == 'org_admin' %}
   <div class="org-page-actions">
     <button type="button" class="org-btn org-btn--primary" data-action="open-new-region">
       <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
-      <span>אזור חדש</span>
+      <span>מחוז חדש</span>
     </button>
   </div>
   {% endif %}
 </div>
 
-<div class="org-table-wrap">
+{% if org_ctx.role == 'org_admin' %}
+<div class="org-mt-4" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
+  <div class="org-form-group" style="min-width:240px; margin:0;">
+    <label class="org-form-label" for="regions-program-filter">סנן לפי תוכנית</label>
+    <select class="org-select" id="regions-program-filter">
+      <option value="">כל התוכניות</option>
+    </select>
+  </div>
+</div>
+{% endif %}
+
+<div class="org-table-wrap org-mt-4">
   <table class="org-table" id="regions-table">
     <thead>
       <tr>
-        <th style="width: 28%;">שם</th>
+        <th style="width: 22%;">שם</th>
+        <th style="width: 18%;">תוכנית</th>
         <th>מנהל מחוז</th>
-        <th>סניפים</th>
         <th>קבוצות</th>
         <th>מאמנים</th>
         <th>שחקנים</th>
@@ -51,10 +62,17 @@
       <div class="org-modal-body">
         <input type="hidden" name="id" value="">
         <div class="org-form-group">
-          <label class="org-form-label" for="region-name">שם האזור</label>
+          <label class="org-form-label" for="region-name">שם המחוז</label>
           <input class="org-input" type="text" id="region-name" name="name"
                  required minlength="1" maxlength="200" autocomplete="off">
           <div class="org-form-help">לדוגמה: מחוז צפון, מחוז מרכז</div>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="region-program">תוכנית</label>
+          <select class="org-select" id="region-program" name="program_id">
+            <option value="">— ללא תוכנית —</option>
+          </select>
+          <div class="org-form-help">המחוז ישויך לתוכנית. אפשר להשאיר ריק כעת ולעדכן בהמשך.</div>
         </div>
         <div class="org-form-error org-hidden" data-error></div>
       </div>

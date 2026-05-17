@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -333,6 +333,134 @@ async def home(
     extra = await _team_data(db, user)
     return templates.TemplateResponse(
         "home.html", page_context(request, user=user, extra=extra),
+    )
+
+
+@router.get("/calendar", response_class=HTMLResponse)
+async def coach_calendar_page(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Phase 15.3 — Coach Calendar page (month grid + day-detail panel).
+
+    JS hydrates events from `GET /api/coach/practice/range`. We expose
+    `teams_list` server-side too so the team-filter dropdown renders
+    immediately even if the API call hasn't returned yet (or fails).
+    """
+    extra = await _team_data(db, user)
+    # `_team_data` returns the team rows under `teams`; alias to
+    # `teams_list` for the template's filter dropdown — distinct name
+    # avoids shadowing the navbar's `teams` global, which the sidebar
+    # also reads.
+    extra["teams_list"] = extra.get("teams", [])
+    return templates.TemplateResponse(
+        "coach_calendar.html",
+        page_context(request, user=user, extra=extra),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 15.6 — Public sharing surfaces (iCal feed + monthly share page)
+#
+# Both routes are unauthenticated — the URL token IS the credential. Token
+# rotation (POST /api/coach/teams/{id}/(ical|share)-token) invalidates the
+# old URL immediately.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/calendar/feed/{token}.ics", include_in_schema=False)
+async def coach_calendar_ical_feed(
+    token: str, db: AsyncSession = Depends(get_db),
+) -> Response:
+    """iCal subscription feed for ONE team. Returns 90 days of upcoming
+    events as text/calendar. Subscribers (Google / Apple Calendar) poll
+    this URL periodically; their client handles deduping by UID."""
+    from src.models.teams import TeamProfile
+    from src.repositories.practice_sessions_repo import PracticeSessionsRepository
+    from src.services.ical_service import build_ical_feed
+
+    team = (await db.execute(
+        select(TeamProfile).where(TeamProfile.ical_token == token)
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    repo = PracticeSessionsRepository(db)
+    events = await repo.list_for_team(team.id, upcoming_only=True, limit=200)
+    body = build_ical_feed(events, team_name=team.team_name)
+    return Response(content=body, media_type="text/calendar; charset=utf-8")
+
+
+@router.get("/calendar/share/{token}", response_class=HTMLResponse, include_in_schema=False)
+async def coach_calendar_share(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Public read-only share page — shows the team's current + next month
+    as a clean monthly grid for sharing with parents/players. No login,
+    no NEXTPLAY signup CTA. NEXTPLAY logo in the corner only."""
+    from datetime import date as _date
+
+    from src.models.teams import TeamProfile
+    from src.repositories.practice_sessions_repo import PracticeSessionsRepository
+    from src.services.ical_service import month_grid
+
+    team = (await db.execute(
+        select(TeamProfile).where(TeamProfile.share_token == token)
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    today = _date.today()
+    next_month_year = today.year + (1 if today.month == 12 else 0)
+    next_month = 1 if today.month == 12 else today.month + 1
+
+    # Pull events across both months
+    range_start = _date(today.year, today.month, 1)
+    range_end = _date(next_month_year, next_month, 1).replace(day=28) + timedelta(days=10)
+    range_end = _date(range_end.year, range_end.month, 1)
+
+    repo = PracticeSessionsRepository(db)
+    raw = await repo.list_in_range_for_scope(
+        start=range_start, end=range_end, team_id=team.id,
+    )
+    # _serialize_row returns dicts; we need objects with attribute access
+    # for month_grid. Wrap them in a lightweight namespace.
+    class _Ev:
+        def __init__(self, d):
+            self.id = d["id"]
+            self.scheduled_at = d["scheduled_at"]
+            self.duration_minutes = d.get("duration_minutes")
+            self.title = d.get("title")
+            self.location = d.get("location")
+            self.notes = d.get("notes")
+            self.attributes_json = {
+                "event_type": d.get("event_type"),
+                "event_type_custom": d.get("event_type_custom"),
+                "opponent_home": d.get("opponent_home"),
+                "opponent_away": d.get("opponent_away"),
+            }
+    events = [_Ev(d) for d in raw]
+
+    current = month_grid(today.year, today.month, events)
+    nxt = month_grid(next_month_year, next_month, events)
+
+    hebrew_months = [
+        "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+        "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
+    ]
+
+    return templates.TemplateResponse(
+        "public/calendar_share.html",
+        page_context(request, user=None, extra={
+            "team_name": team.team_name,
+            "current_month_label": f"{hebrew_months[today.month - 1]} {today.year}",
+            "next_month_label": f"{hebrew_months[next_month - 1]} {next_month_year}",
+            "current_grid": current,
+            "next_grid": nxt,
+        }),
     )
 
 

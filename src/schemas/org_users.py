@@ -10,7 +10,9 @@ from pydantic import BaseModel, EmailStr
 from src.schemas.common import ORMModel
 
 # Mirror the role set in src/api/org.py:_VALID_ROLES.
-OrgRole = Literal["org_admin", "region_manager", "branch_manager", "coach", "viewer"]
+OrgRole = Literal[
+    "org_admin", "program_manager", "region_manager", "branch_manager", "coach", "viewer",
+]
 
 
 class OrgMemberOut(BaseModel):
@@ -22,6 +24,7 @@ class OrgMemberOut(BaseModel):
     email: str
     display_name: str | None = None
     role: OrgRole
+    program_id: int | None = None
     region_id: int | None = None
     branch_id: int | None = None
     status: str  # 'active' | 'suspended' | 'removed'
@@ -31,12 +34,13 @@ class OrgMemberOut(BaseModel):
 
 
 class MemberInviteRequest(BaseModel):
-    """org_admin (and region_manager scoped to own region) issues an invite.
-    org_id is read from the active session — never from the body, to keep
-    cross-org invites impossible from the front-end."""
+    """org_admin / program_manager / region_manager (each scoped to their own
+    subtree) issue invites. org_id is read from the active session — never
+    from the body, to keep cross-org invites impossible from the front-end."""
 
     email: EmailStr
     role: OrgRole
+    program_id: int | None = None
     region_id: int | None = None
     branch_id: int | None = None
 
@@ -50,6 +54,7 @@ class MemberInviteOut(ORMModel):
     email: str
     role: OrgRole
     status: str  # 'pending' | 'accepted' | 'cancelled'
+    program_id: int | None = None
     region_id: int | None = None
     branch_id: int | None = None
     created_at: datetime | None = None
@@ -68,11 +73,12 @@ class MemberRoleUpdate(BaseModel):
 
 
 class MemberScopeUpdate(BaseModel):
-    """PATCH /org/api/users/{membership_id} — change region/branch scope.
-    Validation rules (region_manager requires region_id; branch_manager
-    requires branch_id; both must belong to the active org) live in the
-    repository, not here."""
+    """PATCH /org/api/users/{membership_id} — change program/region/branch scope.
+    Validation rules (program_manager requires program_id; region_manager
+    requires region_id; branch_manager requires branch_id; all must belong to
+    the active org) live in the service layer, not here."""
 
+    program_id: int | None = None
     region_id: int | None = None
     branch_id: int | None = None
 

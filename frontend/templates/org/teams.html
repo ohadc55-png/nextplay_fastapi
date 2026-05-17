@@ -7,9 +7,9 @@
 <div class="org-page-header">
   <div>
     <h1 class="org-page-title">קבוצות</h1>
-    <p class="org-page-subtitle">כל קבוצה משויכת לסניף אחד ולמאמן ראשי.</p>
+    <p class="org-page-subtitle">סנן לפי תוכנית, מחוז או מאמן. לחיצה על שורה תפתח פרטי קבוצה.</p>
   </div>
-  {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager'] %}
+  {% if org_ctx.role in ['org_admin', 'program_manager', 'region_manager', 'branch_manager'] %}
   <div class="org-page-actions">
     <button type="button" class="org-btn org-btn--primary" data-action="open-new-team">
       <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
@@ -19,30 +19,52 @@
   {% endif %}
 </div>
 
+{# Phase 13 — only surface filters that are actually variable for the
+   actor's scope:
+     org_admin       → all 4 filters (program, region, coach, search)
+     program_manager → no program filter (locked to their program)
+     region_manager  → no program AND no region filter (both locked)
+     coach           → no filters (sees their own teams only)
+#}
 <div class="org-flex org-items-center org-gap-3" style="margin-block-end: var(--org-space-4); flex-wrap: wrap;">
+  {% if org_ctx.role == 'org_admin' %}
+  <label class="org-text-sm org-text-muted" for="team-program-filter">תוכנית:</label>
+  <select class="org-select" id="team-program-filter" style="max-width: 220px;">
+    <option value="">כל התוכניות</option>
+  </select>
+  {% endif %}
+  {% if org_ctx.role in ['org_admin', 'program_manager'] %}
   <label class="org-text-sm org-text-muted" for="team-region-filter">מחוז:</label>
   <select class="org-select" id="team-region-filter" style="max-width: 220px;">
     <option value="">כל המחוזות</option>
   </select>
-  <label class="org-text-sm org-text-muted" for="team-branch-filter">סניף:</label>
-  <select class="org-select" id="team-branch-filter" style="max-width: 240px;">
-    <option value="">כל הסניפים</option>
+  {% endif %}
+  {% if org_ctx.role != 'coach' %}
+  <label class="org-text-sm org-text-muted" for="team-coach-filter">מאמן:</label>
+  <select class="org-select" id="team-coach-filter" style="max-width: 220px;">
+    <option value="">כל המאמנים</option>
   </select>
+  {% endif %}
+  <label class="org-text-sm org-text-muted" for="team-q-filter">חיפוש:</label>
+  <input class="org-input" type="search" id="team-q-filter"
+         placeholder="חיפוש שם קבוצה…" style="max-width: 220px;">
+  <button type="button" class="org-btn org-btn--secondary" id="team-filters-clear">נקה</button>
 </div>
 
 <div class="org-table-wrap">
   <table class="org-table" id="teams-table">
     <thead>
       <tr>
-        <th style="width: 30%;">שם הקבוצה</th>
-        <th>ליגה / חטיבה</th>
-        <th>סניף</th>
+        <th style="width: 26%;">שם הקבוצה</th>
+        <th>תוכנית</th>
+        <th>מחוז</th>
         <th>מאמן ראשי</th>
-        {% if org_ctx.role in ['org_admin', 'region_manager', 'branch_manager'] %}<th style="width: 120px; text-align:end;">פעולות</th>{% endif %}
+        <th>ליגה / חטיבה</th>
+        {% if org_ctx.role in ['org_admin', 'program_manager', 'region_manager', 'branch_manager'] %}<th style="width: 120px; text-align:end;">פעולות</th>{% endif %}
       </tr>
     </thead>
     <tbody data-teams-rows>
-      <tr><td colspan="5" class="org-table-empty">טוען…</td></tr>
+      <tr><td colspan="6" class="org-table-empty">טוען…</td></tr>
     </tbody>
   </table>
 </div>
@@ -116,7 +138,7 @@
           <select class="org-select" id="coach-user" name="user_id" required>
             <option value="">— בחר מאמן —</option>
           </select>
-          <div class="org-form-help">בחר מתוך חברי הארגון. למאמן שאינו בארגון, הזמן אותו דרך עמוד "אנשים" קודם.</div>
+          <div class="org-form-help">בחר מתוך חברי הארגון. למאמן שאינו בארגון, הזמן אותו דרך עמוד "משתמשים" קודם.</div>
         </div>
         <div class="org-form-error org-hidden" data-error></div>
       </div>

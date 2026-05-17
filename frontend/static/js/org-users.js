@@ -9,14 +9,16 @@
 
   var ctx = window.ORG_CTX || { role: "viewer", region_id: null, branch_id: null, user_id: null };
   var isAdmin = ctx.role === "org_admin";
+  var isPM = ctx.role === "program_manager";
   var isRM = ctx.role === "region_manager";
-  var canInvite = isAdmin || isRM;
-  var canManageInvites = isAdmin || isRM;
+  var canInvite = isAdmin || isPM || isRM;
+  var canManageInvites = isAdmin || isPM || isRM;
 
   var ROLE_LABELS = {
     org_admin: "מנכ\"ל",
+    program_manager: "מנהל תוכנית",
     region_manager: "מנהל מחוז",
-    branch_manager: "מנהל סניף",
+    branch_manager: "מנהל סניף",  // legacy — kept so old rows still render
     coach: "מאמן",
     viewer: "צופה",
   };
@@ -27,8 +29,12 @@
     pending: "ממתין",
     cancelled: "בוטל",
   };
-  var INVITABLE_ROLES_ADMIN = ["org_admin", "region_manager", "branch_manager", "coach", "viewer"];
-  var INVITABLE_ROLES_RM = ["branch_manager", "coach", "viewer"];
+  // Invitable roles per actor — mirrors ROLE_INVITES_TREE in
+  // src/services/org_user_service.py. branch_manager is intentionally
+  // excluded from invite UI (legacy; we don't issue new ones).
+  var INVITABLE_ROLES_ADMIN = ["org_admin", "program_manager", "region_manager", "coach", "viewer"];
+  var INVITABLE_ROLES_PM = ["region_manager", "coach", "viewer"];
+  var INVITABLE_ROLES_RM = ["coach", "viewer"];
 
   // --- DOM refs ---
   var $membersRows = document.querySelector("[data-members-rows]");
@@ -36,6 +42,11 @@
   var $inviteModal = document.getElementById("invite-modal");
   var $inviteForm = document.getElementById("invite-form");
   var $inviteError = $inviteModal.querySelector("[data-error]");
+  var $inviteSuccessModal = document.getElementById("invite-success-modal");
+  var $inviteSuccessCode = $inviteSuccessModal
+    ? $inviteSuccessModal.querySelector("[data-success-code]") : null;
+  var $inviteSuccessLink = $inviteSuccessModal
+    ? $inviteSuccessModal.querySelector("[data-success-link]") : null;
   var $memberModal = document.getElementById("member-modal");           // null for non-admin
   var $memberForm = $memberModal ? document.getElementById("member-form") : null;
   var $memberError = $memberModal ? $memberModal.querySelector("[data-error]") : null;
@@ -47,7 +58,12 @@
   // --- State ---
   var regionsById = {};
   var branchesById = {};
+  var programsById = {};
   var teamNamesByCoachUserId = {};  // user_id -> [team_name, ...]  (for coach search)
+  // Phase 14 — full teams list, used by the invite-team picker when the
+  // selected role is "coach". Only unassigned teams (user_id == null) are
+  // shown — the server rejects pre-assigned ones with 409 anyway.
+  var allTeams = [];
   var allMembers = [];              // last-fetched (after server-side region filter)
   var allInvites = [];
   var pendingConfirm = null; // { onConfirm: () => Promise }
@@ -136,9 +152,10 @@
 
   // --- Boot: load reference data + tables ---
   async function loadReferenceData() {
-    var [regions, branches, teams] = await Promise.all([
+    var [regions, branches, programs, teams] = await Promise.all([
       api("GET", "/org/api/regions").catch(function () { return { regions: [] }; }),
       api("GET", "/org/api/branches").catch(function () { return { branches: [] }; }),
+      api("GET", "/org/api/programs").catch(function () { return { programs: [] }; }),
       // Teams power the "search by team name" path. Scoped on the server,
       // so region_manager / branch_manager naturally see only their slice.
       api("GET", "/org/api/teams").catch(function () { return { teams: [] }; }),
@@ -147,22 +164,42 @@
     (regions.regions || []).forEach(function (r) { regionsById[r.id] = r; });
     branchesById = {};
     (branches.branches || []).forEach(function (b) { branchesById[b.id] = b; });
+    programsById = {};
+    (programs.programs || []).forEach(function (p) { programsById[p.id] = p; });
     teamNamesByCoachUserId = {};
     (teams.teams || []).forEach(function (t) {
       if (t.user_id == null || !t.team_name) return;
       if (!teamNamesByCoachUserId[t.user_id]) teamNamesByCoachUserId[t.user_id] = [];
       teamNamesByCoachUserId[t.user_id].push(t.team_name);
     });
+    allTeams = (teams.teams || []).slice();
     populateSelectors();
   }
 
+  function inviteRolesAllowed() {
+    if (isAdmin) return INVITABLE_ROLES_ADMIN;
+    if (isPM) return INVITABLE_ROLES_PM;
+    if (isRM) return INVITABLE_ROLES_RM;
+    return [];
+  }
+
   function populateSelectors() {
-    var allowed = isAdmin ? INVITABLE_ROLES_ADMIN : INVITABLE_ROLES_RM;
-    var roleItems = allowed.map(function (r) { return { value: r, label: ROLE_LABELS[r] }; });
+    var roleItems = inviteRolesAllowed().map(function (r) { return { value: r, label: ROLE_LABELS[r] }; });
     fillSelect(document.getElementById("invite-role"), roleItems, "value", "label", false);
     if (document.getElementById("member-role")) {
       var allRoles = INVITABLE_ROLES_ADMIN.map(function (r) { return { value: r, label: ROLE_LABELS[r] }; });
       fillSelect(document.getElementById("member-role"), allRoles, "value", "label", false);
+    }
+
+    var programList = Object.values(programsById).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var inviteProgram = document.getElementById("invite-program");
+    if (inviteProgram) {
+      fillSelect(inviteProgram, programList, "id", "name", true, "— ללא תוכנית —");
+      // PM is locked to their own program — pre-fill + disable.
+      if (isPM && programList.length === 1) {
+        inviteProgram.value = String(programList[0].id);
+        inviteProgram.disabled = true;
+      }
     }
 
     var regionList = Object.values(regionsById).sort(function (a, b) { return a.name.localeCompare(b.name); });
@@ -182,10 +219,80 @@
     }
 
     var branchList = Object.values(branchesById).sort(function (a, b) { return a.name.localeCompare(b.name); });
-    fillSelect(document.getElementById("invite-branch"), branchList, "id", "name", true, "— ללא סניף —");
+    var inviteBranch = document.getElementById("invite-branch");
+    if (inviteBranch) {
+      fillSelect(inviteBranch, branchList, "id", "name", true, "— ללא סניף —");
+    }
     if (document.getElementById("member-branch")) {
       fillSelect(document.getElementById("member-branch"), branchList, "id", "name", true, "— ללא סניף —");
     }
+
+    // Initial visibility — role might be pre-selected on render.
+    updateScopeVisibility();
+  }
+
+  function updateScopeVisibility() {
+    var roleEl = document.getElementById("invite-role");
+    if (!roleEl) return;
+    var role = roleEl.value;
+    var $programGroup = document.querySelector("[data-program-group]");
+    var $regionGroup = document.querySelector("[data-region-group]");
+    var $branchGroup = document.querySelector("[data-branch-group]");
+    var $teamGroup = document.querySelector("[data-team-group]");
+    var $programSel = document.getElementById("invite-program");
+    var $regionSel = document.getElementById("invite-region");
+    var $branchSel = document.getElementById("invite-branch");
+    var $teamSel = document.getElementById("invite-team");
+
+    var showProgram = role === "program_manager";
+    var showRegion = role === "region_manager" || role === "coach";
+    // Branch is legacy — never shown for new invites.
+    var showBranch = false;
+    // Phase 14 — coach invites can pre-assign a team.
+    var showTeam = role === "coach";
+
+    if ($programGroup) $programGroup.style.display = showProgram ? "" : "none";
+    if ($regionGroup) $regionGroup.style.display = showRegion ? "" : "none";
+    if ($branchGroup) $branchGroup.style.display = showBranch ? "" : "none";
+    if ($teamGroup) $teamGroup.style.display = showTeam ? "" : "none";
+
+    // CRITICAL: hidden <select>s still submit their last value via FormData.
+    // Clear any stale value when the field is no longer applicable, so the
+    // server-side scope validator (_validate_scope) doesn't reject the
+    // payload over a residual region_id / branch_id from a previous role.
+    if (!showProgram && $programSel && !$programSel.disabled) $programSel.value = "";
+    if (!showRegion && $regionSel && !$regionSel.disabled) $regionSel.value = "";
+    if (!showBranch && $branchSel && !$branchSel.disabled) $branchSel.value = "";
+    if (!showTeam && $teamSel) $teamSel.value = "";
+
+    // When team picker is visible, refresh its options now (so the list
+    // reflects the current program/region selection if those just changed).
+    if (showTeam) refreshInviteTeamOptions();
+  }
+
+  // Populate the invite-team dropdown with unassigned teams in scope.
+  // For PM/RM the scope is clamped server-side already (teams.user_id IS NULL
+  // is the only client-side filter); for org_admin we also narrow by the
+  // chosen program_id + region_id when those fields have values.
+  function refreshInviteTeamOptions() {
+    var $teamSel = document.getElementById("invite-team");
+    if (!$teamSel) return;
+    var pid = (document.getElementById("invite-program") || {}).value || "";
+    var rid = (document.getElementById("invite-region") || {}).value || "";
+
+    var filtered = allTeams.filter(function (t) {
+      if (t.user_id != null) return false;           // already has a coach
+      if (pid && String(t.program_id) !== pid) return false;
+      if (rid && String(t.region_id) !== rid) return false;
+      return true;
+    }).sort(function (a, b) {
+      return (a.team_name || "").localeCompare(b.team_name || "");
+    });
+
+    var prev = $teamSel.value;
+    fillSelect($teamSel, filtered, "id", "team_name", true, "— בחר קבוצה —");
+    var stillValid = filtered.some(function (t) { return String(t.id) === prev; });
+    $teamSel.value = stillValid ? prev : "";
   }
 
   function scopeText(row) {
@@ -356,10 +463,42 @@
   }
 
   function renderInvitesError(msg) {
-    var colspan = canManageInvites ? 4 : 3;
+    var colspan = canManageInvites ? 5 : 4;
     $invitesRows.replaceChildren(
       el("tr", null, [el("td", { className: "org-table-empty", text: msg, attrs: { colspan: String(colspan) } })])
     );
+  }
+
+  function formatCode(code) {
+    // 8-char codes render as XXXX-XXXX for legibility.
+    if (!code) return "—";
+    if (code.length === 8) return code.slice(0, 4) + "-" + code.slice(4);
+    return code;
+  }
+
+  function makeCodeCell(rawCode) {
+    if (!rawCode) {
+      return el("td", { className: "org-text-sm org-text-muted", text: "—" });
+    }
+    var pretty = formatCode(rawCode);
+    var codeSpan = el("span", {
+      text: pretty,
+      attrs: {
+        dir: "ltr",
+        style: "font-family:Consolas,Menlo,monospace; letter-spacing:1px; font-weight:600;",
+      },
+    });
+    var copyBtn = el("button", {
+      attrs: {
+        type: "button",
+        title: "העתק קוד",
+        "aria-label": "העתק קוד",
+        "data-copy-code": rawCode,
+        style: "margin-inline-start:8px; cursor:pointer; background:transparent; border:1px solid var(--org-gray-200); border-radius:4px; padding:2px 8px; font-size:12px;",
+      },
+      text: "העתק",
+    });
+    return el("td", null, [codeSpan, copyBtn]);
   }
 
   function renderInvites(invites) {
@@ -379,9 +518,10 @@
       invites.map(function (i) {
         var emailCell = el("td", null, [el("span", { text: i.email, attrs: { dir: "ltr" } })]);
         var roleCell = el("td", null, [pill(ROLE_LABELS[i.role] || i.role)]);
+        var codeCell = makeCodeCell(i.short_code);
         var dateCell = el("td", { className: "org-text-sm org-text-muted",
           text: i.created_at ? new Date(i.created_at).toLocaleDateString("he-IL") : "—" });
-        var cells = [emailCell, roleCell, dateCell];
+        var cells = [emailCell, roleCell, codeCell, dateCell];
         if (canManageInvites) {
           cells.push(el("td", { className: "org-table-actions" }, [
             iconBtn(SVG_RESEND_TPL, {
@@ -412,24 +552,77 @@
     if (isRM && ctx.region_id) {
       document.getElementById("invite-region").value = String(ctx.region_id);
     }
+    // Re-apply scope-field visibility (form.reset() restored defaults).
+    updateScopeVisibility();
     openModal($inviteModal);
     setTimeout(function () { $inviteForm.elements.email.focus(); }, 50);
   }
+
+  function openInviteSuccess(rawCode) {
+    if (!$inviteSuccessModal) return;
+    var pretty = formatCode(rawCode);
+    if ($inviteSuccessCode) $inviteSuccessCode.textContent = pretty;
+    // Phase 13 — root-level /join alias is the canonical URL for sharing.
+    // Legacy /org/join 301-redirects to /join, so old shared codes still work.
+    var joinUrl = window.location.origin + "/join?code=" + encodeURIComponent(rawCode);
+    if ($inviteSuccessLink) $inviteSuccessLink.value = joinUrl;
+    // Stash raw code on the modal so the per-button copy handlers can read it.
+    $inviteSuccessModal.dataset.rawCode = rawCode;
+    $inviteSuccessModal.dataset.joinUrl = joinUrl;
+    openModal($inviteSuccessModal);
+  }
+
+  function scrollToInvitesTable() {
+    var $section = document.getElementById("invites-table");
+    if (!$section) return;
+    $section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Show/hide program + region fields when the role changes. Phase 14 —
+  // when program/region change while the team picker is visible (coach role),
+  // re-filter the team list so org_admin's narrow-by-program/region works.
+  var $inviteRoleSel = document.getElementById("invite-role");
+  if ($inviteRoleSel) {
+    $inviteRoleSel.addEventListener("change", updateScopeVisibility);
+  }
+  var _inviteProgSel = document.getElementById("invite-program");
+  var _inviteRegSel = document.getElementById("invite-region");
+  if (_inviteProgSel) _inviteProgSel.addEventListener("change", refreshInviteTeamOptions);
+  if (_inviteRegSel) _inviteRegSel.addEventListener("change", refreshInviteTeamOptions);
 
   $inviteForm.addEventListener("submit", async function (ev) {
     ev.preventDefault();
     hideError($inviteError);
     var fd = new FormData($inviteForm);
+    var role = fd.get("role");
+    // Per-role scope policy — mirror _validate_scope() on the server so
+    // residual values from prior selections don't leak into the payload.
+    var allowProgram = role === "program_manager";
+    var allowRegion = role === "region_manager" || role === "coach";
+    var allowTeam = role === "coach";
     var payload = {
       email: (fd.get("email") || "").trim(),
-      role: fd.get("role"),
-      region_id: fd.get("region_id") ? parseInt(fd.get("region_id"), 10) : null,
-      branch_id: fd.get("branch_id") ? parseInt(fd.get("branch_id"), 10) : null,
+      role: role,
+      program_id: (allowProgram && fd.get("program_id"))
+        ? parseInt(fd.get("program_id"), 10) : null,
+      region_id: (allowRegion && fd.get("region_id"))
+        ? parseInt(fd.get("region_id"), 10) : null,
+      branch_id: null,  // legacy — never assigned on new invites
+      team_id: (allowTeam && fd.get("team_id"))
+        ? parseInt(fd.get("team_id"), 10) : null,
     };
     try {
-      await api("POST", "/org/api/users/invite", payload);
-      window.OrgToast && window.OrgToast.show("ההזמנה נשלחה", "success");
+      var result = await api("POST", "/org/api/users/invite", payload);
+      var code = result && result.short_code;
       closeModal($inviteModal);
+      if (code) {
+        // Open the dedicated success modal — stays until the inviter
+        // dismisses it, so the code + URL stay visible for copy/share.
+        openInviteSuccess(code);
+      } else {
+        // No code path (legacy / edge case) — fall back to a brief toast.
+        window.OrgToast && window.OrgToast.show("ההזמנה נשלחה", "success");
+      }
       loadInvites();
     } catch (e) {
       showError($inviteError, e.message);
@@ -525,14 +718,27 @@
     });
   }
 
+  function copyToClipboard(value, successMsg) {
+    (navigator.clipboard ? navigator.clipboard.writeText(value) : Promise.reject())
+      .then(function () { window.OrgToast && window.OrgToast.show(successMsg + " — " + value, "success"); })
+      .catch(function () { window.OrgToast && window.OrgToast.show("העתקה נכשלה. ערך: " + value, "warning"); });
+  }
+
   // --- Event delegation ---
   document.addEventListener("click", function (e) {
     var t = e.target.closest(
-      "[data-action], [data-edit-member], [data-remove-member], [data-resend-invite], [data-cancel-invite]"
+      "[data-action], [data-edit-member], [data-remove-member], [data-resend-invite], [data-cancel-invite], [data-copy-code], [data-copy-success-code], [data-copy-success-link]"
     );
     if (!t) return;
     if (t.dataset.action === "open-invite") return openInvite();
     if (t.dataset.action === "close-invite") return closeModal($inviteModal);
+    if (t.dataset.action === "close-invite-success" && $inviteSuccessModal) {
+      closeModal($inviteSuccessModal);
+      // Right after dismiss, take the inviter to the pending invites table
+      // so they see the persistent record they can re-copy from later.
+      setTimeout(scrollToInvitesTable, 200);
+      return;
+    }
     if (t.dataset.action === "close-member" && $memberModal) return closeModal($memberModal);
     if (t.dataset.action === "close-confirm") return closeModal($confirmModal);
     if (t.dataset.action === "do-confirm") return runConfirm();
@@ -540,16 +746,31 @@
     if (t.dataset.removeMember) return confirmRemoveMember(t.dataset.removeMember, t.dataset.name);
     if (t.dataset.resendInvite) return resendInviteAction(t.dataset.resendInvite, t.dataset.email);
     if (t.dataset.cancelInvite) return confirmCancelInvite(t.dataset.cancelInvite, t.dataset.email);
+    if (t.dataset.copyCode) {
+      copyToClipboard(formatCode(t.dataset.copyCode), "הקוד הועתק");
+      return;
+    }
+    if (t.hasAttribute("data-copy-success-code") && $inviteSuccessModal) {
+      var raw = $inviteSuccessModal.dataset.rawCode || "";
+      copyToClipboard(formatCode(raw), "הקוד הועתק");
+      return;
+    }
+    if (t.hasAttribute("data-copy-success-link") && $inviteSuccessModal) {
+      var url = $inviteSuccessModal.dataset.joinUrl || "";
+      copyToClipboard(url, "הלינק הועתק");
+      return;
+    }
   });
 
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     closeModal($inviteModal);
+    if ($inviteSuccessModal) closeModal($inviteSuccessModal);
     if ($memberModal) closeModal($memberModal);
     closeModal($confirmModal);
   });
 
-  [$inviteModal, $memberModal, $confirmModal].forEach(function (m) {
+  [$inviteModal, $inviteSuccessModal, $memberModal, $confirmModal].forEach(function (m) {
     if (!m) return;
     m.addEventListener("click", function (e) { if (e.target === m) closeModal(m); });
   });

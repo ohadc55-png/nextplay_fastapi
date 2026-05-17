@@ -1,0 +1,118 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'programs' %}
+{% block title %}תוכניות — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">תוכניות</h1>
+    <p class="org-page-subtitle">תצוגת תוכניות הארגון עם ספירות מצרפיות. לחיצה על תוכנית מציגה את המחוזות שלה.</p>
+  </div>
+</div>
+
+<div class="org-table-wrap">
+  <table class="org-table" id="programs-table">
+    <thead>
+      <tr>
+        <th style="width: 28%;">תוכנית</th>
+        <th>מנהל תוכנית</th>
+        <th>מחוזות</th>
+        <th>קבוצות</th>
+        <th>מאמנים</th>
+        <th>שחקנים</th>
+      </tr>
+    </thead>
+    <tbody data-rows>
+      <tr><td colspan="6" class="org-table-empty">טוען…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  "use strict";
+  var $rows = document.querySelector("#programs-table [data-rows]");
+
+  function el(tag, opts, children) {
+    var n = document.createElement(tag);
+    if (opts) {
+      if (opts.className) n.className = opts.className;
+      if (opts.text != null) n.textContent = opts.text;
+      if (opts.attrs) Object.keys(opts.attrs).forEach(function (k) { n.setAttribute(k, opts.attrs[k]); });
+    }
+    if (children) children.forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+
+  function setEmpty(msg) {
+    $rows.replaceChildren(el("tr", null, [el("td", {
+      className: "org-table-empty", text: msg, attrs: { colspan: "6" },
+    })]));
+  }
+
+  async function api(url) {
+    var r = await fetch(url, {
+      headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+      credentials: "same-origin",
+    });
+    if (!r.ok) {
+      var d = null; try { d = await r.json(); } catch (_) {}
+      throw new Error((d && d.detail) || ("שגיאה " + r.status));
+    }
+    return r.json();
+  }
+
+  function pill(text, muted) {
+    return el("span", {
+      className: "org-pill" + (muted ? " org-pill--muted" : ""),
+      text: text,
+    });
+  }
+
+  function render(programs) {
+    if (!programs.length) {
+      setEmpty("אין תוכניות בארגון.");
+      return;
+    }
+    $rows.replaceChildren.apply($rows, programs.map(function (p) {
+      // Phase 13 — read tenant URL prefix from the shell-rendered context
+      // (`window.__ORG_ACTIVE__.url_prefix`), which is `/org` under the
+      // legacy layout and `/<slug>` once the slug-URL flag is on.
+      var _pfx = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
+      var drillHref = _pfx + "/regions?program_id=" + p.id;
+      var nameLink = el("a", {
+        text: p.name,
+        attrs: { href: drillHref, style: "color: inherit; text-decoration: none; font-weight: 600;" },
+      });
+      var cells = [
+        el("td", null, [nameLink]),
+        el("td", null, [pill(p.manager_name || "—", !p.manager_name)]),
+        el("td", null, [pill(String(p.region_count != null ? p.region_count : 0))]),
+        el("td", null, [pill(String(p.team_count != null ? p.team_count : 0))]),
+        el("td", null, [pill(String(p.coach_count != null ? p.coach_count : 0))]),
+        el("td", null, [pill(String(p.player_count != null ? p.player_count : 0))]),
+      ];
+      var tr = el("tr", null, cells);
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", function (e) {
+        if (e.target.closest("a")) return;
+        window.location.href = drillHref;
+      });
+      return tr;
+    }));
+  }
+
+  (async function () {
+    try {
+      var data = await api("/org/api/programs?with_counts=true");
+      render(data.programs || []);
+    } catch (e) {
+      setEmpty(e.message);
+    }
+  })();
+})();
+</script>
+{% endblock %}

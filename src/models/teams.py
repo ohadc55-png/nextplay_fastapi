@@ -46,6 +46,34 @@ class TeamProfile(Base):
     branch_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True
     )
+    # Phase 3 (active hierarchy). Teams under Sha'ar Shivyon are scoped via
+    # region_id; branch_id stays for back-compat with the Phase 0 branches API.
+    region_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("regions.id", ondelete="SET NULL"), nullable=True
+    )
+    # Phase 12 — program is independent of region. Until this column existed,
+    # a team's program had to be inferred from Region.program_id, which made
+    # it impossible for one region (e.g. "מחוז מרכז") to host teams from
+    # multiple programs simultaneously. Direct FK decouples the two axes.
+    program_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("programs.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Phase 15 — Coach Calendar. Lazily assigned from an 8-color palette
+    # (see src/services/team_colors.py) the first time the team appears on
+    # the calendar; chip color in the month grid. Manual override possible
+    # via team_setup if a coach wants a specific hue.
+    color_hex: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Phase 15 — iCal feed token. Coaches mint one per team; the URL acts
+    # as the credential (token IS the password) so we never check JWT on
+    # the feed endpoint. Rotatable; rotation invalidates the old URL.
+    ical_token: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
+
+    # Phase 15 — public-share token. Same model as ical_token but powers
+    # /calendar/share/<token> — a read-only HTML page showing current +
+    # next month, no NEXTPLAY signup CTA. For sharing with parents/players.
+    share_token: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
 
     owner: Mapped[User | None] = relationship(
         "User", back_populates="teams", lazy="raise", foreign_keys=[user_id]
@@ -54,6 +82,8 @@ class TeamProfile(Base):
     __table_args__ = (
         Index("idx_team_profile_org", "organization_id"),
         Index("idx_team_profile_branch", "branch_id"),
+        Index("idx_team_profile_region", "region_id"),
+        Index("idx_team_profile_program", "program_id"),
     )
 
     def __repr__(self) -> str:  # pragma: no cover

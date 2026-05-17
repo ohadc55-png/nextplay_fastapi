@@ -46,7 +46,11 @@ class TestDashboardLayout:
     async def test_dashboard_renders_master_layout(
         self, org_admin_client: AsyncClient
     ):
-        r = await org_admin_client.get("/org/dashboard")
+        # Phase 13 — slug-aware URL; follow redirects so the legacy 301 path
+        # also lands us at 200.
+        r = await org_admin_client.get(
+            org_admin_client.slug_url("/dashboard"), follow_redirects=True,
+        )
         assert r.status_code == 200
         body = r.text
 
@@ -66,24 +70,28 @@ class TestDashboardLayout:
         assert "org-header" in body
         assert "org-main" in body
 
-        # 4. Phase 1.7 — dashboard now hydrates tiles dynamically from
+        # 4. Phase 1.7 — dashboard hydrates tiles dynamically from
         # /org/api/dashboard/role-stats. The page just ships the empty
-        # containers + the activity feed slot.
+        # containers. Activity feed was retired in Phase 12 refresh; today's
+        # practices + the breakdown charts + mini calendar replace it.
         assert "data-tiles" in body
-        assert "data-activity" in body
+        assert "data-practice-today" in body
+        assert "data-mini-cal" in body
 
         # 5. Active sidebar item = dashboard.
         assert "is-active" in body
 
         # 6. "Coming soon" placeholders for unbuilt features.
         # Hebrew "בקרוב" — was 6 at Phase 0/1, shrinks as features land.
-        # As of Phase 2 closeout: Calendar + Facilities + Payments remain.
-        assert body.count("בקרוב") >= 3
+        # As of Phase 12 closeout: Facilities + Payments remain (Calendar shipped).
+        assert body.count("בקרוב") >= 2
 
     async def test_dashboard_exposes_org_ctx_in_header(
         self, org_admin_client: AsyncClient
     ):
-        r = await org_admin_client.get("/org/dashboard")
+        r = await org_admin_client.get(
+            org_admin_client.slug_url("/dashboard"), follow_redirects=True,
+        )
         body = r.text
         # The org name (verbatim from fixture) is rendered in the header.
         # Jinja escapes the apostrophe in "Sha'ar Shivyon".

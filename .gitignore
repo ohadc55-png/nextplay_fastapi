@@ -66,3 +66,8 @@ notebooks/
 
 # Claude Code local state
 .claude/
+
+# Local-only scratch / experiment dirs
+vid/
+frontend/templates/org/_mock/
+alembic_smoke.db

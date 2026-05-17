@@ -56,7 +56,15 @@ class TestOrgLogin:
         )
         assert r.status_code == 200
         body = r.json()
-        assert body == {"ok": True, "redirect": "/org/dashboard"}
+        # Phase 13 — redirect is slug-aware. flag OFF → /org/dashboard,
+        # flag ON → /<slug>/dashboard. The expected URL is computed via
+        # the same logic the server uses (see _dashboard_url in org.py).
+        from src.core.config import settings as _s
+        expected_redirect = (
+            f"/{creds['organization_slug']}/dashboard"
+            if _s.ORG_SLUG_URLS_ENABLED else "/org/dashboard"
+        )
+        assert body == {"ok": True, "redirect": expected_redirect}
 
     async def test_multi_role_returns_select_role_payload(
         self, api_client: AsyncClient, seed_org_admin, api_session_factory

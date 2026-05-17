@@ -429,7 +429,8 @@
       window.OrgToast && window.OrgToast.show("השדות נשמרו, חוזר לרשימת המסמכים", "success");
       // Short delay so the toast is visible before navigating.
       setTimeout(function () {
-        window.location.href = "/org/document-templates";
+        var _pfx = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
+        window.location.href = _pfx + "/document-templates";
       }, 600);
     } catch (e) {
       showError(e.message);

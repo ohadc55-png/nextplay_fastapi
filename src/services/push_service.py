@@ -486,19 +486,22 @@ async def send_test_push(session: AsyncSession, *, user_id: int) -> dict:
 
 
 async def run_push_jobs() -> dict:
-    """Hourly cron entrypoint. Today's scope: a single 'inactive coach'
-    job — coaches whose last_seen_at is between INACTIVE_HOURS and 7 days
-    ago AND who have no recent push get a friendly nudge.
+    """Hourly cron entrypoint. Today's scope:
+      - inactive-coach nudges
+      - Phase 15 calendar reminders (3h before each event)
+      - Phase 15 post-event nudges (1h after, only if no summary yet)
 
-    More job kinds (roster-incomplete, trial-ending, weekly-recap) port
-    in follow-ups. The runner's shape is set so adding a job is one
-    function call; the gate stack in `send_push_to_user` does the rest.
+    Each sub-job goes through `send_push_to_user`'s gate stack so we
+    never re-push the same user too quickly. Failures in one job don't
+    poison the others; transaction is per-session, committed at the end.
     """
     stats = {"jobs_run": 0, "sent": 0, "skipped": 0, "failed": 0}
     try:
         async with AsyncSessionLocal() as session:
             try:
                 stats = await _run_inactive_coach_job(session, stats)
+                stats = await _run_event_3h_reminder(session, stats)
+                stats = await _run_event_summary_reminder(session, stats)
                 await session.commit()
             except Exception:
                 await session.rollback()
@@ -545,6 +548,152 @@ async def _run_inactive_coach_job(
             stats[r["status"]] = stats.get(r["status"], 0) + 1
         except Exception as e:
             logger.warning("[push] cron uid=%s send failed: %s", u.id, e)
+            stats["failed"] = stats.get("failed", 0) + 1
+    return stats
+
+
+async def _run_event_3h_reminder(
+    session: AsyncSession, stats: dict[str, int],
+) -> dict[str, int]:
+    """Phase 15 — push a reminder ~3 hours before every scheduled event
+    on a coach's calendar.
+
+    Cron is expected to fire every ~10 min; we widen the lookup window
+    a bit so we don't miss anything if the runner is late. The
+    `push_log.deep_link` field carries `/calendar?event=ID` — we use it
+    as a dedup signal so multi-cron-tick overlap doesn't double-push.
+    """
+
+    from src.models.practice_sessions import PracticeSession
+    from src.models.push import PushLog
+    from src.models.teams import TeamProfile
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    window_start = now + timedelta(hours=2, minutes=45)
+    window_end = now + timedelta(hours=3, minutes=15)
+
+    rows = list((await session.execute(
+        select(PracticeSession, TeamProfile)
+        .join(TeamProfile, TeamProfile.id == PracticeSession.team_id)
+        .where(
+            PracticeSession.scheduled_at >= window_start,
+            PracticeSession.scheduled_at < window_end,
+            TeamProfile.user_id.is_not(None),
+        )
+    )).all())
+    if not rows:
+        return stats
+
+    stats["jobs_run"] += 1
+    for event, team in rows:
+        coach_id = team.user_id
+        deep_link = f"/calendar?event={event.id}"
+        # Dedup — if we already sent THIS reminder for THIS event in the
+        # last 6 hours, skip.
+        recent = (await session.execute(
+            select(PushLog).where(
+                PushLog.user_id == coach_id,
+                PushLog.kind == "calendar_3h",
+                PushLog.deep_link == deep_link,
+                PushLog.sent_at >= now - timedelta(hours=6),
+            ).limit(1)
+        )).scalar_one_or_none()
+        if recent is not None:
+            stats["skipped"] = stats.get("skipped", 0) + 1
+            continue
+
+        title = "אימון בעוד 3 שעות"
+        body = (event.title or "אימון")
+        if event.location:
+            body += f" · {event.location}"
+        try:
+            r = await send_push_to_user(
+                session, user_id=coach_id, title=title, body=body,
+                deep_link=deep_link, kind="calendar_3h",
+            )
+            stats[r["status"]] = stats.get(r["status"], 0) + 1
+        except Exception as e:
+            logger.warning("[push] cal_3h uid=%s eid=%s send failed: %s",
+                           coach_id, event.id, e)
+            stats["failed"] = stats.get("failed", 0) + 1
+    return stats
+
+
+async def _run_event_summary_reminder(
+    session: AsyncSession, stats: dict[str, int],
+) -> dict[str, int]:
+    """Phase 15 — push a nudge ~1 hour after each event END (scheduled_at
+    + duration_minutes), asking the coach to summarize. Skipped when an
+    `attendance` or `free_document` notebook entry already references the
+    event — coach already did it; no need to nag.
+    """
+    from src.models.notebook import NotebookEntry
+    from src.models.practice_sessions import PracticeSession
+    from src.models.push import PushLog
+    from src.models.teams import TeamProfile
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    # Events whose end time is between 45 and 75 minutes ago. End =
+    # scheduled_at + duration. Default duration = 90 min when unknown.
+    lower_end = now - timedelta(minutes=75)
+    upper_end = now - timedelta(minutes=45)
+
+    rows = list((await session.execute(
+        select(PracticeSession, TeamProfile)
+        .join(TeamProfile, TeamProfile.id == PracticeSession.team_id)
+        .where(
+            PracticeSession.scheduled_at >= now - timedelta(hours=12),
+            PracticeSession.scheduled_at < now,
+            TeamProfile.user_id.is_not(None),
+        )
+    )).all())
+    if not rows:
+        return stats
+
+    stats["jobs_run"] += 1
+    for event, team in rows:
+        duration = event.duration_minutes or 90
+        end_time = event.scheduled_at + timedelta(minutes=duration)
+        if not (lower_end <= end_time < upper_end):
+            continue
+
+        # Skip if any notebook entry already covers this event.
+        already = (await session.execute(
+            select(NotebookEntry.id).where(
+                NotebookEntry.practice_session_id == event.id,
+                NotebookEntry.entry_type.in_(["attendance", "free_document"]),
+            ).limit(1)
+        )).scalar_one_or_none()
+        if already is not None:
+            stats["skipped"] = stats.get("skipped", 0) + 1
+            continue
+
+        coach_id = team.user_id
+        deep_link = f"/calendar?event={event.id}"
+        # Same 6h dedup window as the 3h reminder.
+        recent = (await session.execute(
+            select(PushLog).where(
+                PushLog.user_id == coach_id,
+                PushLog.kind == "calendar_summary",
+                PushLog.deep_link == deep_link,
+                PushLog.sent_at >= now - timedelta(hours=6),
+            ).limit(1)
+        )).scalar_one_or_none()
+        if recent is not None:
+            stats["skipped"] = stats.get("skipped", 0) + 1
+            continue
+
+        title = "סיים לסכם את האימון?"
+        body = "סמן נוכחות וכתוב הערות לפני שהפרטים נשכחים."
+        try:
+            r = await send_push_to_user(
+                session, user_id=coach_id, title=title, body=body,
+                deep_link=deep_link, kind="calendar_summary",
+            )
+            stats[r["status"]] = stats.get(r["status"], 0) + 1
+        except Exception as e:
+            logger.warning("[push] cal_summary uid=%s eid=%s send failed: %s",
+                           coach_id, event.id, e)
             stats["failed"] = stats.get("failed", 0) + 1
     return stats
 

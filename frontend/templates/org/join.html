@@ -1,0 +1,130 @@
+{# /org/join — public self-service registration via short invite code.
+   Posts JSON to /org/api/invites/redeem. On success auto-logs in and
+   redirects to /org/dashboard. #}
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="robots" content="noindex, nofollow">
+  <title>הצטרפות לארגון — NEXTPLAY Enterprise</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_transparent.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/org.css') }}?v={{ config.get('CSS_VERSION', '3') }}">
+</head>
+<body class="org-body">
+
+<div class="org-public">
+  <div class="org-public-card">
+    <div class="org-public-brand">
+      <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
+      <h1>NEXTPLAY <span class="org-brand-tag">Enterprise</span></h1>
+      <p>הצטרפות לארגון בעזרת קוד הזמנה</p>
+    </div>
+
+    <div class="org-public-error" role="alert" id="join-error" hidden></div>
+
+    <form id="join-form" novalidate>
+      <div class="org-form-group">
+        <label class="org-form-label" for="code">קוד הזמנה</label>
+        <input class="org-input" type="text" id="code" name="code"
+               required autocomplete="one-time-code" dir="ltr"
+               placeholder="ABCD-1234" maxlength="20"
+               value="{{ prefill_code or '' }}">
+      </div>
+      <div class="org-form-group">
+        <label class="org-form-label" for="full_name">שם מלא</label>
+        <input class="org-input" type="text" id="full_name" name="full_name"
+               required autocomplete="name" maxlength="200">
+      </div>
+      <div class="org-form-group">
+        <label class="org-form-label" for="email">אימייל</label>
+        <input class="org-input" type="email" id="email" name="email"
+               required autocomplete="email" dir="ltr">
+      </div>
+      <div class="org-form-group">
+        <label class="org-form-label" for="password">סיסמה</label>
+        <input class="org-input" type="password" id="password" name="password"
+               required autocomplete="new-password" dir="ltr"
+               minlength="8" maxlength="128">
+        <small class="org-text-sm org-text-muted">8 תווים לפחות.</small>
+      </div>
+      <button type="submit" class="org-btn org-btn--primary org-btn--full" id="join-submit">
+        הצטרף לארגון
+      </button>
+    </form>
+
+    <p class="org-text-sm org-text-muted" style="margin-top: 16px; text-align: center;">
+      כבר רשום? <a href="/org/login">כניסה</a>
+    </p>
+  </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  "use strict";
+  var $form = document.getElementById("join-form");
+  var $error = document.getElementById("join-error");
+  var $submit = document.getElementById("join-submit");
+
+  function showError(msg) {
+    $error.textContent = msg;
+    $error.hidden = false;
+  }
+
+  $form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    $error.hidden = true;
+    $submit.disabled = true;
+    $submit.textContent = "מצטרף…";
+
+    var payload = {
+      code: document.getElementById("code").value.trim(),
+      email: document.getElementById("email").value.trim(),
+      full_name: document.getElementById("full_name").value.trim(),
+      password: document.getElementById("password").value,
+    };
+
+    try {
+      var r = await fetch("/org/api/invites/redeem", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify(payload),
+        credentials: "same-origin",
+      });
+      var data = null;
+      try { data = await r.json(); } catch (_e) {}
+
+      if (!r.ok) {
+        var msg = (data && data.detail) || "קוד לא תקין או שכבר נוצל.";
+        if (r.status === 422 && data && data.detail) {
+          // Pydantic validation error — flatten the message
+          if (Array.isArray(data.detail)) {
+            msg = data.detail.map(function (d) { return d.msg; }).join(" · ");
+          }
+        }
+        showError(msg);
+        $submit.disabled = false;
+        $submit.textContent = "הצטרף לארגון";
+        return;
+      }
+
+      window.location.href = (data && data.redirect) || "/org/dashboard";
+    } catch (err) {
+      showError("שגיאת רשת. נסה שוב.");
+      $submit.disabled = false;
+      $submit.textContent = "הצטרף לארגון";
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% set active_page = "calendar" %}
+{% block title %}Calendar — NextPlay{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}?v={{ config.get('CSS_VERSION', '2') }}">
+
+<div class="cal-page" dir="ltr">
+
+    <!-- ── Header strip ────────────────────────────────────── -->
+    <header class="cal-header">
+        <div class="cal-header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <div>
+                <h1>Calendar</h1>
+                <div class="cal-subtitle">Practices, games, and team events</div>
+            </div>
+        </div>
+
+        <div class="cal-header-actions">
+            <div class="cal-team-filter" id="cal-team-filter">
+                <select id="cal-team-select" aria-label="Filter by team">
+                    <option value="">All teams</option>
+                    {# Server-side render so the dropdown is populated even if
+                       the /range fetch hasn't returned yet. JS will rebuild
+                       this list once the events come back (so distinct teams
+                       from the response are merged in). #}
+                    {% for t in teams_list %}
+                    <option value="{{ t.id }}" dir="auto">{{ t.team_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="button" class="cal-new-btn" data-action="new-event" aria-label="Add new event">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>New event</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ── Month navigation bar ────────────────────────────── -->
+    <div class="cal-monthbar">
+        <div class="cal-monthbar-nav">
+            <button type="button" class="cal-nav-btn" data-action="prev-month" aria-label="Previous month">
+                {# LTR layout: prev = chevron pointing LEFT ‹, next = chevron pointing RIGHT › #}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+            </button>
+            <div class="cal-monthbar-month" id="cal-month-label" aria-live="polite">
+                <span data-month-name></span>
+                <span class="cal-year" data-year dir="ltr"></span>
+            </div>
+            <button type="button" class="cal-nav-btn" data-action="next-month" aria-label="Next month">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </button>
+        </div>
+
+        <button type="button" class="cal-today-btn" data-action="today" aria-label="Jump to today">Today</button>
+    </div>
+
+    <!-- ── Weekday header (Sunday-first) ────────────────── -->
+    <div class="cal-weekdays" aria-hidden="true">
+        <div class="cal-weekday">Sun</div>
+        <div class="cal-weekday">Mon</div>
+        <div class="cal-weekday">Tue</div>
+        <div class="cal-weekday">Wed</div>
+        <div class="cal-weekday">Thu</div>
+        <div class="cal-weekday">Fri</div>
+        <div class="cal-weekday">Sat</div>
+    </div>
+
+    <!-- ── Month grid (7×6 cells) — JS hydrates ────────────── -->
+    <div class="cal-grid" id="cal-grid" role="grid" aria-label="Monthly event grid">
+        {# Empty on load; coach-calendar.js fills with 42 cells. The JS
+           paints a skeleton state during the first fetch so the user
+           never sees a flash of empty space. #}
+    </div>
+
+    <!-- ── Empty-month state (hidden by default) ───────────── -->
+    <div class="cal-empty-month" id="cal-empty-month" hidden>
+        <svg class="cal-empty-month-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <path d="M9 16h6"/>
+        </svg>
+        <h3>No events this month</h3>
+        <p>Add a practice, game, or event and it will appear here on the monthly grid.</p>
+        <button type="button" class="cal-new-btn" data-action="new-event" aria-label="Add event">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>Add event</span>
+        </button>
+    </div>
+
+    <!-- ── Day-detail panel (appears below grid on day click) ── -->
+    <section class="cal-day-panel" id="cal-day-panel" hidden aria-label="Day detail">
+        <div class="cal-day-panel-head">
+            <h2 class="cal-day-panel-title" id="cal-day-panel-title"></h2>
+            <button type="button" class="cal-day-panel-close" data-action="close-day" aria-label="Close">&times;</button>
+        </div>
+        <div class="cal-day-panel-body" id="cal-day-panel-body">
+            {# Filled by JS — list of <article class="cal-event-card"> #}
+        </div>
+    </section>
+
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     Modals — empty shells. Phase 15.4 fills the bodies.
+     Each opens via JS (`cal.openModal('id')`), closes on backdrop click,
+     close button, or ESC.
+     ───────────────────────────────────────────────────────────── -->
+
+<!-- 1. New/edit event modal -->
+<div class="cal-modal" id="evt-modal" role="dialog" aria-modal="true" aria-labelledby="evt-modal-title" aria-hidden="true" dir="ltr">
+    <div class="cal-modal-card cal-modal-card--wide">
+        <header class="cal-modal-head">
+            <h2 class="cal-modal-title" id="evt-modal-title">New event</h2>
+            <button type="button" class="cal-modal-close" data-action="close-modal" aria-label="Close">&times;</button>
+        </header>
+        <form class="cal-modal-body cal-form" id="evt-form" novalidate>
+            <input type="hidden" name="event_id" value="">
+            <input type="hidden" name="series_id" value="">
+            <input type="hidden" name="parent_event_id" value="">
+
+            <div class="cal-form-row">
+                <label class="cal-form-label">Event type</label>
+                <div class="cal-form-types" role="radiogroup">
+                    <label class="cal-form-type">
+                        <input type="radio" name="event_type" value="practice" checked>
+                        <span>Practice</span>
+                    </label>
+                    <label class="cal-form-type">
+                        <input type="radio" name="event_type" value="game">
+                        <span>Game</span>
+                    </label>
+                    <label class="cal-form-type">
+                        <input type="radio" name="event_type" value="event">
+                        <span>Event</span>
+                    </label>
+                    <label class="cal-form-type">
+                        <input type="radio" name="event_type" value="other">
+                        <span>Other</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="cal-form-row" data-when-type="other">
+                <label class="cal-form-label" for="evt-custom">Custom label (up to 15 chars)</label>
+                <input class="cal-input" type="text" id="evt-custom" name="event_type_custom" maxlength="15" autocomplete="off">
+            </div>
+
+            <div class="cal-form-row" data-when-type="game">
+                <div class="cal-form-grid-2">
+                    <div>
+                        <label class="cal-form-label" for="evt-home">Home team</label>
+                        <input class="cal-input" type="text" id="evt-home" name="opponent_home" maxlength="80" autocomplete="off">
+                    </div>
+                    <div>
+                        <label class="cal-form-label" for="evt-away">Away team</label>
+                        <input class="cal-input" type="text" id="evt-away" name="opponent_away" maxlength="80" autocomplete="off">
+                    </div>
+                </div>
+            </div>
+
+            <div class="cal-form-row">
+                <label class="cal-form-label" for="evt-team">Team</label>
+                <select class="cal-input" id="evt-team" name="team_id" required></select>
+            </div>
+
+            <div class="cal-form-row">
+                <label class="cal-form-label" for="evt-title">Title (optional)</label>
+                <input class="cal-input" type="text" id="evt-title" name="title" maxlength="200" autocomplete="off" placeholder="e.g. U18 morning practice">
+            </div>
+
+            <div class="cal-form-row">
+                <div class="cal-form-grid-2">
+                    <div>
+                        <label class="cal-form-label" for="evt-date">Date</label>
+                        <input class="cal-input" type="date" id="evt-date" name="event_date" required>
+                    </div>
+                    <div>
+                        <label class="cal-form-label" for="evt-time">Time</label>
+                        <input class="cal-input" type="time" id="evt-time" name="event_time" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cal-form-row">
+                <div class="cal-form-grid-2">
+                    <div>
+                        <label class="cal-form-label" for="evt-duration">Duration (min)</label>
+                        <input class="cal-input" type="number" id="evt-duration" name="duration_minutes" min="0" max="600" value="90">
+                    </div>
+                    <div>
+                        <label class="cal-form-label" for="evt-location">Location</label>
+                        <input class="cal-input" type="text" id="evt-location" name="location" maxlength="200" autocomplete="off" placeholder="Gym / court">
+                    </div>
+                </div>
+            </div>
+
+            <div class="cal-form-row" data-recurrence-section>
+                <label class="cal-form-checkbox-row">
+                    <input type="checkbox" id="evt-recurring" name="recurring">
+                    <span>Repeat weekly</span>
+                </label>
+                <div class="cal-form-recurrence" id="evt-recurrence-body" hidden>
+                    <div class="cal-form-label">Repeat on</div>
+                    <div class="cal-form-dows">
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="0"><span>Sun</span></label>
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="1"><span>Mon</span></label>
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="2"><span>Tue</span></label>
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="3"><span>Wed</span></label>
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="4"><span>Thu</span></label>
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="5"><span>Fri</span></label>
+                        <label class="cal-form-dow"><input type="checkbox" name="dow" value="6"><span>Sat</span></label>
+                    </div>
+                    <div class="cal-form-grid-2">
+                        <div>
+                            <label class="cal-form-label" for="evt-until">Until date</label>
+                            <input class="cal-input" type="date" id="evt-until" name="recurrence_until">
+                        </div>
+                        <div class="cal-form-help">
+                            Series is generated automatically up to the date you pick (max 200 events).
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cal-form-error" data-form-error hidden></div>
+
+            <footer class="cal-modal-foot">
+                <button type="button" class="cal-btn cal-btn--ghost" data-action="delete-event" data-edit-only hidden>Delete</button>
+                <button type="button" class="cal-btn cal-btn--ghost" data-action="close-modal">Cancel</button>
+                <button type="submit" class="cal-btn cal-btn--primary">Save</button>
+            </footer>
+        </form>
+    </div>
+</div>
+
+<!-- Series-scope choice prompt — shown when editing an event that has a series_id -->
+<div class="cal-modal" id="series-scope-modal" role="dialog" aria-modal="true" aria-labelledby="series-scope-title" aria-hidden="true" dir="ltr">
+    <div class="cal-modal-card">
+        <header class="cal-modal-head">
+            <h2 class="cal-modal-title" id="series-scope-title">Apply change</h2>
+            <button type="button" class="cal-modal-close" data-action="close-modal" aria-label="Close">&times;</button>
+        </header>
+        <div class="cal-modal-body">
+            <p style="margin: 0 0 16px; line-height: 1.5;">
+                Apply this change to just this event, or to all events in the series?
+            </p>
+            <footer class="cal-modal-foot">
+                <button type="button" class="cal-btn cal-btn--ghost" data-scope-choice="this">This event only</button>
+                <button type="button" class="cal-btn cal-btn--primary" data-scope-choice="series">All in series</button>
+            </footer>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Attendance modal -->
+<div class="cal-modal" id="attendance-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-modal-title" aria-hidden="true" dir="ltr">
+    <div class="cal-modal-card cal-modal-card--wide">
+        <header class="cal-modal-head">
+            <h2 class="cal-modal-title" id="attendance-modal-title">Attendance</h2>
+            <button type="button" class="cal-modal-close" data-action="close-modal" aria-label="Close">&times;</button>
+        </header>
+        <form class="cal-modal-body cal-form" id="attendance-form">
+            <input type="hidden" name="event_id" value="">
+            <div class="cal-attendance-summary" data-att-summary>Loading…</div>
+            <div class="cal-attendance-list" data-att-list></div>
+            <div class="cal-form-error" data-form-error hidden></div>
+            <footer class="cal-modal-foot">
+                <button type="button" class="cal-btn cal-btn--ghost" data-action="close-modal">Cancel</button>
+                <button type="submit" class="cal-btn cal-btn--primary">Save</button>
+            </footer>
+        </form>
+    </div>
+</div>
+
+<!-- 3. Practice-plan picker modal — attach a notebook entry of
+     entry_type='practice_plan' to the current event -->
+<div class="cal-modal" id="plan-modal" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title" aria-hidden="true" dir="ltr">
+    <div class="cal-modal-card cal-modal-card--wide">
+        <header class="cal-modal-head">
+            <h2 class="cal-modal-title" id="plan-modal-title">Attach practice plan</h2>
+            <button type="button" class="cal-modal-close" data-action="close-modal" aria-label="Close">&times;</button>
+        </header>
+        <form class="cal-modal-body cal-form" id="plan-form">
+            <input type="hidden" name="event_id" value="">
+            <div class="cal-form-help" style="margin-bottom: 8px;">
+                Pick a practice plan from your Notebook to attach. Plans you
+                build with the AI Training agent will show up here.
+            </div>
+            <div class="cal-plan-list" data-plan-list>
+                <div class="cal-form-help">Loading…</div>
+            </div>
+            <div class="cal-form-error" data-form-error hidden></div>
+            <footer class="cal-modal-foot">
+                <button type="button" class="cal-btn cal-btn--ghost" data-plan-detach hidden>Remove current</button>
+                <button type="button" class="cal-btn cal-btn--ghost" data-action="close-modal">Cancel</button>
+                <button type="submit" class="cal-btn cal-btn--primary" disabled data-plan-attach-btn>Attach</button>
+            </footer>
+        </form>
+    </div>
+</div>
+
+<!-- 4. Free-note modal -->
+<div class="cal-modal" id="note-modal" role="dialog" aria-modal="true" aria-labelledby="note-modal-title" aria-hidden="true" dir="ltr">
+    <div class="cal-modal-card">
+        <header class="cal-modal-head">
+            <h2 class="cal-modal-title" id="note-modal-title">Summary</h2>
+            <button type="button" class="cal-modal-close" data-action="close-modal" aria-label="Close">&times;</button>
+        </header>
+        <form class="cal-modal-body cal-form" id="note-form">
+            <input type="hidden" name="event_id" value="">
+            <div class="cal-form-row">
+                <label class="cal-form-label" for="note-title">Title (optional)</label>
+                <input class="cal-input" type="text" id="note-title" name="title" maxlength="200" autocomplete="off">
+            </div>
+            <div class="cal-form-row">
+                <label class="cal-form-label" for="note-content">Notes about this practice/game</label>
+                <textarea class="cal-input cal-textarea" id="note-content" name="content" rows="8" required maxlength="10000" placeholder="What worked? What to fix? Drills we ran?"></textarea>
+                <div class="cal-form-help">
+                    Saved to your Notebook as a free document linked to this event.
+                </div>
+            </div>
+            <div class="cal-form-error" data-form-error hidden></div>
+            <footer class="cal-modal-foot">
+                <button type="button" class="cal-btn cal-btn--ghost" data-action="close-modal">Cancel</button>
+                <button type="submit" class="cal-btn cal-btn--primary">Save</button>
+            </footer>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/coach-calendar.js') }}?v={{ config.get('CSS_VERSION', '2') }}"></script>
+{% endblock %}

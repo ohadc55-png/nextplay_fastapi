@@ -37,25 +37,67 @@ from src.core.database import get_db
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.models.auth import AuthToken
 from src.models.org_invites import OrgInvite
+from src.models.teams import TeamProfile
 from src.models.user_organizations import UserOrganization
 from src.repositories.user_organizations_repo import UserOrganizationsRepository
 from src.repositories.users_repo import UsersRepository
 from src.services.email_service import send_org_invite_email
 from src.services.org_audit_service import log_org_action
-from src.services.org_user_service import VALID_ROLES, invite_member
+from src.services.org_user_service import (
+    VALID_ROLES,
+    clamp_and_validate_inviter_authority,
+    invite_member,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/org/api/users", tags=["org-users"])
 
-# Roles a region_manager is allowed to issue invites for. Excludes
-# org_admin + region_manager (self-escalation guard).
-_RM_INVITABLE_ROLES: set[str] = {"branch_manager", "coach", "viewer"}
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+async def _validate_invite_team_id(
+    db: AsyncSession,
+    *,
+    org_id: int,
+    team_id: int,
+    program_id: int | None,
+    region_id: int | None,
+) -> int:
+    """Phase 14 — verify a team_id stamped on a coach invite is in the
+    inviter's scope and not already assigned to a different coach.
+
+    Scope rule: the team's `program_id` and `region_id` must match the
+    invite's clamped scope when those are set. (For org_admin both may be
+    None — any team in the org passes.) Cross-scope → 404 cloak.
+
+    Pre-redeem conflict check: if the team already has `user_id` set to
+    someone else, raise 409 with a clear message so the inviter detaches
+    that coach via the team page before re-inviting. This avoids silent
+    coach-replacement at redeem time.
+    """
+    team = (await db.execute(
+        select(TeamProfile).where(
+            TeamProfile.id == team_id,
+            TeamProfile.organization_id == org_id,
+        )
+    )).scalar_one_or_none()
+    if team is None:
+        raise NotFoundError("Team not found")
+    if program_id is not None and team.program_id != program_id:
+        raise NotFoundError("Team not found")
+    if region_id is not None and team.region_id != region_id:
+        raise NotFoundError("Team not found")
+    if team.user_id is not None:
+        raise ConflictError(
+            "This team already has an assigned coach. Detach the existing "
+            "coach from the team page before inviting a replacement.",
+            code="team_already_has_coach",
+        )
+    return team.id
 
 
 def _serialize_member(row: dict[str, Any]) -> dict[str, Any]:
@@ -65,6 +107,7 @@ def _serialize_member(row: dict[str, Any]) -> dict[str, Any]:
         "email": row["email"],
         "display_name": row["display_name"],
         "role": row["role"],
+        "program_id": row.get("program_id"),
         "region_id": row["region_id"],
         "branch_id": row["branch_id"],
         "status": row["status"],
@@ -77,10 +120,19 @@ def _serialize_member(row: dict[str, Any]) -> dict[str, Any]:
 def _scope_for_role(
     membership: UserOrganization,
 ) -> dict[str, Any]:
-    """Return scope filters (region_id) the current actor is constrained to.
-    Empty dict means org-wide visibility (org_admin)."""
-    if membership.role == "region_manager":
+    """Return scope filters the current actor is constrained to. Empty dict
+    means org-wide visibility (org_admin).
+
+    program_manager and region_manager each see only their own subtree —
+    matches the invitation tree in `ROLE_INVITES_TREE` so listed members
+    are exactly the population they can act on."""
+    role = membership.role
+    if role == "program_manager":
+        return {"program_id": getattr(membership, "program_id", None)}
+    if role == "region_manager":
         return {"region_id": membership.region_id}
+    if role == "branch_manager":
+        return {"branch_id": membership.branch_id}
     return {}
 
 
@@ -88,11 +140,18 @@ def _ensure_invite_visible(
     invite: OrgInvite | None, membership: UserOrganization
 ) -> OrgInvite:
     """Scope guard for invite read/update paths. 404 covers cross-org AND
-    out-of-region scope mismatches."""
+    out-of-subtree scope mismatches."""
     if invite is None or invite.organization_id != membership.organization_id:
         raise NotFoundError("Invite not found")
-    if membership.role == "region_manager":
+    role = membership.role
+    if role == "program_manager":
+        if getattr(invite, "program_id", None) != getattr(membership, "program_id", None):
+            raise NotFoundError("Invite not found")
+    elif role == "region_manager":
         if invite.region_id != membership.region_id:
+            raise NotFoundError("Invite not found")
+    elif role == "branch_manager":
+        if invite.branch_id != membership.branch_id:
             raise NotFoundError("Invite not found")
     return invite
 
@@ -106,18 +165,24 @@ def _ensure_invite_visible(
 async def list_users(
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager")
+        require_role(
+            "org_admin", "program_manager", "region_manager", "branch_manager",
+        )
     ),
     region_id: int | None = Query(default=None),
+    program_id: int | None = Query(default=None),
 ) -> dict:
-    """List members of the active org. region_manager's scope is enforced
-    server-side (forced to own region); org_admin may pass `?region_id=` to
-    narrow the list."""
+    """List members of the active org. Every non-admin role is auto-scoped
+    to its own subtree (program/region/branch); org_admin may narrow further
+    via the query string."""
     repo = UserOrganizationsRepository(db)
     scope_kwargs = _scope_for_role(membership)
-    # org_admin caller asked for a specific region — apply on top of base scope.
-    if region_id is not None and membership.role == "org_admin":
-        scope_kwargs = {**scope_kwargs, "region_id": region_id}
+    # org_admin caller asked for a specific scope — apply on top of base.
+    if membership.role == "org_admin":
+        if region_id is not None:
+            scope_kwargs = {**scope_kwargs, "region_id": region_id}
+        if program_id is not None:
+            scope_kwargs = {**scope_kwargs, "program_id": program_id}
     rows = await repo.list_with_user_data(
         membership.organization_id, **scope_kwargs,
     )
@@ -137,38 +202,68 @@ async def invite_user(
     background: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager")
+        require_role(
+            "org_admin", "program_manager", "region_manager", "branch_manager",
+        )
     ),
 ) -> dict:
     """Issue an invite token + email it. Body shape mirrors `OrgInviteRequest`
     but we keep it as `dict` so we can apply role-aware validation BEFORE the
     Pydantic schema rejects.
 
-    region_manager constraints (enforced server-side, regardless of body):
-    - target role MUST be in `_RM_INVITABLE_ROLES`
-    - region_id (if set) MUST equal membership.region_id
-    - if branch_id is given, the branch must live in their region (validated
-      via `_validate_scope` in invite_member).
+    Authorization (per `ROLE_INVITES_TREE` in org_user_service):
+      org_admin       -> any role
+      program_manager -> region_manager / coach / viewer in inviter's program
+      region_manager  -> coach / viewer / branch_manager in inviter's region
+      branch_manager  -> coach in inviter's branch (legacy)
+      coach / viewer  -> never reach this gate (require_role rejects them)
+
+    `clamp_and_validate_inviter_authority` auto-fills program/region/branch
+    from the inviter's own scope when not provided, and 404s on any
+    cross-scope attempt. Same 404-not-403 rule that protects org-level reads.
     """
     email = (body.get("email") or "").strip().lower()
     role = (body.get("role") or "").strip().lower()
+    program_id = body.get("program_id")
     region_id = body.get("region_id")
     branch_id = body.get("branch_id")
+    team_id = body.get("team_id")
 
     if not email or "@" not in email:
         raise ValidationError("A valid email is required.", code="invalid_email")
     if role not in VALID_ROLES:
         raise ValidationError("Unknown role.", code="invalid_role")
 
-    # Region-manager scope clamp: can't escalate above themselves, can't
-    # invite outside their region.
-    if membership.role == "region_manager":
-        if role not in _RM_INVITABLE_ROLES:
-            raise NotFoundError("Organization not found")
-        if region_id is None:
-            region_id = membership.region_id
-        elif region_id != membership.region_id:
-            raise NotFoundError("Region not found")
+    # Phase 14 — team_id is only meaningful for coach invites. Reject loud
+    # if the caller stamped a team on a non-coach invite (PM/RM/admin/viewer
+    # don't "own" a team in the TeamProfile.user_id sense).
+    if team_id is not None and role != "coach":
+        raise ValidationError(
+            "team_id is only allowed when inviting a coach.",
+            code="team_id_only_for_coach",
+        )
+
+    program_id, region_id, branch_id = await clamp_and_validate_inviter_authority(
+        db,
+        inviter=membership,
+        target_role=role,
+        program_id=program_id,
+        region_id=region_id,
+        branch_id=branch_id,
+    )
+
+    # Phase 14 — validate team_id is in the inviter's scope. Reject 404 on
+    # cross-scope. Also check the team doesn't already have a different
+    # coach assigned — the inviter has to clean that up via the team page
+    # first (avoids silent coach-replacement at redeem time).
+    if team_id is not None:
+        team_id = await _validate_invite_team_id(
+            db,
+            org_id=membership.organization_id,
+            team_id=int(team_id),
+            program_id=program_id,
+            region_id=region_id,
+        )
 
     invite = await invite_member(
         db,
@@ -178,8 +273,10 @@ async def invite_user(
         inviter=request.state.user,
         email=email,
         role=role,
+        program_id=program_id,
         region_id=region_id,
         branch_id=branch_id,
+        team_id=team_id,
     )
 
     return {
@@ -188,8 +285,11 @@ async def invite_user(
         "email": invite.email,
         "role": invite.role,
         "status": invite.status,
+        "program_id": invite.program_id,
         "region_id": invite.region_id,
         "branch_id": invite.branch_id,
+        "team_id": invite.team_id,
+        "short_code": invite.short_code,
         "created_at": invite.created_at.isoformat() if invite.created_at else None,
     }
 
@@ -203,15 +303,21 @@ async def invite_user(
 async def list_pending_invites(
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager")
+        require_role(
+            "org_admin", "program_manager", "region_manager", "branch_manager",
+        )
     ),
 ) -> dict:
     stmt = select(OrgInvite).where(
         OrgInvite.organization_id == membership.organization_id,
         OrgInvite.status == "pending",
     )
-    if membership.role == "region_manager":
+    if membership.role == "program_manager":
+        stmt = stmt.where(OrgInvite.program_id == getattr(membership, "program_id", None))
+    elif membership.role == "region_manager":
         stmt = stmt.where(OrgInvite.region_id == membership.region_id)
+    elif membership.role == "branch_manager":
+        stmt = stmt.where(OrgInvite.branch_id == membership.branch_id)
 
     rows = list((await db.execute(stmt)).scalars().all())
     rows.sort(key=lambda r: (r.created_at or datetime.min), reverse=True)
@@ -223,8 +329,10 @@ async def list_pending_invites(
                 "email": r.email,
                 "role": r.role,
                 "status": r.status,
+                "program_id": getattr(r, "program_id", None),
                 "region_id": r.region_id,
                 "branch_id": r.branch_id,
+                "short_code": getattr(r, "short_code", None),
                 "invited_by": r.invited_by,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             }
@@ -245,7 +353,9 @@ async def resend_invite(
     background: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager")
+        require_role(
+            "org_admin", "program_manager", "region_manager", "branch_manager",
+        )
     ),
 ) -> dict:
     """Re-mint a fresh 7-day token + email, and mark the OLD token used so it
@@ -315,7 +425,9 @@ async def cancel_invite(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager")
+        require_role(
+            "org_admin", "program_manager", "region_manager", "branch_manager",
+        )
     ),
 ) -> dict:
     invite = (
@@ -382,6 +494,7 @@ async def update_member(
             )
 
     new_role = body.get("role")
+    new_program_id = body.get("program_id", getattr(target, "program_id", None))
     new_region_id = body.get("region_id", target.region_id)
     new_branch_id = body.get("branch_id", target.branch_id)
     final_role = (new_role or target.role).strip().lower()
@@ -395,6 +508,7 @@ async def update_member(
         db,
         org_id=membership.organization_id,
         role=final_role,
+        program_id=new_program_id,
         region_id=new_region_id,
         branch_id=new_branch_id,
     )
@@ -403,6 +517,11 @@ async def update_member(
     if new_role is not None and new_role != target.role:
         changes["role"] = {"from": target.role, "to": new_role}
         target.role = new_role
+    if "program_id" in body and new_program_id != getattr(target, "program_id", None):
+        changes["program_id"] = {
+            "from": getattr(target, "program_id", None), "to": new_program_id,
+        }
+        target.program_id = new_program_id
     if "region_id" in body and new_region_id != target.region_id:
         changes["region_id"] = {"from": target.region_id, "to": new_region_id}
         target.region_id = new_region_id

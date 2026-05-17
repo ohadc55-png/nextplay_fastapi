@@ -9,8 +9,13 @@
   "use strict";
 
   var ctx = window.ORG_CTX || { role: "viewer", region_id: null, branch_id: null, user_id: null };
-  var canManage = ["org_admin", "region_manager", "branch_manager"].indexOf(ctx.role) >= 0;
+  var canManage = ["org_admin", "region_manager"].indexOf(ctx.role) >= 0;
   var canDelete = ctx.role === "org_admin";
+
+  // Phase 13 — tenant URL prefix (e.g. "/org" or "/shaar-shivyon"). Pulled
+  // from the shell-rendered `window.__ORG_ACTIVE__` so the same JS works
+  // under both URL layouts.
+  var URL_PREFIX = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
 
   var SVG_SEND_TPL_STR =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -212,7 +217,7 @@
           // Deliveries visibility link — always available, even for completed templates.
           var dlvLink = document.createElement("a");
           dlvLink.className = "org-btn-icon";
-          dlvLink.href = "/org/document-templates/" + t.id + "/deliveries";
+          dlvLink.href = URL_PREFIX + "/document-templates/" + t.id + "/deliveries";
           dlvLink.title = "צפייה באישורים";
           dlvLink.setAttribute("aria-label", "צפייה באישורים");
           dlvLink.appendChild(SVG_EYE_TPL.cloneNode(true));
@@ -223,7 +228,7 @@
             if (t.uploaded_file_type === "PDF") {
               var editLink = document.createElement("a");
               editLink.className = "org-btn-icon";
-              editLink.href = "/org/document-templates/" + t.id + "/edit";
+              editLink.href = URL_PREFIX + "/document-templates/" + t.id + "/edit";
               editLink.title = "סימון שדות";
               editLink.setAttribute("aria-label", "סימון שדות");
               editLink.appendChild(SVG_EDIT_TPL.cloneNode(true));
@@ -293,7 +298,7 @@
       closeModal($templateModal);
       // PDFs go straight to the field-marking editor; DOCX stays on list.
       if (created.uploaded_file_type === "PDF") {
-        window.location.href = "/org/document-templates/" + created.id + "/edit";
+        window.location.href = URL_PREFIX + "/document-templates/" + created.id + "/edit";
       } else {
         loadTemplates();
       }

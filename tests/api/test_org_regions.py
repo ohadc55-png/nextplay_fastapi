@@ -16,7 +16,9 @@ pytestmark = pytest.mark.asyncio
 async def test_list_empty(org_admin_client: AsyncClient):
     r = await org_admin_client.get("/org/api/regions")
     assert r.status_code == 200
-    assert r.json() == {"regions": []}
+    body = r.json()
+    assert body["regions"] == []
+    assert "program_id_filter" in body
 
 
 async def test_create_and_list(org_admin_client: AsyncClient):
@@ -206,3 +208,208 @@ async def test_region_manager_sees_only_own_region(
     assert len(rows) == 1
     assert rows[0]["id"] == a_id
     assert rows[0]["name"] == "A"
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — program filter + region detail
+# ---------------------------------------------------------------------------
+
+
+async def test_create_region_with_program_id(
+    org_admin_client: AsyncClient, api_session_factory,
+):
+    from src.models.programs import Program
+
+    org_id = org_admin_client.org_seed["organization_id"]
+    async with api_session_factory() as s:
+        p = Program(organization_id=org_id, name="בועטות")
+        s.add(p)
+        await s.commit()
+        program_id = p.id
+
+    r = await org_admin_client.post(
+        "/org/api/regions", json={"name": "מחוז חיפה", "program_id": program_id},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["program_id"] == program_id
+
+
+async def test_list_regions_filters_by_program(
+    org_admin_client: AsyncClient, api_session_factory,
+):
+    from src.models.programs import Program
+    from src.models.regions import Region
+    from src.models.teams import TeamProfile
+
+    org_id = org_admin_client.org_seed["organization_id"]
+    async with api_session_factory() as s:
+        prog_a = Program(organization_id=org_id, name="Program A")
+        prog_b = Program(organization_id=org_id, name="Program B")
+        s.add_all([prog_a, prog_b])
+        await s.flush()
+        # Phase 12 — regions are shared geography (no program_id). We
+        # signal "region belongs to program A" by putting at least one
+        # team of program A in it. R-None has no teams at all → never shows.
+        r_a1 = Region(organization_id=org_id, name="R-A1")
+        r_a2 = Region(organization_id=org_id, name="R-A2")
+        r_b1 = Region(organization_id=org_id, name="R-B1")
+        r_none = Region(organization_id=org_id, name="R-None")
+        s.add_all([r_a1, r_a2, r_b1, r_none])
+        await s.flush()
+        s.add_all([
+            TeamProfile(
+                organization_id=org_id, region_id=r_a1.id,
+                program_id=prog_a.id, team_name="T-A1",
+            ),
+            TeamProfile(
+                organization_id=org_id, region_id=r_a2.id,
+                program_id=prog_a.id, team_name="T-A2",
+            ),
+            TeamProfile(
+                organization_id=org_id, region_id=r_b1.id,
+                program_id=prog_b.id, team_name="T-B1",
+            ),
+        ])
+        await s.commit()
+        prog_a_id = prog_a.id
+
+    r = await org_admin_client.get(
+        "/org/api/regions?program_id=" + str(prog_a_id)
+    )
+    body = r.json()
+    names = [row["name"] for row in body["regions"]]
+    assert sorted(names) == ["R-A1", "R-A2"]
+    assert body["program_id_filter"] == prog_a_id
+
+
+async def test_region_detail_returns_teams_via_direct_region_id(
+    org_admin_client: AsyncClient, api_session_factory,
+):
+    """Teams that use the new `team.region_id` FK appear in the detail
+    payload even without a branch row."""
+    from src.models.players import Player
+    from src.models.programs import Program
+    from src.models.regions import Region
+    from src.models.teams import TeamProfile
+
+    org_id = org_admin_client.org_seed["organization_id"]
+    async with api_session_factory() as s:
+        prog = Program(organization_id=org_id, name="בועטות")
+        s.add(prog)
+        await s.flush()
+        region = Region(organization_id=org_id, name="מרכז")
+        s.add(region)
+        await s.flush()
+        team = TeamProfile(
+            organization_id=org_id, region_id=region.id,
+            program_id=prog.id, team_name="טבעת",
+        )
+        s.add(team)
+        await s.flush()
+        s.add(Player(organization_id=org_id, team_id=team.id, name="P1", active=True))
+        s.add(Player(organization_id=org_id, team_id=team.id, name="P2", active=True))
+        await s.commit()
+        region_id = region.id
+
+    r = await org_admin_client.get("/org/api/regions/" + str(region_id) + "/detail")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["region"]["name"] == "מרכז"
+    assert body["program"]["name"] == "בועטות"
+    assert [t["team_name"] for t in body["teams"]] == ["טבעת"]
+    assert body["practices_today"] == []
+
+
+async def test_region_detail_404_for_pm_cross_program(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """A program_manager of program A can NOT view region detail of a
+    region living under program B — 404 (cloaked)."""
+    from sqlalchemy import update
+
+    from src.models.programs import Program
+    from src.models.regions import Region
+    from src.models.user_organizations import UserOrganization
+
+    creds = await seed_org_admin(email="pm-cross@org.test", role="program_manager")
+    org_id = creds["organization_id"]
+    async with api_session_factory() as s:
+        prog_a = Program(organization_id=org_id, name="A")
+        prog_b = Program(organization_id=org_id, name="B")
+        s.add_all([prog_a, prog_b])
+        await s.flush()
+        region_in_b = Region(
+            organization_id=org_id, name="R-B", program_id=prog_b.id,
+        )
+        s.add(region_in_b)
+        await s.flush()
+        # Scope the PM to program A.
+        await s.execute(
+            update(UserOrganization)
+            .where(
+                UserOrganization.user_id == creds["user_id"],
+                UserOrganization.role == "program_manager",
+            )
+            .values(program_id=prog_a.id)
+        )
+        await s.commit()
+        rid = region_in_b.id
+
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/regions/" + str(rid) + "/detail")
+    assert r.status_code == 404
+
+
+async def test_program_manager_list_regions_only_their_program(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    from sqlalchemy import update
+
+    from src.models.programs import Program
+    from src.models.regions import Region
+    from src.models.teams import TeamProfile
+    from src.models.user_organizations import UserOrganization
+
+    creds = await seed_org_admin(email="pm-list@org.test", role="program_manager")
+    org_id = creds["organization_id"]
+    async with api_session_factory() as s:
+        prog_a = Program(organization_id=org_id, name="A")
+        prog_b = Program(organization_id=org_id, name="B")
+        s.add_all([prog_a, prog_b])
+        await s.flush()
+        # Phase 12 — regions are shared, but PM sees only the regions where
+        # their program has at least one team. Seeding a team per (program,
+        # region) cell reproduces "R-A1 belongs to A, R-B1 belongs to B".
+        r_a1 = Region(organization_id=org_id, name="R-A1")
+        r_b1 = Region(organization_id=org_id, name="R-B1")
+        s.add_all([r_a1, r_b1])
+        await s.flush()
+        s.add_all([
+            TeamProfile(
+                organization_id=org_id, region_id=r_a1.id,
+                program_id=prog_a.id, team_name="t-A",
+            ),
+            TeamProfile(
+                organization_id=org_id, region_id=r_b1.id,
+                program_id=prog_b.id, team_name="t-B",
+            ),
+        ])
+        await s.execute(
+            update(UserOrganization)
+            .where(
+                UserOrganization.user_id == creds["user_id"],
+                UserOrganization.role == "program_manager",
+            )
+            .values(program_id=prog_a.id)
+        )
+        await s.commit()
+
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/regions")
+    names = [row["name"] for row in r.json()["regions"]]
+    assert names == ["R-A1"]

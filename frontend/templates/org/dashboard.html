@@ -4,40 +4,79 @@
 {% block title %}{{ org_ctx.organization_name or 'דשבורד' }} — NEXTPLAY Enterprise{% endblock %}
 
 {% block content %}
-<div class="org-page-header">
+{# Phase 12 refresh — glass cards + mesh canvas + 2 charts + mini calendar.
+   Layout: page_head → KPI grid (4) → charts row → activity+practices → mini cal.
+   All cards are .org-panel (glass) so the canvas mesh peeks through. #}
+<div class="org-page-head">
   <div>
-    <h1 class="org-page-title">שלום, {{ (org_ctx.user_display_name or org_ctx.user_email or '').split(' ')[0] or 'שלום' }}</h1>
-    <p class="org-page-subtitle" data-role-subtitle>טוען…</p>
+    <h1 class="org-page-head__title">
+      שלום, {{ (org_ctx.user_display_name or org_ctx.user_email or '').split(' ')[0] or 'שלום' }}
+    </h1>
+    <div class="org-page-head__sub" data-role-subtitle>טוען…</div>
+  </div>
+  <div class="org-page-head__actions" data-actions-host hidden>
+    {# Quick actions surfaced only for managers (org_admin / PM / RM).
+       Coach/viewer get a read-only dashboard with no action buttons. #}
+    <a href="{{ org_ctx.url_prefix }}/users" class="org-btn org-btn--secondary">
+      <span class="org-nav-icon" style="width:16px;height:16px;">{{ icon('users') }}</span>
+      <span>הזמן משתמש</span>
+    </a>
+    <a href="{{ org_ctx.url_prefix }}/calendar" class="org-btn org-btn--gradient">
+      <span class="org-nav-icon" style="width:16px;height:16px;">{{ icon('plus') }}</span>
+      <span>אירוע חדש</span>
+    </a>
   </div>
 </div>
 
-<!-- Stat tiles (populated per-role by JS) -->
-<div class="org-stat-grid" data-tiles>
-  <div class="org-stat"><div class="org-stat-label">טוען…</div><div class="org-stat-value">—</div></div>
+<!-- KPI grid: 4 role-aware tiles. JS populates from /role-stats. -->
+<div class="org-kpi-grid" data-tiles>
+  <div class="org-kpi"><div class="org-kpi__label">טוען…</div><div class="org-kpi__value">—</div></div>
 </div>
 
-<div class="org-flex org-mt-8" style="gap: var(--org-space-6); flex-wrap: wrap; align-items: flex-start;">
-
-  <!-- Recent activity feed -->
-  <div class="org-card" style="flex: 2; min-width: 320px;">
-    <div class="org-card-title">פעילות אחרונה</div>
-    <div data-activity>
+<!-- Charts row: bars (regions) + donut (programs). JS hides each panel
+     when the endpoint returns null for that role. -->
+<div class="org-charts-row" data-charts-row style="margin-block-start: var(--org-space-6);">
+  <div class="org-panel" data-bars-panel hidden>
+    <div class="org-panel__head">
+      <div class="org-panel__title" data-bars-title>—</div>
+      <a class="org-panel__link" href="{{ org_ctx.url_prefix }}/regions">כל המחוזות ←</a>
+    </div>
+    <div data-bars-body>
       <p class="org-text-sm org-text-muted">טוען…</p>
     </div>
   </div>
 
-  <!-- AI insights teaser (Phase 1.7 placeholder; future sub-phase wires it) -->
-  <div class="org-card org-card--ai" style="flex: 1; min-width: 280px;">
-    <div class="org-card-title org-flex org-items-center org-gap-2">
-      <span class="org-nav-icon" style="width:20px;height:20px; color: var(--org-purple-500);">{{ icon('sparkles') }}</span>
-      <span>תובנות AI</span>
+  <div class="org-panel" data-donut-panel hidden>
+    <div class="org-panel__head">
+      <div class="org-panel__title" data-donut-title>—</div>
+      <a class="org-panel__link" href="{{ org_ctx.url_prefix }}/programs">תוכניות ←</a>
     </div>
-    <div class="org-card-body">
-      <p class="org-text-sm">בקרוב — תובנות אוטומטיות מבוססות נתוני הארגון: מגמות, אנומליות, והמלצות.</p>
-      <span class="org-badge org-badge--info" style="margin-block-start: var(--org-space-3); display:inline-block;">Phase 2</span>
+    <div data-donut-body>
+      <p class="org-text-sm org-text-muted">טוען…</p>
     </div>
   </div>
+</div>
 
+<!-- Today's practices — full-width since the activity feed was retired. -->
+<div class="org-panel" style="margin-block-end: var(--org-space-6);">
+  <div class="org-panel__head">
+    <div class="org-panel__title">אימוני היום</div>
+    <a class="org-panel__link" href="{{ org_ctx.url_prefix }}/calendar">לוח שנה ←</a>
+  </div>
+  <div data-practice-today>
+    <p class="org-text-sm org-text-muted">טוען…</p>
+  </div>
+</div>
+
+<!-- Mini calendar preview — current month, dots indicate days with events. -->
+<div class="org-panel">
+  <div class="org-panel__head">
+    <div class="org-panel__title" data-mini-cal-title>—</div>
+    <a class="org-panel__link" href="{{ org_ctx.url_prefix }}/calendar">פתח את הלוח שנה ←</a>
+  </div>
+  <div data-mini-cal>
+    <p class="org-text-sm org-text-muted">טוען…</p>
+  </div>
 </div>
 {% endblock %}
 
@@ -50,5 +89,5 @@
     'user_display_name': org_ctx.user_display_name,
   } | tojson }};
 </script>
-<script src="{{ url_for('static', filename='js/org-dashboard.js') }}?v={{ config.get('CSS_VERSION', '5') }}" defer></script>
+<script src="{{ url_for('static', filename='js/org-dashboard.js') }}?v={{ config.get('CSS_VERSION', '18') }}" defer></script>
 {% endblock %}

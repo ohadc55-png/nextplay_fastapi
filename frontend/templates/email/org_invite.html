@@ -1,9 +1,12 @@
-{# Organization invite — sent when an org admin invites a user to join an org. Bilingual. #}
+{# Organization invite — sent when an org admin invites a user to join an org. Bilingual.
+   Carries two redemption paths: a magic-link CTA and an 8-char short code
+   the invitee can type on /org/join. Both share one auth_token so the first
+   redemption kills the other. #}
 {% extends "base.html" %}
 
 {% block subject_tag %}{% if rtl %}הזמנה ל-{{ organization_name }} ב-{{ brand_name }}{% else %}You're invited to {{ organization_name }} on {{ brand_name }}{% endif %}{% endblock %}
 
-{% block text_body %}{% if rtl %}שלום, {{ inviter_name }} הזמין/ה אותך להצטרף ל-{{ organization_name }} ב-{{ brand_name }} כ-{{ role }}. לקבלת ההזמנה: {{ cta_url }} (תקף ל-7 ימים).{% else %}Hi, {{ inviter_name }} invited you to join {{ organization_name }} on {{ brand_name }} as {{ role }}. Accept here: {{ cta_url }} (expires in 7 days).{% endif %}{% endblock %}
+{% block text_body %}{% if rtl %}שלום, {{ inviter_name }} הזמין/ה אותך להצטרף ל-{{ organization_name }} ב-{{ brand_name }} כ-{{ role }}. לקבלת ההזמנה: {{ cta_url }} (תקף ל-7 ימים).{% if short_code %} לחילופין — היכנס ל-{{ join_url }} והזן את הקוד: {{ short_code }}.{% endif %}{% else %}Hi, {{ inviter_name }} invited you to join {{ organization_name }} on {{ brand_name }} as {{ role }}. Accept here: {{ cta_url }} (expires in 7 days).{% if short_code %} Or visit {{ join_url }} and enter the code: {{ short_code }}.{% endif %}{% endif %}{% endblock %}
 
 {% block body %}
 {% if rtl %}
@@ -11,10 +14,24 @@
 <p style="margin:0 0 16px;">שלום,</p>
 <p style="margin:0 0 16px;"><strong>{{ inviter_name }}</strong> הזמין/ה אותך להצטרף ל-<strong>{{ organization_name }}</strong> ב-{{ brand_name }} בתפקיד <em>{{ role }}</em>.</p>
 <p style="margin:0 0 8px;">לחץ על הכפתור למטה כדי לקבל את ההזמנה ולהיכנס. הקישור <strong>תקף ל-7 ימים</strong>:</p>
+{% if short_code %}
+<div style="margin:24px 0;padding:16px 18px;background:#0b1220;border:1px solid #1f2a44;border-radius:8px;text-align:center;">
+  <div style="color:#94a3b8;font-size:12px;margin-bottom:6px;">או היכנס ל-<a href="{{ join_url }}" style="color:#3b82f6;">{{ join_url }}</a> והזן את הקוד</div>
+  <div style="color:#ffffff;font-family:Consolas,Menlo,monospace;font-size:28px;letter-spacing:4px;font-weight:700;">{{ short_code }}</div>
+  <div style="color:#94a3b8;font-size:11px;margin-top:6px;">קוד חד-פעמי — תקף ל-7 ימים</div>
+</div>
+{% endif %}
 {% else %}
 <h2 style="margin:0 0 18px;color:#ffffff;font-size:24px;font-weight:700;">You're invited to {{ organization_name }} 🎉</h2>
 <p style="margin:0 0 16px;">Hi,</p>
 <p style="margin:0 0 16px;"><strong>{{ inviter_name }}</strong> invited you to join <strong>{{ organization_name }}</strong> on {{ brand_name }} as <em>{{ role }}</em>.</p>
 <p style="margin:0 0 8px;">Click the button below to accept and sign in. This link is <strong>valid for 7 days</strong>:</p>
+{% if short_code %}
+<div style="margin:24px 0;padding:16px 18px;background:#0b1220;border:1px solid #1f2a44;border-radius:8px;text-align:center;">
+  <div style="color:#94a3b8;font-size:12px;margin-bottom:6px;">Or visit <a href="{{ join_url }}" style="color:#3b82f6;">{{ join_url }}</a> and enter this code</div>
+  <div style="color:#ffffff;font-family:Consolas,Menlo,monospace;font-size:28px;letter-spacing:4px;font-weight:700;">{{ short_code }}</div>
+  <div style="color:#94a3b8;font-size:11px;margin-top:6px;">Single-use code — valid for 7 days</div>
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}

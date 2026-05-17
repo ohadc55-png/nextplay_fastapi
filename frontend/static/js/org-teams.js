@@ -9,13 +9,22 @@
   "use strict";
 
   var ctx = window.ORG_CTX || { role: "viewer", region_id: null, branch_id: null, user_id: null };
-  var canManage = ["org_admin", "region_manager", "branch_manager"].indexOf(ctx.role) >= 0;
+  var canManage = ["org_admin", "program_manager", "region_manager"].indexOf(ctx.role) >= 0;
   var canDelete = ctx.role === "org_admin";
+  var isAdmin = ctx.role === "org_admin";
+  var isPM = ctx.role === "program_manager";
+
+  // Phase 13 — tenant URL prefix (legacy "/org" or slug-prefixed).
+  var URL_PREFIX = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
 
   // --- DOM refs ---
   var $rows = document.querySelector("[data-teams-rows]");
+  var $programFilter = document.getElementById("team-program-filter");
   var $regionFilter = document.getElementById("team-region-filter");
-  var $branchFilter = document.getElementById("team-branch-filter");
+  var $coachFilter = document.getElementById("team-coach-filter");
+  var $qFilter = document.getElementById("team-q-filter");
+  var $clearFiltersBtn = document.getElementById("team-filters-clear");
+  var $branchFilter = null;   // removed from the UI; kept null so old refs don't NPE
   var $teamModal = document.getElementById("team-modal");
   var $teamForm = document.getElementById("team-form");
   var $teamError = $teamModal.querySelector("[data-error]");
@@ -34,8 +43,10 @@
   // --- State ---
   var branchesById = {};   // all branches in org (id → branch)
   var regionsById = {};
+  var programsById = {};
   var membersById = {};
   var pendingConfirm = null;
+  var qDebounce = null;
 
   // --- Static SVG icon templates (constant) ---
   var SVG_NS = "http://www.w3.org/2000/svg";
@@ -120,11 +131,14 @@
 
   // --- Boot: reference data ---
   async function loadReferenceData() {
-    var [regions, branches, members] = await Promise.all([
+    var [programs, regions, branches, members] = await Promise.all([
+      api("GET", "/org/api/programs").catch(function () { return { programs: [] }; }),
       api("GET", "/org/api/regions").catch(function () { return { regions: [] }; }),
       api("GET", "/org/api/branches").catch(function () { return { branches: [] }; }),
       api("GET", "/org/api/users").catch(function () { return { members: [] }; }),
     ]);
+    programsById = {};
+    (programs.programs || []).forEach(function (p) { programsById[p.id] = p; });
     regionsById = {};
     (regions.regions || []).forEach(function (r) { regionsById[r.id] = r; });
     branchesById = {};
@@ -134,48 +148,72 @@
     populateSelectors();
   }
 
-  function refreshBranchFilter() {
-    // Narrow the branch dropdown to those in the selected region.
-    var rid = $regionFilter ? $regionFilter.value : "";
-    var branchList = Object.values(branchesById)
-      .filter(function (b) {
-        return !rid || String(b.region_id) === String(rid);
+  function refreshRegionFilterOptions() {
+    // When a program is selected, only show regions inside that program.
+    if (!$regionFilter) return;
+    var pid = $programFilter ? $programFilter.value : "";
+    var regionList = Object.values(regionsById)
+      .filter(function (r) {
+        return !pid || String(r.program_id) === String(pid);
       })
       .sort(function (a, b) { return a.name.localeCompare(b.name); });
-    var prev = $branchFilter.value;
-    fillSelect($branchFilter, branchList, "id", "name", true, "כל הסניפים");
-    // Preserve selection if still valid; otherwise reset.
-    var stillValid = branchList.some(function (b) { return String(b.id) === prev; });
-    $branchFilter.value = stillValid ? prev : "";
+    var prev = $regionFilter.value;
+    fillSelect($regionFilter, regionList, "id", "name", true, "כל המחוזות");
+    var stillValid = regionList.some(function (r) { return String(r.id) === prev; });
+    $regionFilter.value = stillValid ? prev : "";
   }
 
   function populateSelectors() {
-    var regionList = Object.values(regionsById).sort(function (a, b) {
+    var programList = Object.values(programsById).sort(function (a, b) {
       return a.name.localeCompare(b.name);
     });
-    if ($regionFilter) {
-      fillSelect($regionFilter, regionList, "id", "name", true, "כל המחוזות");
+    if ($programFilter) {
+      fillSelect($programFilter, programList, "id", "name", true, "כל התוכניות");
     }
-    // Modal region selector — same list (subject to role pinning below).
-    fillSelect($regionSelect, regionList, "id", "name", true, "— ללא מחוז —");
 
-    // Modal branch selector starts with the full list; the region-modal
-    // change handler narrows it as the user picks.
+    refreshRegionFilterOptions();
+
+    // Coach filter — list active members so org_admin/PM/RM can pin one.
+    if ($coachFilter) {
+      var coachOptions = Object.values(membersById)
+        .filter(function (m) { return m.status === "active" && m.role === "coach"; })
+        .sort(function (a, b) {
+          return (a.display_name || a.email).localeCompare(b.display_name || b.email);
+        })
+        .map(function (m) {
+          return { value: String(m.user_id), label: (m.display_name || m.email) };
+        });
+      fillSelect($coachFilter, coachOptions, "value", "label", true, "כל המאמנים");
+    }
+
+    // Modal region selector — same source list.
+    fillSelect($regionSelect, Object.values(regionsById)
+      .sort(function (a, b) { return a.name.localeCompare(b.name); }),
+      "id", "name", true, "— ללא מחוז —");
+
+    // Modal branch selector starts with the full list.
     refreshModalBranchOptions("");
-    // The page-level FILTER branch dropdown narrows per the page region filter.
-    refreshBranchFilter();
 
-    // Region manager: pin the modal region selector to their region.
+    // Role pinning (page-level filters + modal scope).
+    if (ctx.role === "program_manager") {
+      // PM is auto-scoped server-side; pin the filter dropdown visually too.
+      // (programs.programs returned only their own program for PMs.)
+      if ($programFilter && programList.length === 1) {
+        $programFilter.value = String(programList[0].id);
+        $programFilter.disabled = true;
+        refreshRegionFilterOptions();
+      }
+    }
     if (ctx.role === "region_manager" && ctx.region_id) {
+      if ($regionFilter) {
+        $regionFilter.value = String(ctx.region_id);
+        $regionFilter.disabled = true;
+      }
       $regionSelect.value = String(ctx.region_id);
       $regionSelect.disabled = true;
       refreshModalBranchOptions(String(ctx.region_id));
     }
-
-    // Branch manager: pin filter + modal selectors to their branch & region.
     if (ctx.role === "branch_manager" && ctx.branch_id) {
-      $branchFilter.value = String(ctx.branch_id);
-      $branchFilter.disabled = true;
       if (ctx.region_id) {
         $regionSelect.value = String(ctx.region_id);
         $regionSelect.disabled = true;
@@ -217,21 +255,24 @@
   }
 
   // --- Teams list ---
-  async function loadTeams() {
-    var url = "/org/api/teams";
+  function buildTeamsUrl() {
     var params = [];
-    var bid = $branchFilter.value;
+    var pid = $programFilter ? $programFilter.value : "";
     var rid = $regionFilter ? $regionFilter.value : "";
-    // Prefer branch over region; the backend filters teams by branch_id
-    // OR region_id (the team's branch's region).
-    if (bid) {
-      params.push("branch_id=" + encodeURIComponent(bid));
-    } else if (rid) {
-      params.push("region_id=" + encodeURIComponent(rid));
-    }
+    var cid = $coachFilter ? $coachFilter.value : "";
+    var q = $qFilter ? $qFilter.value.trim() : "";
+    if (pid) params.push("program_id=" + encodeURIComponent(pid));
+    if (rid) params.push("region_id=" + encodeURIComponent(rid));
+    if (cid) params.push("coach_user_id=" + encodeURIComponent(cid));
+    if (q) params.push("q=" + encodeURIComponent(q));
+    var url = "/org/api/teams";
     if (params.length) url += "?" + params.join("&");
+    return url;
+  }
+
+  async function loadTeams() {
     try {
-      var data = await api("GET", url);
+      var data = await api("GET", buildTeamsUrl());
       renderRows(data.teams || []);
     } catch (e) {
       setEmpty(e.message);
@@ -239,7 +280,7 @@
   }
 
   function setEmpty(msg) {
-    var colspan = canManage ? 5 : 4;
+    var colspan = canManage ? 6 : 5;
     $rows.replaceChildren(
       el("tr", null, [el("td", { className: "org-table-empty", text: msg, attrs: { colspan: String(colspan) } })])
     );
@@ -247,34 +288,43 @@
 
   function renderRows(teams) {
     if (!teams.length) {
-      setEmpty(canManage ? 'אין קבוצות עדיין. לחץ "קבוצה חדשה" כדי להתחיל.' : "אין קבוצות.");
+      setEmpty(canManage ? 'אין קבוצות תואמות לסינון. נסה לנקות את המסננים.' : "אין קבוצות.");
       return;
     }
     $rows.replaceChildren.apply(
       $rows,
       teams.map(function (t) {
-        var nameCell = el("td", null, [
-          el("strong", { text: t.team_name }),
+        var detailHref = URL_PREFIX + "/teams/" + t.id;
+        var nameLink = el("a", {
+          text: t.team_name,
+          attrs: { href: detailHref, style: "color: inherit; text-decoration: none; font-weight: 600;" },
+        });
+        var nameCell = el("td", null, [nameLink]);
+        var programCell = el("td", null, [
+          el("span", {
+            className: t.program_name ? "org-pill" : "org-pill org-pill--muted",
+            text: t.program_name || "—",
+          }),
         ]);
-        var leagueText = [t.league, t.division].filter(Boolean).join(" · ") || "—";
-        var leagueCell = el("td", null, [
-          el("span", { className: leagueText === "—" ? "org-pill org-pill--muted" : "org-pill", text: leagueText }),
-        ]);
-        var branchName = t.branch_id != null && branchesById[t.branch_id]
-          ? branchesById[t.branch_id].name : "—";
-        var branchCell = el("td", null, [
-          el("span", { className: branchName === "—" ? "org-pill org-pill--muted" : "org-pill", text: branchName }),
+        var regionCell = el("td", null, [
+          el("span", {
+            className: t.region_name ? "org-pill" : "org-pill org-pill--muted",
+            text: t.region_name || "—",
+          }),
         ]);
 
-        // Coach cell with avatar + name.
+        // Coach cell with avatar + name (use enrichment fields).
         var coachCell;
-        if (t.user_id && membersById[t.user_id]) {
-          var coach = membersById[t.user_id];
-          var initial = (coach.display_name || coach.email || "?").slice(0, 1).toUpperCase();
+        var coachName = t.coach_display_name
+          || (t.user_id && membersById[t.user_id]
+                ? (membersById[t.user_id].display_name || membersById[t.user_id].email)
+                : null);
+        if (coachName) {
+          var initial = coachName.slice(0, 1).toUpperCase();
           coachCell = el("td", null, [
             el("div", { className: "org-flex org-items-center org-gap-3" }, [
               el("span", { className: "org-avatar", text: initial }),
-              el("span", { text: coach.display_name || coach.email }),
+              el("span", { text: coachName }),
             ]),
           ]);
         } else {
@@ -283,7 +333,18 @@
           ]);
         }
 
-        var cells = [nameCell, leagueCell, branchCell, coachCell];
+        var leagueText = [t.league, t.division].filter(Boolean).join(" · ") || "—";
+        var leagueCell = el("td", null, [
+          el("span", { className: leagueText === "—" ? "org-pill org-pill--muted" : "org-pill", text: leagueText }),
+        ]);
+
+        var cells = [nameCell, programCell, regionCell, coachCell, leagueCell];
+        var tr = el("tr", null, cells);
+        tr.style.cursor = "pointer";
+        tr.addEventListener("click", function (e) {
+          if (e.target.closest("button, a")) return;
+          window.location.href = detailHref;
+        });
         if (canManage) {
           var actions = [
             iconBtn(SVG_COACH_TPL, {
@@ -312,7 +373,7 @@
           }
           cells.push(el("td", { className: "org-table-actions" }, actions));
         }
-        return el("tr", null, cells);
+        return tr;
       })
     );
   }
@@ -488,10 +549,32 @@
     m.addEventListener("click", function (e) { if (e.target === m) closeModal(m); });
   });
 
-  $branchFilter.addEventListener("change", loadTeams);
+  if ($programFilter) {
+    $programFilter.addEventListener("change", function () {
+      refreshRegionFilterOptions();
+      loadTeams();
+    });
+  }
   if ($regionFilter) {
-    $regionFilter.addEventListener("change", function () {
-      refreshBranchFilter();
+    $regionFilter.addEventListener("change", loadTeams);
+  }
+  if ($coachFilter) {
+    $coachFilter.addEventListener("change", loadTeams);
+  }
+  if ($qFilter) {
+    // Debounce server-side search so the table doesn't re-fetch on every keystroke.
+    $qFilter.addEventListener("input", function () {
+      if (qDebounce) clearTimeout(qDebounce);
+      qDebounce = setTimeout(loadTeams, 250);
+    });
+  }
+  if ($clearFiltersBtn) {
+    $clearFiltersBtn.addEventListener("click", function () {
+      if ($programFilter && !$programFilter.disabled) $programFilter.value = "";
+      if ($regionFilter && !$regionFilter.disabled) $regionFilter.value = "";
+      if ($coachFilter) $coachFilter.value = "";
+      if ($qFilter) $qFilter.value = "";
+      refreshRegionFilterOptions();
       loadTeams();
     });
   }

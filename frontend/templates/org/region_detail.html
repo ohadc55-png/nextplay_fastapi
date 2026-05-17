@@ -1,0 +1,77 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'regions' %}
+{% block title %}פרטי מחוז — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block content %}
+{% include "org/_partials/breadcrumb.html" %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title" data-region-title>טוען…</h1>
+    <p class="org-page-subtitle" data-region-program></p>
+  </div>
+</div>
+
+<!-- Stat tiles -->
+<div class="org-stat-grid" data-region-tiles>
+  <div class="org-stat"><div class="org-stat-label">טוען…</div><div class="org-stat-value">—</div></div>
+</div>
+
+<div class="org-flex org-mt-8" style="gap: var(--org-space-6); flex-wrap: wrap; align-items: flex-start;">
+
+  <!-- Teams in this region -->
+  <div class="org-card" style="flex: 2; min-width: 320px;">
+    <div class="org-card-title">קבוצות במחוז</div>
+    <div class="org-table-wrap">
+      <table class="org-table">
+        <thead>
+          <tr>
+            <th>שם הקבוצה</th>
+            <th>ליגה / מחלקה</th>
+            <th>מאמן</th>
+          </tr>
+        </thead>
+        <tbody data-region-teams>
+          <tr><td colspan="3" class="org-table-empty">טוען…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Today's practices in this region -->
+  <div class="org-card" style="flex: 1; min-width: 280px;">
+    <div class="org-card-title">אימוני היום</div>
+    <div data-region-practices>
+      <p class="org-text-sm org-text-muted">טוען…</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Members -->
+<div class="org-card org-mt-8">
+  <div class="org-card-title">צוות במחוז</div>
+  <div class="org-table-wrap">
+    <table class="org-table">
+      <thead>
+        <tr>
+          <th>שם</th>
+          <th>אימייל</th>
+          <th>תפקיד</th>
+        </tr>
+      </thead>
+      <tbody data-region-members>
+        <tr><td colspan="3" class="org-table-empty">טוען…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_REGION = {{ {'region_id': region_id, 'role': org_ctx.role} | tojson }};
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-region-detail.js') }}?v={{ config.get('CSS_VERSION', '17') }}" defer></script>
+{% endblock %}

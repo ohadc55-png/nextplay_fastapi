@@ -134,10 +134,11 @@ class TestSchemaSecurity:
         assert "user_id" not in props
         assert "team_id" not in props
 
-    def test_default_agent_tools_returns_3_tools_for_scout(self, db_session):
-        """Scout gets 3 tools: team DB, KB, AND research_external_team
-        (the 8-stage research pipeline). v1 backend/agents.py gives the
-        scout `query_team_db + search_kb + research_tool`."""
+    def test_default_agent_tools_returns_4_tools_for_scout(self, db_session):
+        """Scout gets 4 tools: team DB, KB, research_external_team, and
+        team_schedule (Phase 15). v1 backend/agents.py gave the scout
+        `query_team_db + search_kb + research_tool`; Phase 15 added a
+        calendar tool to every specialist."""
         tools = default_tools_for_agent(
             "scout", db_session, user_id=1, team_id=10,
         )
@@ -146,6 +147,7 @@ class TestSchemaSecurity:
             "query_team_database",
             "search_knowledge_base",
             "research_external_team",
+            "team_schedule",
         }
 
     def test_gm_does_not_get_research_tool(self, db_session):

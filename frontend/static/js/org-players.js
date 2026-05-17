@@ -8,12 +8,21 @@
   "use strict";
 
   var ctx = window.ORG_CTX || { role: "viewer", user_id: null };
-  var canManage = ["org_admin", "region_manager", "branch_manager", "coach"].indexOf(ctx.role) >= 0;
+  var canManage = ["org_admin", "region_manager", "coach"].indexOf(ctx.role) >= 0;
+
+  // Phase 13 — tenant URL prefix. Read once from the shell-rendered shared
+  // context; resolves to "/org" legacy or "/<slug>" under the slug-URL flag.
+  var URL_PREFIX = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
 
   // --- DOM refs ---
   var $rows = document.querySelector("[data-players-rows]");
   var $regionFilter = document.getElementById("player-region-filter");
   var $branchFilter = document.getElementById("player-branch-filter");
+
+  // Phase 13 — filters above are hidden for scoped roles (RM, coach), so
+  // every read of their `.value` needs a null guard. This helper centralizes
+  // the pattern: missing element → empty string.
+  function val(el) { return (el && el.value) || ""; }
   var $teamFilter = document.getElementById("player-team-filter");
   var $modal = document.getElementById("player-modal");
   var $form = document.getElementById("player-form");
@@ -122,7 +131,9 @@
       var regionList = Object.values(regionsById).sort(function (a, b) {
         return a.name.localeCompare(b.name);
       });
-      fillSelect($regionFilter, regionList, "id", "name", true, "כל המחוזות");
+      if ($regionFilter) {
+        fillSelect($regionFilter, regionList, "id", "name", true, "כל המחוזות");
+      }
 
       // Branch + Team filters — narrow per the chain.
       refreshBranchFilter();
@@ -154,13 +165,18 @@
   }
 
   // Cascading inside the modal: team list narrowed to the picked branch, or
-  // to teams whose branch lives in the picked region, or all.
+  // to teams in the picked region, or all. Phase 12+ teams carry `region_id`
+  // directly (the old branch→region walk only worked when every team had a
+  // legacy branch, which after the retirement of the branch hierarchy is the
+  // exception). Falls back to the branch→region walk for any team that still
+  // has no region_id but does have a legacy branch_id.
   function refreshModalTeamOptions(regionId, branchId) {
     if (!$teamSelect) return;
     var prev = $teamSelect.value;
     var list = Object.values(teamsById).filter(function (t) {
       if (branchId) return String(t.branch_id) === String(branchId);
       if (regionId) {
+        if (t.region_id != null) return String(t.region_id) === String(regionId);
         var b = t.branch_id != null ? branchesById[t.branch_id] : null;
         return b && String(b.region_id) === String(regionId);
       }
@@ -172,7 +188,8 @@
   }
 
   function refreshBranchFilter() {
-    var rid = $regionFilter.value;
+    if (!$branchFilter) return;
+    var rid = val($regionFilter);
     var list = Object.values(branchesById)
       .filter(function (b) { return !rid || String(b.region_id) === String(rid); })
       .sort(function (a, b) { return a.name.localeCompare(b.name); });
@@ -183,11 +200,13 @@
   }
 
   function refreshTeamFilter() {
-    var rid = $regionFilter.value;
-    var bid = $branchFilter.value;
+    if (!$teamFilter) return;
+    var rid = val($regionFilter);
+    var bid = val($branchFilter);
     var list = Object.values(teamsById).filter(function (t) {
       if (bid) return String(t.branch_id) === String(bid);
       if (rid) {
+        if (t.region_id != null) return String(t.region_id) === String(rid);
         var b = t.branch_id != null ? branchesById[t.branch_id] : null;
         return b && String(b.region_id) === String(rid);
       }
@@ -203,9 +222,9 @@
   async function loadPlayers() {
     var url = "/org/api/players";
     var params = [];
-    var tid = $teamFilter.value;
-    var bid = $branchFilter.value;
-    var rid = $regionFilter.value;
+    var tid = val($teamFilter);
+    var bid = val($branchFilter);
+    var rid = val($regionFilter);
     // Most specific wins: team > branch > region.
     if (tid) params.push("team_id=" + encodeURIComponent(tid));
     else if (bid) params.push("branch_id=" + encodeURIComponent(bid));
@@ -235,7 +254,7 @@
       players.map(function (p) {
         var initial = (p.name || "?").slice(0, 1).toUpperCase();
         var nameLink = el("a", {
-          attrs: { href: "/org/players/" + p.id, style: "color: inherit; text-decoration: none;" },
+          attrs: { href: URL_PREFIX + "/players/" + p.id, style: "color: inherit; text-decoration: none;" },
         }, [
           el("div", { className: "org-flex org-items-center org-gap-3" }, [
             el("span", { className: "org-avatar", text: initial }),
@@ -299,7 +318,16 @@
           }, true));
         }
         var actionsCell = el("td", { className: "org-table-actions" }, actions);
-        return el("tr", null, [nameCell, numberCell, positionCell, ageCell, teamCell, approvalsCell, actionsCell]);
+        var tr = el("tr", null, [nameCell, numberCell, positionCell, ageCell, teamCell, approvalsCell, actionsCell]);
+        // Whole-row click → player detail. Ignore clicks on action buttons /
+        // the inline name link (the link already navigates on its own).
+        var playerHref = URL_PREFIX + "/players/" + p.id;
+        tr.style.cursor = "pointer";
+        tr.addEventListener("click", function (e) {
+          if (e.target.closest("button, a")) return;
+          window.location.href = playerHref;
+        });
+        return tr;
       })
     );
   }
@@ -524,16 +552,24 @@
     m.addEventListener("click", function (e) { if (e.target === m) closeModal(m); });
   });
 
-  $regionFilter.addEventListener("change", function () {
-    refreshBranchFilter();
-    refreshTeamFilter();
-    loadPlayers();
-  });
-  $branchFilter.addEventListener("change", function () {
-    refreshTeamFilter();
-    loadPlayers();
-  });
-  $teamFilter.addEventListener("change", loadPlayers);
+  // Filter elements may be absent when the actor's role doesn't surface
+  // them (Phase 13 — RM, coach get a narrower toolbar).
+  if ($regionFilter) {
+    $regionFilter.addEventListener("change", function () {
+      refreshBranchFilter();
+      refreshTeamFilter();
+      loadPlayers();
+    });
+  }
+  if ($branchFilter) {
+    $branchFilter.addEventListener("change", function () {
+      refreshTeamFilter();
+      loadPlayers();
+    });
+  }
+  if ($teamFilter) {
+    $teamFilter.addEventListener("change", loadPlayers);
+  }
 
   async function boot() {
     await loadReferenceData();

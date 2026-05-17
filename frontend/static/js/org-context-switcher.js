@@ -113,8 +113,17 @@
         window.OrgToast && window.OrgToast.show("מעבר תפקיד נכשל", "danger");
         return;
       }
-      // Reload — session cookie has been updated server-side.
-      window.location.href = "/org/dashboard";
+      // Reload — session cookie has been updated server-side. After a role
+      // switch the server response payload also carries the slug-aware
+      // redirect target; prefer it when present, fall back to `__ORG_ACTIVE__`.
+      var data = null;
+      try { data = await r.json(); } catch (_e) {}
+      if (data && data.redirect) {
+        window.location.href = data.redirect;
+      } else {
+        var _pfx = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
+        window.location.href = _pfx + "/dashboard";
+      }
     } catch (_e) {
       window.OrgToast && window.OrgToast.show("שגיאת רשת", "danger");
     }

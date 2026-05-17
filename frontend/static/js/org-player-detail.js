@@ -64,6 +64,9 @@
     try {
       var p = await api("GET", "/org/api/players/" + playerId);
       $name.textContent = p.name || "—";
+      var crumb = document.getElementById("crumb-player-name");
+      if (crumb) crumb.textContent = p.name || "—";
+      document.title = (p.name || "שחקן") + " — NEXTPLAY Enterprise";
       var bits = [];
       if (p.position) bits.push(p.position);
       if (p.age != null) bits.push("גיל " + p.age);

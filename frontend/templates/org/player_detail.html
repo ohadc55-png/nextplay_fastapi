@@ -4,11 +4,9 @@
 {% block title %}פרטי שחקן — {{ org_ctx.organization_name }}{% endblock %}
 
 {% block content %}
+{% include "org/_partials/breadcrumb.html" %}
 <div class="org-page-header">
   <div>
-    <a href="/org/players" class="org-text-sm org-text-muted" style="display: inline-block; margin-block-end: var(--org-space-2);">
-      ← חזרה לשחקנים
-    </a>
     <h1 class="org-page-title" data-player-name>טוען…</h1>
     <p class="org-page-subtitle" data-player-meta></p>
   </div>

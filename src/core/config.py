@@ -98,6 +98,14 @@ class Settings(BaseSettings):
     # `app.config["TESTING"]` skip at flask_app.py:276-277.
     RATE_LIMIT_ENABLED: bool = True
 
+    # === Phase 13 — per-org slug URLs ===
+    # When True, tenant HTML pages live at `/{org_slug}/...` (e.g.
+    # `/shaar-shivyon/dashboard`). Legacy `/org/...` URLs keep working via
+    # a 301-redirect catch-all so bookmarks + already-sent invite links
+    # never break. Override to False via env to fall back to the legacy
+    # layout during rollout.
+    ORG_SLUG_URLS_ENABLED: bool = True
+
     # === Knowledge base (ChromaDB) ===
     # Path to the ChromaDB persistent store. Default sits next to the
     # repo root so dev + prod look identical. Override via env in CI /

@@ -13,6 +13,9 @@
   var ctx = window.ORG_CTX || { role: "viewer", region_id: null };
   var canManage = ctx.role === "org_admin";
 
+  // Phase 13 — tenant URL prefix (legacy "/org" or slug-prefixed).
+  var URL_PREFIX = (window.__ORG_ACTIVE__ && window.__ORG_ACTIVE__.url_prefix) || "/org";
+
   var $rows = document.querySelector("#regions-table [data-rows]");
   var $modal = document.getElementById("region-modal");
   var $deleteModal = document.getElementById("region-delete-modal");
@@ -20,8 +23,12 @@
   var $error = $modal.querySelector("[data-error]");
   var $deleteName = $deleteModal.querySelector("[data-delete-name]");
   var $deleteError = $deleteModal.querySelector("[data-delete-error]");
+  var $programFilter = document.getElementById("regions-program-filter");
+  var $modalProgramSel = document.getElementById("region-program");
 
   var pendingDeleteId = null;
+  var programs = [];               // populated on boot from /org/api/programs
+  var currentProgramFilter = "";   // org_admin's selected filter (empty = all)
 
   var SVG_NS = "http://www.w3.org/2000/svg";
   function parseSvg(svg) {
@@ -92,22 +99,31 @@
 
   function renderRows(regions) {
     if (!regions.length) {
-      var msg = "אין אזורים עדיין." + (canManage ? ' לחץ על "אזור חדש" כדי להתחיל.' : "");
+      var msg = "אין מחוזות עדיין." + (canManage ? ' לחץ על "מחוז חדש" כדי להתחיל.' : "");
       setEmpty(msg);
       return;
     }
     $rows.replaceChildren.apply(
       $rows,
       regions.map(function (r) {
-        var nameCell = el("td", null, [el("strong", { text: r.name })]);
+        // Whole row links to the drill-down. Edit/Delete buttons stop propagation.
+        var detailHref = URL_PREFIX + "/regions/" + r.id;
+        var nameLink = el("a", {
+          text: r.name,
+          attrs: { href: detailHref, style: "color: inherit; text-decoration: none; font-weight: 600;" },
+        });
+        var nameCell = el("td", null, [nameLink]);
+        var programCell = el("td", null, [
+          el("span", {
+            className: r.program_name ? "org-pill" : "org-pill org-pill--muted",
+            text: r.program_name || "—",
+          }),
+        ]);
         var managerCell = el("td", null, [
           el("span", {
             className: r.manager_name ? "org-pill" : "org-pill org-pill--muted",
             text: r.manager_name || "—",
           }),
-        ]);
-        var branchCell = el("td", null, [
-          el("span", { className: "org-pill", text: String(r.branch_count != null ? r.branch_count : 0) }),
         ]);
         var teamCell = el("td", null, [
           el("span", { className: "org-pill", text: String(r.team_count != null ? r.team_count : 0) }),
@@ -118,7 +134,7 @@
         var playerCell = el("td", null, [
           el("span", { className: "org-pill", text: String(r.player_count != null ? r.player_count : 0) }),
         ]);
-        var cells = [nameCell, managerCell, branchCell, teamCell, coachCell, playerCell];
+        var cells = [nameCell, programCell, managerCell, teamCell, coachCell, playerCell];
         if (canManage) {
           var editBtn = iconBtn(SVG_EDIT_TPL, {
             type: "button",
@@ -135,14 +151,57 @@
           }, true);
           cells.push(el("td", { className: "org-table-actions" }, [editBtn, delBtn]));
         }
-        return el("tr", null, cells);
+        var tr = el("tr", null, cells);
+        tr.style.cursor = "pointer";
+        // Row click → navigate, but only if the click didn't land on an
+        // action button or the inline name link.
+        tr.addEventListener("click", function (e) {
+          if (e.target.closest("button, a")) return;
+          window.location.href = detailHref;
+        });
+        return tr;
       })
     );
   }
 
+  function fillProgramOptions(sel, programList, blankLabel) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    var blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = blankLabel;
+    sel.appendChild(blank);
+    programList.forEach(function (p) {
+      var o = document.createElement("option");
+      o.value = String(p.id);
+      o.textContent = p.name;
+      sel.appendChild(o);
+    });
+  }
+
+  async function loadPrograms() {
+    try {
+      var data = await api("GET", "/org/api/programs");
+      programs = (data.programs || []).slice().sort(function (a, b) {
+        return a.name.localeCompare(b.name);
+      });
+    } catch (_e) {
+      programs = [];
+    }
+    if ($programFilter) {
+      fillProgramOptions($programFilter, programs, "כל התוכניות");
+    }
+    if ($modalProgramSel) {
+      fillProgramOptions($modalProgramSel, programs, "— ללא תוכנית —");
+    }
+  }
+
   async function loadRegions() {
     try {
-      var data = await api("GET", "/org/api/regions");
+      var url = "/org/api/regions";
+      if (currentProgramFilter) {
+        url += "?program_id=" + encodeURIComponent(currentProgramFilter);
+      }
+      var data = await api("GET", url);
       renderRows(data.regions || []);
     } catch (e) {
       setEmpty(e.message);
@@ -152,7 +211,8 @@
   function openNew() {
     $form.reset();
     $form.elements.id.value = "";
-    document.getElementById("region-modal-title").textContent = "אזור חדש";
+    if ($modalProgramSel) $modalProgramSel.value = "";
+    document.getElementById("region-modal-title").textContent = "מחוז חדש";
     hideError($error);
     openModal($modal);
     setTimeout(function () { $form.elements.name.focus(); }, 50);
@@ -163,7 +223,10 @@
       var r = await api("GET", "/org/api/regions/" + id);
       $form.elements.id.value = String(r.id);
       $form.elements.name.value = r.name;
-      document.getElementById("region-modal-title").textContent = "עריכת אזור";
+      if ($modalProgramSel) {
+        $modalProgramSel.value = r.program_id != null ? String(r.program_id) : "";
+      }
+      document.getElementById("region-modal-title").textContent = "עריכת מחוז";
       hideError($error);
       openModal($modal);
     } catch (e) {
@@ -175,14 +238,18 @@
     ev.preventDefault();
     hideError($error);
     var id = $form.elements.id.value;
-    var payload = { name: $form.elements.name.value.trim() };
+    var rawProgram = $modalProgramSel ? $modalProgramSel.value : "";
+    var payload = {
+      name: $form.elements.name.value.trim(),
+      program_id: rawProgram ? parseInt(rawProgram, 10) : null,
+    };
     try {
       if (id) {
         await api("PATCH", "/org/api/regions/" + id, payload);
-        window.OrgToast && window.OrgToast.show("האזור עודכן", "success");
+        window.OrgToast && window.OrgToast.show("המחוז עודכן", "success");
       } else {
         await api("POST", "/org/api/regions", payload);
-        window.OrgToast && window.OrgToast.show("האזור נוצר", "success");
+        window.OrgToast && window.OrgToast.show("המחוז נוצר", "success");
       }
       closeModal($modal);
       loadRegions();
@@ -190,6 +257,13 @@
       showError($error, e.message);
     }
   });
+
+  if ($programFilter) {
+    $programFilter.addEventListener("change", function () {
+      currentProgramFilter = $programFilter.value || "";
+      loadRegions();
+    });
+  }
 
   function openDelete(id, name) {
     pendingDeleteId = id;
@@ -233,9 +307,15 @@
     m.addEventListener("click", function (e) { if (e.target === m) closeModal(m); });
   });
 
+  async function boot() {
+    // Load programs first so the modal + filter dropdown have data ready
+    // before the user sees any region row (avoids a "blank dropdown" flash).
+    await loadPrograms();
+    await loadRegions();
+  }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", loadRegions);
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
-    loadRegions();
+    boot();
   }
 })();

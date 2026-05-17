@@ -29,6 +29,8 @@ from src.models.otp_attempts import OTPAttempt
 from src.models.player_contacts import PlayerContact
 from src.models.players import Player, PlayerGameStat, PlayerMetric
 from src.models.plays import Play, PlayShare
+from src.models.practice_sessions import PracticeSession
+from src.models.programs import Program
 from src.models.push import PushLog, PushSubscription
 from src.models.regions import Region
 from src.models.scouting import (
@@ -57,8 +59,9 @@ __all__ = [
     # B2B / billing
     "Club",
     "InviteCode",
-    # Multi-org Enterprise (Phase 0)
+    # Multi-org Enterprise (Phase 0 + active hierarchy)
     "Organization",
+    "Program",
     "Region",
     "Branch",
     "UserOrganization",
@@ -83,6 +86,8 @@ __all__ = [
     # Plays
     "Play",
     "PlayShare",
+    # Practice scheduling
+    "PracticeSession",
     # Scouting / video room
     "ScoutingVideo",
     "VideoClip",

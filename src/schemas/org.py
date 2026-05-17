@@ -69,6 +69,10 @@ class DashboardSummary(BaseModel):
     branch_count: int
     region_count: int
     team_count: int
+    # Phase 3+: program name surfaces in the header for program_manager and
+    # region_manager (so a coach inside Sha'ar Shivyon sees "עמותת שער שיוויון · בועטות").
+    program_id: int | None = None
+    program_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -77,20 +81,32 @@ class DashboardSummary(BaseModel):
 
 
 class OrgInviteRequest(BaseModel):
-    """POST /org/api/orgs/{org_id}/users/invite."""
+    """POST /org/api/orgs/{org_id}/users/invite + the newer
+    POST /org/api/users/invite shared body schema.
+
+    Phase 14 — `team_id` is set ONLY when inviting a coach. The PM/RM
+    picks which team the new coach will own. At redeem time the team's
+    `user_id` is rewritten to the new coach (replacing any existing one).
+    The schema doesn't enforce role-vs-team_id consistency — that's the
+    service layer's job (with friendlier error messages).
+    """
     email: EmailStr
     role: str = Field(min_length=1, max_length=30)
+    program_id: int | None = None
     region_id: int | None = None
     branch_id: int | None = None
+    team_id: int | None = None
 
 
 class OrgInviteOut(BaseModel):
-    """Response after issuing an invite. Does NOT include the raw token."""
+    """Response after issuing an invite. Does NOT include the raw token.
+    `short_code` IS included — the inviter copies it to share via WhatsApp/SMS."""
     id: int
     organization_id: int
     email: str
     role: str
     status: str
+    short_code: str | None = None
     created_at: datetime
 
 
@@ -102,11 +118,32 @@ class OrgInviteAcceptRequest(BaseModel):
     display_name: str | None = None
 
 
+class OrgInviteRedeemRequest(BaseModel):
+    """POST /org/api/invites/redeem — public self-service flow.
+
+    Unlike the accept-token path (which locks the new user to invite.email),
+    redemption with a short code accepts any email + name + password and
+    creates the user de novo. The short_code is one-time-use; redeeming it
+    also kills the magic-link token tied to the same OrgInvite.
+
+    `email` is `str` (not `EmailStr`) on purpose — pydantic's strict email
+    validator rejects `.test`/`.local` domains and would block dev fixtures.
+    The route does a minimal "@ + ." sanity check; the User model already
+    enforces uniqueness, and password reset / email verification provide
+    additional liveness signals when needed.
+    """
+    code: str = Field(min_length=4, max_length=24)
+    email: str = Field(min_length=3, max_length=320)
+    full_name: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=8, max_length=128)
+
+
 __all__ = [
     "DashboardSummary",
     "OrganizationOut",
     "OrgInviteAcceptRequest",
     "OrgInviteOut",
+    "OrgInviteRedeemRequest",
     "OrgInviteRequest",
     "OrgLoginRequest",
     "OrgMeResponse",

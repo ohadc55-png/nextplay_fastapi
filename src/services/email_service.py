@@ -264,10 +264,15 @@ async def send_org_invite_email(
     role: str,
     background=None,
     language: str = "en",
+    short_code: str | None = None,
 ) -> tuple[str, int]:
     """Issue an `org_invite` token (7-day TTL), schedule the actual Resend
     dispatch via `src.services.email`, and return ``(raw_token, auth_token_id)``
     so the caller can persist an OrgInvite row referencing the token id.
+
+    If `short_code` is provided, the email body shows both ways to redeem:
+    a one-click magic link AND a typed 8-char code (rendered with a dash
+    in the middle for legibility).
     """
     raw, token_id = await _issue_auth_token(
         session,
@@ -275,7 +280,18 @@ async def send_org_invite_email(
         purpose="org_invite",
         expires_in_hours=168,  # 7 days
     )
-    accept_url = _link("/org/invite-accept", raw)
+    # Phase 13 — invite links use the root-level aliases (`/invite-accept`,
+    # `/join`) instead of the legacy `/org/...` paths. The legacy paths are
+    # 301-redirected via the catch-all, so any in-flight emails from before
+    # the rollout still work — but new emails carry the cleaner URLs.
+    accept_url = _link("/invite-accept", raw)
+
+    # Format the code as XXXX-XXXX for easier human transcription.
+    code_pretty: str | None = None
+    join_url: str | None = None
+    if short_code:
+        code_pretty = short_code[:4] + "-" + short_code[4:] if len(short_code) >= 8 else short_code
+        join_url = f"{settings.APP_BASE_URL.rstrip('/')}/join?code={short_code}"
 
     from src.services.email_templates import render
     subject, html_body, text_body = render(
@@ -288,6 +304,8 @@ async def send_org_invite_email(
             "cta_url": accept_url,
             "cta_label_en": "Accept invitation",
             "cta_label_he": "קבל הזמנה",
+            "short_code": code_pretty,
+            "join_url": join_url,
         },
     )
 

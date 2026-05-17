@@ -20,7 +20,8 @@ async def test_org_admin_role_stats_shape(org_admin_client: AsyncClient):
     body = r.json()
     assert body["role"] == "org_admin"
     tile_keys = {t["key"] for t in body["tiles"]}
-    assert {"members", "regions", "branches", "teams", "players", "pending_invites"} <= tile_keys
+    # Phase 12 — "branches" tile retired, "programs" tile takes its slot.
+    assert {"members", "regions", "programs", "teams", "players", "pending_invites"} <= tile_keys
     # Every tile has a label + value + href.
     for t in body["tiles"]:
         assert "label" in t and "value" in t and "href" in t
@@ -53,8 +54,9 @@ async def test_org_admin_counts_org_wide(
 async def test_region_manager_sees_only_region_counts(
     api_client: AsyncClient, seed_org_admin, api_session_factory,
 ):
-    """A region_manager scoped to region A sees only branches/teams in A."""
-    from src.models.branches import Branch
+    """Phase 12 — an RM is always tied to (region × program). RM scoped to
+    region A × program P sees only A's teams in program P."""
+    from src.models.programs import Program
     from src.models.regions import Region
     from src.models.teams import TeamProfile
     from src.models.user_organizations import UserOrganization
@@ -62,28 +64,31 @@ async def test_region_manager_sees_only_region_counts(
     creds = await seed_org_admin(email="rm@d.test", role="region_manager")
     org_id = creds["organization_id"]
     async with api_session_factory() as s:
+        prog = Program(organization_id=org_id, name="P")
+        s.add(prog)
+        await s.flush()
         a = Region(organization_id=org_id, name="A")
         b = Region(organization_id=org_id, name="B")
         s.add_all([a, b])
         await s.flush()
-        a_id, b_id = a.id, b.id
-        # 2 branches in A, 1 in B
-        ba1 = Branch(organization_id=org_id, region_id=a_id, name="BA1")
-        ba2 = Branch(organization_id=org_id, region_id=a_id, name="BA2")
-        bb1 = Branch(organization_id=org_id, region_id=b_id, name="BB1")
-        s.add_all([ba1, ba2, bb1])
-        await s.flush()
-        # 1 team in A's first branch, 0 in B
-        s.add(TeamProfile(organization_id=org_id, branch_id=ba1.id, team_name="T-A"))
-        s.add(TeamProfile(organization_id=org_id, branch_id=bb1.id, team_name="T-B"))
-        # Scope the region_manager to region A.
+        a_id, b_id, prog_id = a.id, b.id, prog.id
+        # Two teams in A (both in our program), one in B.
+        s.add(TeamProfile(
+            organization_id=org_id, region_id=a_id, program_id=prog_id,
+            team_name="T-A1",
+        ))
+        s.add(TeamProfile(
+            organization_id=org_id, region_id=b_id, program_id=prog_id,
+            team_name="T-B1",
+        ))
+        # RM is pinned to (region A × program P).
         await s.execute(
             update(UserOrganization)
             .where(
                 UserOrganization.user_id == creds["user_id"],
                 UserOrganization.role == "region_manager",
             )
-            .values(region_id=a_id)
+            .values(region_id=a_id, program_id=prog_id)
         )
         await s.commit()
 
@@ -94,45 +99,62 @@ async def test_region_manager_sees_only_region_counts(
     body = r.json()
     assert body["role"] == "region_manager"
     by_key = {t["key"]: t["value"] for t in body["tiles"]}
-    assert by_key["branches"] == 2  # only A's branches
-    assert by_key["teams"] == 1     # only T-A
+    assert by_key["teams"] == 1     # only T-A1 (region A × program P)
 
 
 # ---------------------------------------------------------------------------
-# branch_manager scoping
+# region_manager — new region_id direct path on teams (Phase 5)
 # ---------------------------------------------------------------------------
 
 
-async def test_branch_manager_sees_only_branch_counts(
+async def test_region_manager_counts_teams_via_region_id_direct(
     api_client: AsyncClient, seed_org_admin, api_session_factory,
 ):
-    from src.models.branches import Branch
+    """Phase 12 — RM stats use TeamProfile.region_id (+ program_id) only.
+    Teams in the RM's (region × program) slice all count."""
     from src.models.players import Player
+    from src.models.programs import Program
+    from src.models.regions import Region
     from src.models.teams import TeamProfile
     from src.models.user_organizations import UserOrganization
 
-    creds = await seed_org_admin(email="bm@d.test", role="branch_manager")
+    creds = await seed_org_admin(email="rm-direct@d.test", role="region_manager")
     org_id = creds["organization_id"]
     async with api_session_factory() as s:
-        b1 = Branch(organization_id=org_id, name="B1")
-        b2 = Branch(organization_id=org_id, name="B2")
-        s.add_all([b1, b2])
+        prog = Program(organization_id=org_id, name="P")
+        s.add(prog)
         await s.flush()
-        b1_id = b1.id
-        t1 = TeamProfile(organization_id=org_id, branch_id=b1.id, team_name="T1")
-        t2 = TeamProfile(organization_id=org_id, branch_id=b2.id, team_name="T2")
-        s.add_all([t1, t2])
+        prog_id = prog.id
+        region = Region(organization_id=org_id, name="R-Direct")
+        s.add(region)
         await s.flush()
-        s.add(Player(organization_id=org_id, team_id=t1.id, name="P1", active=True))
-        s.add(Player(organization_id=org_id, team_id=t1.id, name="P2", active=True))
-        s.add(Player(organization_id=org_id, team_id=t2.id, name="P3", active=True))
+        region_id = region.id
+
+        team_a = TeamProfile(
+            organization_id=org_id, region_id=region_id, program_id=prog_id,
+            team_name="Team A",
+        )
+        team_b = TeamProfile(
+            organization_id=org_id, region_id=region_id, program_id=prog_id,
+            team_name="Team B",
+        )
+        s.add_all([team_a, team_b])
+        await s.flush()
+        s.add(Player(
+            organization_id=org_id, team_id=team_a.id,
+            name="PA", active=True,
+        ))
+        s.add(Player(
+            organization_id=org_id, team_id=team_b.id,
+            name="PB", active=True,
+        ))
         await s.execute(
             update(UserOrganization)
             .where(
                 UserOrganization.user_id == creds["user_id"],
-                UserOrganization.role == "branch_manager",
+                UserOrganization.role == "region_manager",
             )
-            .values(branch_id=b1_id)
+            .values(region_id=region_id, program_id=prog_id)
         )
         await s.commit()
 
@@ -140,9 +162,181 @@ async def test_branch_manager_sees_only_branch_counts(
         "/org/login", json={"email": creds["email"], "password": creds["password"]}
     )
     r = await api_client.get("/org/api/dashboard/role-stats")
-    by_key = {t["key"]: t["value"] for t in r.json()["tiles"]}
-    assert by_key["teams"] == 1     # only T1
-    assert by_key["players"] == 2   # only P1+P2
+    body = r.json()
+    by_key = {t["key"]: t["value"] for t in body["tiles"]}
+    assert by_key["teams"] == 2, body
+    assert by_key["players"] == 2
+
+
+async def test_region_manager_response_carries_program_name(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """Phase 12 — an RM may be pinned to a single program via
+    UserOrganization.program_id (regions are shared, so a region itself
+    isn't program-scoped). The role-stats response carries program_id +
+    program_name so the dashboard subtitle can read 'מנהל מחוז חיפה, בועטות'."""
+    from src.models.programs import Program
+    from src.models.regions import Region
+    from src.models.user_organizations import UserOrganization
+
+    creds = await seed_org_admin(email="rm-prog@d.test", role="region_manager")
+    org_id = creds["organization_id"]
+    async with api_session_factory() as s:
+        prog = Program(organization_id=org_id, name="בועטות")
+        s.add(prog)
+        await s.flush()
+        region = Region(organization_id=org_id, name="מרכז")
+        s.add(region)
+        await s.flush()
+        # Pin BOTH region_id + program_id on the RM membership.
+        await s.execute(
+            update(UserOrganization)
+            .where(
+                UserOrganization.user_id == creds["user_id"],
+                UserOrganization.role == "region_manager",
+            )
+            .values(region_id=region.id, program_id=prog.id)
+        )
+        await s.commit()
+
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/dashboard/role-stats")
+    body = r.json()
+    assert body["role"] == "region_manager"
+    assert body.get("program_name") == "בועטות"
+    assert body.get("program_id") is not None
+
+
+# ---------------------------------------------------------------------------
+# program_manager scoping (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+async def test_program_manager_sees_program_subtree(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """A PM scoped to program A sees regions/teams/members/players in A only."""
+    from src.models.players import Player
+    from src.models.programs import Program
+    from src.models.regions import Region
+    from src.models.teams import TeamProfile
+    from src.models.user_organizations import UserOrganization
+
+    creds = await seed_org_admin(email="pm@d.test", role="program_manager")
+    org_id = creds["organization_id"]
+    async with api_session_factory() as s:
+        prog_a = Program(organization_id=org_id, name="Program A")
+        prog_b = Program(organization_id=org_id, name="Program B")
+        s.add_all([prog_a, prog_b])
+        await s.flush()
+        prog_a_id, prog_b_id = prog_a.id, prog_b.id
+        # Phase 12 — regions are shared geography (no program_id). A team's
+        # program is set directly via TeamProfile.program_id.
+        r_a1 = Region(organization_id=org_id, name="A1")
+        r_a2 = Region(organization_id=org_id, name="A2")
+        r_b1 = Region(organization_id=org_id, name="B1")
+        s.add_all([r_a1, r_a2, r_b1])
+        await s.flush()
+        # 1 team per region in A (so the PM's "regions in program" count = 2),
+        # 1 team in B1 (must not leak into the PM's view).
+        t_a1 = TeamProfile(
+            organization_id=org_id, region_id=r_a1.id,
+            program_id=prog_a_id, team_name="T-A1",
+        )
+        t_a2 = TeamProfile(
+            organization_id=org_id, region_id=r_a2.id,
+            program_id=prog_a_id, team_name="T-A2",
+        )
+        t_b = TeamProfile(
+            organization_id=org_id, region_id=r_b1.id,
+            program_id=prog_b_id, team_name="T-B",
+        )
+        s.add_all([t_a1, t_a2, t_b])
+        await s.flush()
+        # 2 players in A's first team, 1 in B's — total players in A = 2.
+        s.add(Player(organization_id=org_id, team_id=t_a1.id, name="PA1", active=True))
+        s.add(Player(organization_id=org_id, team_id=t_a1.id, name="PA2", active=True))
+        s.add(Player(organization_id=org_id, team_id=t_b.id, name="PB1", active=True))
+        # Scope the PM to program A.
+        await s.execute(
+            update(UserOrganization)
+            .where(
+                UserOrganization.user_id == creds["user_id"],
+                UserOrganization.role == "program_manager",
+            )
+            .values(program_id=prog_a_id)
+        )
+        await s.commit()
+
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/dashboard/role-stats")
+    body = r.json()
+    assert body["role"] == "program_manager"
+    assert body["program_id"] == prog_a_id
+    assert body["program_name"] == "Program A"
+    by_key = {t["key"]: t["value"] for t in body["tiles"]}
+    assert by_key["regions"] == 2   # A1 + A2 (distinct regions where A has teams)
+    assert by_key["teams"] == 2     # T-A1 + T-A2
+    assert by_key["players"] == 2   # PA1 + PA2
+
+
+async def test_program_manager_without_program_returns_warning(
+    api_client: AsyncClient, seed_org_admin,
+):
+    """A PM membership without a program_id (mis-seeded) returns the same
+    empty-state envelope as RM without a region — no crash."""
+    creds = await seed_org_admin(email="pm-no-prog@d.test", role="program_manager")
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/dashboard/role-stats")
+    body = r.json()
+    assert body["role"] == "program_manager"
+    assert body["tiles"] == []
+    assert "warning" in body
+
+
+async def test_dashboard_summary_includes_program_name_for_pm(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """The /summary endpoint surfaces program_name for the header banner."""
+    from src.models.programs import Program
+    from src.models.user_organizations import UserOrganization
+
+    creds = await seed_org_admin(email="pm-hdr@d.test", role="program_manager")
+    org_id = creds["organization_id"]
+    async with api_session_factory() as s:
+        p = Program(organization_id=org_id, name="בועטות")
+        s.add(p)
+        await s.flush()
+        prog_id = p.id
+        await s.execute(
+            update(UserOrganization)
+            .where(
+                UserOrganization.user_id == creds["user_id"],
+                UserOrganization.role == "program_manager",
+            )
+            .values(program_id=prog_id)
+        )
+        await s.commit()
+
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/dashboard/summary")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["program_id"] == prog_id
+    assert body["program_name"] == "בועטות"
+
+
+# ---------------------------------------------------------------------------
+# (Phase 12) branch_manager role retired — its dashboard tests were here.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------

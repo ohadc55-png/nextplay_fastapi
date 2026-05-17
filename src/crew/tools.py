@@ -640,12 +640,134 @@ def make_add_player_tool(
 #   - Analytics    : + research (cross-team statistical comparisons)
 #   - Tactics      : + research (opponent tendencies, league trends)
 #   - Training     : + research (drill libraries, coaching content)
+def make_team_schedule_tool(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    team_id: int | None,
+) -> Tool:
+    """Phase 15 — let the agent inspect the coach's calendar.
+
+    Returns upcoming AND/OR recent events for the coach's team. Closed
+    over `(user_id, team_id)` so the LLM can't ask for someone else's
+    schedule. If the active team has no events in the window, returns
+    `{"events": []}` (not an error — agent should phrase a sensible
+    response).
+    """
+    from datetime import datetime, timedelta
+
+    from src.models.practice_sessions import PracticeSession
+    from src.models.teams import TeamProfile
+
+    async def handler(
+        days_ahead: int = 14,
+        days_back: int = 0,
+        event_type: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        if team_id is None:
+            return {"error": "no_active_team"}
+        # Verify the team belongs to this coach. Defense in depth.
+        team = (await db.execute(
+            select(TeamProfile).where(
+                TeamProfile.id == team_id, TeamProfile.user_id == user_id,
+            )
+        )).scalar_one_or_none()
+        if team is None:
+            return {"error": "team_not_found"}
+
+        days_ahead = max(0, min(int(days_ahead or 0), 365))
+        days_back = max(0, min(int(days_back or 0), 365))
+        limit = max(1, min(int(limit or 50), 200))
+
+        now = datetime.utcnow()
+        start = now - timedelta(days=days_back)
+        end = now + timedelta(days=days_ahead) if days_ahead else now
+        if end <= start:
+            end = start + timedelta(days=14)
+
+        rows = list((await db.execute(
+            select(PracticeSession)
+            .where(
+                PracticeSession.team_id == team_id,
+                PracticeSession.scheduled_at >= start,
+                PracticeSession.scheduled_at < end,
+            )
+            .order_by(PracticeSession.scheduled_at.asc())
+            .limit(limit)
+        )).scalars().all())
+
+        events_out: list[dict[str, Any]] = []
+        for r in rows:
+            attrs = r.attributes_json or {}
+            if not isinstance(attrs, dict):
+                attrs = {}
+            et = attrs.get("event_type") or attrs.get("kind") or "practice"
+            if event_type and et != event_type.strip().lower():
+                continue
+            events_out.append({
+                "id": r.id,
+                "scheduled_at": r.scheduled_at.isoformat() if r.scheduled_at else None,
+                "duration_minutes": r.duration_minutes,
+                "title": r.title,
+                "location": r.location,
+                "event_type": et,
+                "event_type_custom": attrs.get("event_type_custom"),
+                "opponent_home": attrs.get("opponent_home"),
+                "opponent_away": attrs.get("opponent_away"),
+                "status": r.status,
+            })
+        return {"events": events_out, "count": len(events_out)}
+
+    return Tool(
+        name="team_schedule",
+        description=(
+            "Look up the coach's calendar — upcoming practices, games, "
+            "events. Pass `days_ahead` (default 14) to limit the future "
+            "window, `days_back` (default 0) to include recent past, "
+            "and optional `event_type` filter ('practice' | 'game' | "
+            "'event' | 'other')."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "days_ahead": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 365,
+                    "description": "How many days into the future to fetch (default 14).",
+                },
+                "days_back": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 365,
+                    "description": "How many days into the past to include (default 0).",
+                },
+                "event_type": {
+                    "type": "string",
+                    "enum": ["practice", "game", "event", "other"],
+                    "description": "Filter to one event type.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200,
+                    "description": "Max events returned (default 50).",
+                },
+            },
+            "required": [],
+            "additionalProperties": False,
+        },
+        handler=handler,
+    )
+
+
 _AGENT_TOOL_MAP: dict[str, tuple[str, ...]] = {
-    "gm":        ("team_database", "knowledge_base", "add_player"),
-    "scout":     ("team_database", "knowledge_base", "research"),
-    "analytics": ("team_database", "knowledge_base", "research"),
-    "tactics":   ("team_database", "knowledge_base", "research"),
-    "training":  ("team_database", "knowledge_base", "research"),
+    "gm":        ("team_database", "knowledge_base", "add_player", "team_schedule"),
+    "scout":     ("team_database", "knowledge_base", "research", "team_schedule"),
+    "analytics": ("team_database", "knowledge_base", "research", "team_schedule"),
+    "tactics":   ("team_database", "knowledge_base", "research", "team_schedule"),
+    "training":  ("team_database", "knowledge_base", "research", "team_schedule"),
 }
 
 
@@ -662,6 +784,7 @@ def default_tools_for_agent(
         "knowledge_base": make_knowledge_base_tool,
         "research": make_research_tool,
         "add_player": make_add_player_tool,
+        "team_schedule": make_team_schedule_tool,
     }
     keys = _AGENT_TOOL_MAP.get(agent_key, ())
     return [
@@ -717,4 +840,5 @@ __all__ = [
     "execute_tool_call",
     "make_knowledge_base_tool",
     "make_team_database_tool",
+    "make_team_schedule_tool",
 ]

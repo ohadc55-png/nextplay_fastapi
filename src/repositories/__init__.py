@@ -55,6 +55,8 @@ from src.repositories.players_repo import (
     PlayersRepository,
 )
 from src.repositories.plays_repo import PlaySharesRepository, PlaysRepository
+from src.repositories.practice_sessions_repo import PracticeSessionsRepository
+from src.repositories.programs_repo import ProgramsRepository
 from src.repositories.push_repo import PushLogRepository, PushSubscriptionsRepository
 from src.repositories.regions_repo import RegionsRepository
 from src.repositories.scouting_repo import (
@@ -86,8 +88,9 @@ __all__ = [
     "AuditLogRepository",
     "ClubsRepository",
     "InviteCodesRepository",
-    # Multi-org Enterprise (Phase 0)
+    # Multi-org Enterprise (Phase 0 + active hierarchy)
     "OrganizationsRepository",
+    "ProgramsRepository",
     "RegionsRepository",
     "BranchesRepository",
     "UserOrganizationsRepository",
@@ -105,6 +108,7 @@ __all__ = [
     "NotebookEntryPlayersRepository",
     "PlaysRepository",
     "PlaySharesRepository",
+    "PracticeSessionsRepository",
     # Memory
     "MemoryRepository",
     "EntityRepository",

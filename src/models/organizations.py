@@ -16,6 +16,7 @@ from src.core.database import Base, JSONText
 
 if TYPE_CHECKING:
     from src.models.branches import Branch
+    from src.models.programs import Program
     from src.models.regions import Region
     from src.models.user_organizations import UserOrganization
 
@@ -55,6 +56,9 @@ class Organization(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    programs: Mapped[list[Program]] = relationship(
+        "Program", back_populates="organization", lazy="raise", cascade="all, delete-orphan"
+    )
     regions: Mapped[list[Region]] = relationship(
         "Region", back_populates="organization", lazy="raise", cascade="all, delete-orphan"
     )

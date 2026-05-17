@@ -67,7 +67,11 @@ router = APIRouter(prefix="/org/api/players", tags=["org-players"])
 async def _ensure_team_in_scope(
     db: AsyncSession, team_id: int, membership: UserOrganization,
 ) -> TeamProfile:
-    """Fetch team scoped to org + role. 404 covers cross-org / out-of-scope."""
+    """Fetch team scoped to org + role. 404 covers cross-org / out-of-scope.
+
+    Visibility honors BOTH the new direct `team.region_id` FK and the
+    legacy `team.branch_id -> branch.region_id` path.
+    """
     team = (
         await db.execute(
             select(TeamProfile).where(
@@ -80,14 +84,26 @@ async def _ensure_team_in_scope(
         raise NotFoundError("Team not found")
 
     role = membership.role
-    if role == "branch_manager":
+    if role == "program_manager":
+        pm_program = getattr(membership, "program_id", None)
+        if pm_program is None:
+            raise NotFoundError("Team not found")
+        # Phase 12 — program is on the team directly. Legacy region walk gone.
+        if team.program_id != pm_program:
+            raise NotFoundError("Team not found")
+    elif role == "branch_manager":
         if team.branch_id != membership.branch_id:
             raise NotFoundError("Team not found")
     elif role == "region_manager":
-        if team.branch_id is None:
+        # Phase 12 — pinned-program RM additionally checks team.program_id.
+        rm_program = getattr(membership, "program_id", None)
+        if rm_program is not None and team.program_id != rm_program:
             raise NotFoundError("Team not found")
-        branch = await db.get(Branch, team.branch_id)
-        if branch is None or branch.region_id != membership.region_id:
+        eff_region_id = team.region_id
+        if eff_region_id is None and team.branch_id is not None:
+            branch = await db.get(Branch, team.branch_id)
+            eff_region_id = branch.region_id if branch else None
+        if eff_region_id != membership.region_id:
             raise NotFoundError("Team not found")
     elif role == "coach":
         if team.user_id != membership.user_id:
@@ -141,11 +157,31 @@ async def list_players(
             include_inactive=include_inactive,
         )
     elif role == "region_manager":
+        # Phase 12 — RMs pinned to a program (via UserOrganization.program_id)
+        # narrow to that (region × program) slice; otherwise span all programs
+        # in their region.
+        rm_program = getattr(membership, "program_id", None)
         rows = await repo.list_for_org(
             membership.organization_id,
             region_id=membership.region_id,
+            program_id=rm_program,
             team_id=team_id,
             branch_id=branch_id,
+            include_inactive=include_inactive,
+        )
+    elif role == "program_manager":
+        # Phase 12 — PM is auto-clamped to their program. Region/branch
+        # query filters still apply within that subset; mismatched team_id
+        # falls through to the repo which 404s through the empty-list cloak.
+        pm_program = getattr(membership, "program_id", None)
+        if pm_program is None:
+            return {"players": []}
+        rows = await repo.list_for_org(
+            membership.organization_id,
+            program_id=pm_program,
+            team_id=team_id,
+            branch_id=branch_id,
+            region_id=region_id,
             include_inactive=include_inactive,
         )
     else:  # org_admin / viewer
@@ -182,7 +218,7 @@ async def create_player(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager", "coach")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager", "coach")
     ),
 ) -> PlayerOut:
     team = await _ensure_team_in_scope(db, body.team_id, membership)
@@ -245,7 +281,7 @@ async def update_player(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager", "coach")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager", "coach")
     ),
 ) -> PlayerOut:
     player = await _ensure_player_visible(db, player_id, membership)
@@ -309,7 +345,7 @@ async def delete_player(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager", "coach")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager", "coach")
     ),
 ) -> dict:
     player = await _ensure_player_visible(db, player_id, membership)
@@ -392,7 +428,7 @@ async def upsert_player_contact(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager", "coach")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager", "coach")
     ),
 ) -> PlayerContactOut:
     """Insert if no contact row yet, otherwise update fields that are not

@@ -186,4 +186,20 @@ async def org_admin_client(
     assert body.get("ok") is True, body
     # Stash the seeded ids on the client for tests that need them.
     api_client.org_seed = creds  # type: ignore[attr-defined]
+
+    # Phase 13 — `slug_url("/dashboard")` returns the tenant URL appropriate
+    # for the current `ORG_SLUG_URLS_ENABLED` setting:
+    #   flag OFF → "/org/dashboard"
+    #   flag ON  → "/<seeded_slug>/dashboard"
+    # Generic /org/* paths (login/logout/role-select/switch-role) pass through
+    # unchanged so tests can mix slug + generic calls without manual checks.
+    def _slug_url(path: str) -> str:
+        from src.core.config import settings as _settings
+        if path.startswith("/org/") or path == "/org":
+            return path
+        if not _settings.ORG_SLUG_URLS_ENABLED:
+            return f"/org{path}"
+        return f"/{creds['organization_slug']}{path}"
+
+    api_client.slug_url = _slug_url  # type: ignore[attr-defined]
     return api_client

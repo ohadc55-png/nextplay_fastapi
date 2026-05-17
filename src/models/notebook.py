@@ -37,10 +37,19 @@ class NotebookEntry(Base):
     created_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Phase 15 — Coach Calendar. Reverse link from a notebook entry
+    # (attendance / free_document / game_summary) back to the calendar
+    # event it describes. SET NULL on event delete so notebook history
+    # stays intact when an event is removed.
+    practice_session_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("practice_sessions.id", ondelete="SET NULL"), nullable=True
+    )
+
     __table_args__ = (
         Index("idx_nb_entries_team_type", "user_id", "team_id", "entry_type"),
         Index("idx_nb_entries_date", "team_id", "entry_date"),
         Index("idx_nb_entries_player", "player_id"),
+        Index("idx_nb_entries_practice_session", "practice_session_id"),
     )
 
 

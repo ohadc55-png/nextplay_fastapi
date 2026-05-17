@@ -310,6 +310,17 @@ var NpTour = (function() {
     _currentPage = pageName || _detectPage();
     if (!_currentPage || !CONFIGS[_currentPage]) return;
 
+    // First-visit-ever defers to welcome-spotlight: the personal welcome
+    // overlay is delivering the introduction this load, so don't ambush
+    // the coach with the tour bubble at the same time. State is NOT bumped
+    // — the tour shows in full on the next visit (state=0 → full tour,
+    // state=1 → "want another walkthrough?" prompt, just shifted by one
+    // visit). The np_welcomed_<uid> flag is set by welcome-spotlight.js
+    // when the coach dismisses the overlay.
+    var uidMeta = document.querySelector('meta[name="np-user-id"]');
+    var uid = uidMeta ? uidMeta.content : '';
+    if (uid && localStorage.getItem('np_welcomed_' + uid) !== '1') return;
+
     var state = _getState(_currentPage);
 
     // Hard cap: Daisy's onboarding tour appears at most 2 times per page.

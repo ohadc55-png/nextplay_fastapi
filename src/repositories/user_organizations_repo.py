@@ -64,6 +64,7 @@ class UserOrganizationsRepository(BaseRepository[UserOrganization]):
         organization_id: int | None,
         *,
         role: str | None = None,
+        program_id: int | None = None,
         region_id: int | None = None,
         branch_id: int | None = None,
         statuses: tuple[str, ...] | None = None,
@@ -73,11 +74,15 @@ class UserOrganizationsRepository(BaseRepository[UserOrganization]):
         Used by /org/api/users (Phase 1.4) to populate the people table.
         Defensive: returns [] if organization_id is None.
 
+        `program_id` filter is also *inclusive*: matches members whose
+        membership pins program_id directly OR whose region belongs to
+        that program (region_manager + coaches scoped to a region). Without
+        this, a region_manager in a program would be invisible when the PM
+        filters by `program_id` — counter-intuitive.
+
         `region_id` filter is *inclusive*: matches members whose membership
         either pins region_id directly (region_manager / branch_manager) OR
         whose branch belongs to that region (coaches scoped to a branch).
-        Without this, a coach in a branch of region X would not show up
-        when you filter "all members in region X" — counter-intuitive.
         """
         from sqlalchemy import or_  # local import — keeps the file's top
 
@@ -93,6 +98,12 @@ class UserOrganizationsRepository(BaseRepository[UserOrganization]):
         )
         if role is not None:
             stmt = stmt.where(UserOrganization.role == role)
+        if program_id is not None:
+            # Phase 12 — regions are shared across programs, so "members in
+            # program X" means only those pinned via UserOrganization.program_id.
+            # The legacy union with regions_in_program (Region.program_id == X)
+            # is gone — that mapping is now always NULL.
+            stmt = stmt.where(UserOrganization.program_id == program_id)
         if region_id is not None:
             branches_in_region = (
                 select(Branch.id).where(
@@ -120,6 +131,7 @@ class UserOrganizationsRepository(BaseRepository[UserOrganization]):
                 "email": user.email,
                 "display_name": user.display_name,
                 "role": uo.role,
+                "program_id": getattr(uo, "program_id", None),
                 "region_id": uo.region_id,
                 "branch_id": uo.branch_id,
                 "status": uo.status,

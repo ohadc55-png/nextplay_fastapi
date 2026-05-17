@@ -36,8 +36,11 @@ from src.core.database import get_db
 from src.core.exceptions import ConflictError, NotFoundError
 from src.models.branches import Branch
 from src.models.players import Player
+from src.models.programs import Program
+from src.models.regions import Region
 from src.models.teams import TeamProfile
 from src.models.user_organizations import UserOrganization
+from src.models.users import User
 from src.repositories.teams_repo import TeamsRepository
 from src.repositories.user_organizations_repo import UserOrganizationsRepository
 from src.repositories.users_repo import UsersRepository
@@ -57,6 +60,82 @@ router = APIRouter(prefix="/org/api/teams", tags=["org-teams"])
 # ---------------------------------------------------------------------------
 # Helpers — scope + visibility
 # ---------------------------------------------------------------------------
+
+
+async def _validate_region_in_scope(
+    db: AsyncSession,
+    *,
+    org_id: int,
+    region_id: int | None,
+    membership: UserOrganization,
+) -> int | None:
+    """Validate `region_id` against the org + the actor's scope.
+
+    - region_id=None is allowed (team has no region assigned).
+    - Any region_id outside org_id → NotFoundError(404).
+    - region_manager: region MUST equal membership.region_id.
+    - program_manager: region MUST belong to membership.program_id.
+    """
+    if region_id is None:
+        return None
+    region = (
+        await db.execute(
+            select(Region).where(
+                Region.id == region_id, Region.organization_id == org_id
+            )
+        )
+    ).scalar_one_or_none()
+    if region is None:
+        raise NotFoundError("Region not found")
+    if membership.role == "region_manager":
+        if region.id != membership.region_id:
+            raise NotFoundError("Region not found")
+    # Phase 12 — PM no longer scopes by region. Regions are shared geography
+    # across all programs; a PM can create teams in any region. The team's
+    # program is set explicitly via TeamProfile.program_id at create time.
+    return region.id
+
+
+async def _validate_program_in_scope(
+    db: AsyncSession,
+    *,
+    org_id: int,
+    program_id: int | None,
+    membership: UserOrganization,
+) -> int | None:
+    """Resolve the final program_id stored on a created/updated team.
+
+    Clamp rules:
+      - program_manager: ALWAYS forced to their own program_id; any input
+        that mismatches → NotFoundError (404 cloak, not 403).
+      - org_admin / region_manager / branch_manager: input is accepted if
+        the program belongs to the org; None is allowed.
+      - PM with no program_id on their membership → NotFoundError.
+    """
+    pm_program = (
+        getattr(membership, "program_id", None)
+        if membership.role == "program_manager"
+        else None
+    )
+    if membership.role == "program_manager":
+        if pm_program is None:
+            raise NotFoundError("Program not found")
+        if program_id is not None and program_id != pm_program:
+            raise NotFoundError("Program not found")
+        return pm_program
+
+    if program_id is None:
+        return None
+    program = (
+        await db.execute(
+            select(Program).where(
+                Program.id == program_id, Program.organization_id == org_id
+            )
+        )
+    ).scalar_one_or_none()
+    if program is None:
+        raise NotFoundError("Program not found")
+    return program.id
 
 
 async def _validate_branch_in_scope(
@@ -104,19 +183,38 @@ async def _ensure_team_visible(
     db: AsyncSession, team_id: int, membership: UserOrganization,
 ) -> TeamProfile:
     """Fetch a team within the org and verify the actor can see it.
-    404 covers cross-org, out-of-region, out-of-branch, and (for coach role)
-    not-the-owner cases."""
+
+    404 covers cross-org, out-of-program (for PM), out-of-region (for RM),
+    out-of-branch (for BM), and not-the-owner (for coach) cases.
+
+    Visibility honors BOTH the new direct `team.region_id` FK and the
+    legacy `team.branch_id -> branch.region_id` path.
+    """
     team = await TeamsRepository(db).get_for_org(team_id, membership.organization_id)
     if team is None:
         raise NotFoundError("Team not found")
 
     role = membership.role
-    if role == "region_manager":
-        # Team's branch must live in actor's region.
-        if team.branch_id is None:
+    if role == "program_manager":
+        pm_program = getattr(membership, "program_id", None)
+        if pm_program is None:
             raise NotFoundError("Team not found")
-        branch = await db.get(Branch, team.branch_id)
-        if branch is None or branch.region_id != membership.region_id:
+        # Phase 12 — team's program is on TeamProfile directly. The legacy
+        # walk through region.program_id is gone (regions are shared).
+        if team.program_id != pm_program:
+            raise NotFoundError("Team not found")
+    elif role == "region_manager":
+        # Phase 12 — when RM is pinned to a program, also enforce
+        # team.program_id == rm.program_id. Otherwise region scope alone.
+        rm_program = getattr(membership, "program_id", None)
+        if rm_program is not None and team.program_id != rm_program:
+            raise NotFoundError("Team not found")
+        # Direct OR legacy branch path.
+        eff_region_id = team.region_id
+        if eff_region_id is None and team.branch_id is not None:
+            branch = await db.get(Branch, team.branch_id)
+            eff_region_id = branch.region_id if branch else None
+        if eff_region_id != membership.region_id:
             raise NotFoundError("Team not found")
     elif role == "branch_manager":
         if team.branch_id != membership.branch_id:
@@ -136,33 +234,178 @@ async def _ensure_team_visible(
 async def list_teams(
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(get_current_org_membership),
-    branch_id: int | None = Query(default=None),
+    program_id: int | None = Query(default=None),
     region_id: int | None = Query(default=None),
+    branch_id: int | None = Query(default=None),
+    coach_user_id: int | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=200),
 ) -> dict:
+    """List teams visible to the active actor, with optional filters.
+
+    Filters (org_admin only — non-admin roles get auto-scoped):
+      ?program_id, ?region_id, ?branch_id, ?coach_user_id, ?q (name search)
+
+    Scope clamps (mirror ROLE_INVITES_TREE):
+      program_manager → forced to their own program (any program_id query
+                        outside that is ignored — 404 cloak via empty result)
+      region_manager  → forced to their own region
+      branch_manager  → forced to their own branch
+      coach           → forced to teams they own (user_id match)
+
+    Response includes per-team enrichment: region_name, program_id,
+    program_name, coach_display_name, coach_email.
+    """
     repo = TeamsRepository(db)
     role = membership.role
+    org_id = membership.organization_id
 
-    if role == "coach":
-        rows = await repo.list_for_org(
-            membership.organization_id, coach_user_id=membership.user_id
-        )
-    elif role == "branch_manager":
-        rows = await repo.list_for_org(
-            membership.organization_id, branch_id=membership.branch_id
-        )
+    # Per-role scope clamps. Non-admin filter values that don't match the
+    # actor's pinned scope yield an empty list (404 cloak — never confirms
+    # that an out-of-scope id even exists).
+    if role == "program_manager":
+        pm_program = getattr(membership, "program_id", None)
+        if pm_program is None or (program_id is not None and program_id != pm_program):
+            return {"teams": [], "filters": _filter_echo(
+                program_id, region_id, branch_id, coach_user_id, q,
+            )}
+        program_id = pm_program
     elif role == "region_manager":
-        rows = await repo.list_for_org(
-            membership.organization_id, region_id=membership.region_id
-        )
-    else:  # org_admin / viewer
-        rows = await repo.list_for_org(
-            membership.organization_id, region_id=region_id, branch_id=branch_id
-        )
+        rm_region = membership.region_id
+        if rm_region is None or (region_id is not None and region_id != rm_region):
+            return {"teams": [], "filters": _filter_echo(
+                program_id, region_id, branch_id, coach_user_id, q,
+            )}
+        region_id = rm_region
+        # Phase 12 — when the RM membership pins them to a single program,
+        # also clamp by program_id so they see only their (region × program)
+        # slice. Inputs that try to widen this are 404-cloaked.
+        rm_program = getattr(membership, "program_id", None)
+        if rm_program is not None:
+            if program_id is not None and program_id != rm_program:
+                return {"teams": [], "filters": _filter_echo(
+                    program_id, region_id, branch_id, coach_user_id, q,
+                )}
+            program_id = rm_program
+    elif role == "branch_manager":
+        bm_branch = membership.branch_id
+        if bm_branch is None or (branch_id is not None and branch_id != bm_branch):
+            return {"teams": [], "filters": _filter_echo(
+                program_id, region_id, branch_id, coach_user_id, q,
+            )}
+        branch_id = bm_branch
+    elif role == "coach":
+        # Coaches only see their own teams regardless of any filter.
+        coach_user_id = membership.user_id
+
+    rows = await repo.list_for_org(
+        org_id,
+        program_id=program_id,
+        region_id=region_id,
+        branch_id=branch_id,
+        coach_user_id=coach_user_id,
+        q=q,
+    )
+    enrichment = await _enrich_teams(db, rows)
+    out: list[dict] = []
+    for t in rows:
+        base = OrgTeamOut.model_validate(t).model_dump(mode="json")
+        base.update(enrichment.get(t.id, {}))
+        out.append(base)
     return {
-        "teams": [
-            OrgTeamOut.model_validate(t).model_dump(mode="json") for t in rows
-        ]
+        "teams": out,
+        "filters": _filter_echo(program_id, region_id, branch_id, coach_user_id, q),
     }
+
+
+def _filter_echo(
+    program_id, region_id, branch_id, coach_user_id, q,
+) -> dict:
+    return {
+        "program_id": program_id,
+        "region_id": region_id,
+        "branch_id": branch_id,
+        "coach_user_id": coach_user_id,
+        "q": q,
+    }
+
+
+async def _enrich_teams(
+    db: AsyncSession, teams: list[TeamProfile],
+) -> dict[int, dict]:
+    """One-shot batch lookup of derived display fields per team.
+
+    For each team we want: region_name (from team.region_id or
+    branch.region_id), program_id + program_name (from the resolved region),
+    coach_display_name + coach_email (from team.user_id → users).
+
+    All four lookups happen via IN-list selects keyed off the input team
+    set — no N+1.
+    """
+    if not teams:
+        return {}
+
+    # Effective region id per team: prefer direct team.region_id, else
+    # branch.region_id, else None.
+    branch_ids = {t.branch_id for t in teams if t.branch_id is not None}
+    branch_to_region: dict[int, int | None] = {}
+    if branch_ids:
+        rows = (await db.execute(
+            select(Branch.id, Branch.region_id).where(Branch.id.in_(branch_ids))
+        )).all()
+        branch_to_region = dict(rows)
+
+    effective_region: dict[int, int | None] = {}
+    for t in teams:
+        rid = t.region_id
+        if rid is None and t.branch_id is not None:
+            rid = branch_to_region.get(t.branch_id)
+        effective_region[t.id] = rid
+
+    region_ids = {rid for rid in effective_region.values() if rid is not None}
+    region_names: dict[int, str | None] = {}
+    if region_ids:
+        rows = (await db.execute(
+            select(Region.id, Region.name).where(Region.id.in_(region_ids))
+        )).all()
+        region_names = dict(rows)
+
+    # Phase 12 — program is now a direct attribute on the team, not derived
+    # from the region. Build a {program_id → program_name} lookup off the
+    # set of program_ids the teams actually point at.
+    program_ids = {t.program_id for t in teams if t.program_id is not None}
+    program_names: dict[int, str | None] = {}
+    if program_ids:
+        rows = (await db.execute(
+            select(Program.id, Program.name).where(Program.id.in_(program_ids))
+        )).all()
+        program_names = dict(rows)
+
+    user_ids = {t.user_id for t in teams if t.user_id is not None}
+    coach_info: dict[int, tuple[str | None, str | None]] = {}
+    if user_ids:
+        rows = (await db.execute(
+            select(User.id, User.display_name, User.email).where(User.id.in_(user_ids))
+        )).all()
+        for uid, dname, email in rows:
+            coach_info[uid] = (dname or email, email)
+
+    out: dict[int, dict] = {}
+    for t in teams:
+        rid = effective_region.get(t.id)
+        rname = region_names.get(rid) if rid is not None else None
+        pid = t.program_id
+        pname = program_names.get(pid) if pid is not None else None
+        coach_name, coach_email = (None, None)
+        if t.user_id is not None and t.user_id in coach_info:
+            coach_name, coach_email = coach_info[t.user_id]
+        out[t.id] = {
+            "region_name": rname,
+            "program_id": pid,
+            "program_name": pname,
+            "coach_display_name": coach_name,
+            "coach_email": coach_email,
+        }
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -176,17 +419,29 @@ async def create_team(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager")
     ),
 ) -> OrgTeamOut:
     org_id = membership.organization_id
     target_branch_id = await _validate_branch_in_scope(
         db, org_id=org_id, branch_id=body.branch_id, membership=membership,
     )
+    target_region_id = await _validate_region_in_scope(
+        db, org_id=org_id, region_id=body.region_id, membership=membership,
+    )
+    # Phase 12 — program_id is independent of region. PM is auto-clamped to
+    # their own program; org_admin can pick any program in the org; RM/BM
+    # may pass it through or leave it NULL (their region/branch holds
+    # teams from multiple programs and the form may not surface it).
+    target_program_id = await _validate_program_in_scope(
+        db, org_id=org_id, program_id=body.program_id, membership=membership,
+    )
 
     team = TeamProfile(
         organization_id=org_id,
         branch_id=target_branch_id,
+        region_id=target_region_id,
+        program_id=target_program_id,
         team_name=body.team_name.strip(),
         league=body.league,
         division=body.division,
@@ -223,7 +478,91 @@ async def get_team(
     membership: UserOrganization = Depends(get_current_org_membership),
 ) -> OrgTeamOut:
     team = await _ensure_team_visible(db, team_id, membership)
-    return OrgTeamOut.model_validate(team)
+    enrichment = await _enrich_teams(db, [team])
+    base = OrgTeamOut.model_validate(team).model_dump(mode="json")
+    base.update(enrichment.get(team.id, {}))
+    return OrgTeamOut.model_validate(base)
+
+
+# ---------------------------------------------------------------------------
+# GET /org/api/teams/{team_id}/detail — drill-down view (Phase 8)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{team_id}/detail", response_model=dict)
+async def get_team_detail(
+    team_id: int,
+    db: AsyncSession = Depends(get_db),
+    membership: UserOrganization = Depends(get_current_org_membership),
+) -> dict:
+    """One-shot detail payload for the team drill-down page.
+
+    Returns the team (with region + program + coach enriched), the active
+    roster (players where active=True), and today's practice sessions for
+    this team. 404 covers any cross-scope access via `_ensure_team_visible`.
+    """
+    from datetime import date as _date
+    from datetime import datetime as _datetime
+    from datetime import timedelta as _timedelta
+
+    from src.models.practice_sessions import PracticeSession
+    from src.repositories.players_repo import PlayersRepository
+
+    team = await _ensure_team_visible(db, team_id, membership)
+    enrichment = await _enrich_teams(db, [team])
+    base = OrgTeamOut.model_validate(team).model_dump(mode="json")
+    base.update(enrichment.get(team.id, {}))
+
+    # Active roster — org-scoped to defend against the unlikely edge case
+    # of a team_id collision across orgs.
+    players_repo = PlayersRepository(db)
+    players = await players_repo.list_for_org(
+        team.organization_id, team_id=team.id, include_inactive=False,
+    )
+    roster = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "number": p.number,
+            "position": p.position,
+            "age": p.age,
+            "dominant_hand": p.dominant_hand,
+            "active": bool(p.active) if p.active is not None else True,
+        }
+        for p in players
+    ]
+
+    # Today's practice for this team
+    today = _date.today()
+    start = _datetime.combine(today, _datetime.min.time())
+    end = start + _timedelta(days=1)
+    practice_rows = (await db.execute(
+        select(PracticeSession)
+        .where(
+            PracticeSession.team_id == team.id,
+            PracticeSession.scheduled_at >= start,
+            PracticeSession.scheduled_at < end,
+        )
+        .order_by(PracticeSession.scheduled_at)
+    )).scalars().all()
+    practices_today = [
+        {
+            "id": p.id,
+            "title": p.title,
+            "scheduled_at": p.scheduled_at.isoformat() if p.scheduled_at else None,
+            "duration_minutes": p.duration_minutes,
+            "location": p.location,
+            "status": p.status,
+        }
+        for p in practice_rows
+    ]
+
+    return {
+        "team": base,
+        "roster": roster,
+        "practices_today": practices_today,
+        "today": today.isoformat(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +577,7 @@ async def update_team(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager")
     ),
 ) -> OrgTeamOut:
     team = await _ensure_team_visible(db, team_id, membership)
@@ -273,6 +612,23 @@ async def update_team(
             branch_id=body.branch_id, membership=membership,
         )
         _set("branch_id", target_branch_id)
+
+    if "region_id" in body.model_fields_set:
+        target_region_id = await _validate_region_in_scope(
+            db, org_id=membership.organization_id,
+            region_id=body.region_id, membership=membership,
+        )
+        _set("region_id", target_region_id)
+
+    if "program_id" in body.model_fields_set:
+        # PM is clamped server-side; if their input doesn't match their own
+        # program the validator raises 404. org_admin can move teams between
+        # programs freely.
+        target_program_id = await _validate_program_in_scope(
+            db, org_id=membership.organization_id,
+            program_id=body.program_id, membership=membership,
+        )
+        _set("program_id", target_program_id)
 
     if changes:
         await db.flush()
@@ -354,7 +710,7 @@ async def assign_coach(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager")
     ),
 ) -> OrgTeamOut:
     """Set `team.user_id` to the given user, and ensure that user has an
@@ -427,7 +783,7 @@ async def unassign_coach(
     request: Request,
     db: AsyncSession = Depends(get_db),
     membership: UserOrganization = Depends(
-        require_role("org_admin", "region_manager", "branch_manager")
+        require_role("org_admin", "program_manager", "region_manager", "branch_manager")
     ),
 ) -> dict:
     """Clear `team.user_id` if it matches `user_id`. Leaves the user's

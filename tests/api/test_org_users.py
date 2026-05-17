@@ -31,6 +31,7 @@ async def _seed_member(
     role: str = "coach",
     region_id: int | None = None,
     branch_id: int | None = None,
+    program_id: int | None = None,
 ) -> dict:
     """Create a User + UserOrganization pair. Returns (user_id, membership_id)."""
     from src.auth.password_service import hash_password
@@ -51,6 +52,7 @@ async def _seed_member(
             role=role,
             region_id=region_id,
             branch_id=branch_id,
+            program_id=program_id,
             status="active",
         )
         s.add(uo)
@@ -223,22 +225,33 @@ async def test_region_manager_invite_forced_to_own_region(
     assert r2.status_code == 404
 
 
-async def test_invite_with_branch_validates_org(
+async def test_invite_with_region_validates_org(
     org_admin_client: AsyncClient, seed_org_admin, api_session_factory,
 ):
-    """branch_id pointing at another org's branch → 404 (cross-org)."""
-    from src.models.branches import Branch
+    """Phase 12 — region_id pointing at another org's region → 404 cross-org.
+    (Replaces the legacy branch_id version; branch_manager + Branch retired.)
+    Includes a same-org program_id so we get past the RM scope validator and
+    actually hit the region cross-org check."""
+    from src.models.programs import Program
+    from src.models.regions import Region
 
+    org_id = org_admin_client.org_seed["organization_id"]
     other = await seed_org_admin(email="other@org.test", org_slug="other-org", org_name="Other")
     async with api_session_factory() as s:
-        foreign = Branch(organization_id=other["organization_id"], name="Foreign")
+        local_program = Program(organization_id=org_id, name="Local")
+        s.add(local_program)
+        foreign = Region(organization_id=other["organization_id"], name="Foreign")
         s.add(foreign)
         await s.commit()
+        local_program_id = local_program.id
         foreign_id = foreign.id
 
     r = await org_admin_client.post(
         "/org/api/users/invite",
-        json={"email": "b@org.test", "role": "branch_manager", "branch_id": foreign_id},
+        json={
+            "email": "r@org.test", "role": "region_manager",
+            "program_id": local_program_id, "region_id": foreign_id,
+        },
     )
     assert r.status_code == 404
 
@@ -424,3 +437,276 @@ async def test_patch_cross_tenant_returns_404(
         f"/org/api/users/{target['membership_id']}", json={"role": "viewer"}
     )
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — invitation hierarchy enforcement
+# ---------------------------------------------------------------------------
+
+
+async def _seed_program(api_session_factory, org_id: int, name: str) -> int:
+    from src.models.programs import Program
+    async with api_session_factory() as s:
+        p = Program(organization_id=org_id, name=name)
+        s.add(p)
+        await s.commit()
+        return p.id
+
+
+async def _scope_member(
+    api_session_factory,
+    *,
+    user_id: int,
+    role: str,
+    program_id: int | None = None,
+    region_id: int | None = None,
+) -> None:
+    from src.models.user_organizations import UserOrganization
+    async with api_session_factory() as s:
+        await s.execute(
+            update(UserOrganization)
+            .where(
+                UserOrganization.user_id == user_id,
+                UserOrganization.role == role,
+            )
+            .values(program_id=program_id, region_id=region_id)
+        )
+        await s.commit()
+
+
+async def test_org_admin_can_invite_program_manager(
+    org_admin_client: AsyncClient, api_session_factory,
+):
+    org_id = org_admin_client.org_seed["organization_id"]
+    prog_id = await _seed_program(api_session_factory, org_id, "Prog 1")
+
+    r = await org_admin_client.post(
+        "/org/api/users/invite",
+        json={
+            "email": "pm-new@org.test",
+            "role": "program_manager",
+            "program_id": prog_id,
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["role"] == "program_manager"
+    assert body["program_id"] == prog_id
+
+
+async def test_program_manager_can_invite_coach_in_their_program(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """program_manager invites a coach without passing program_id —
+    the server auto-fills it from the inviter's scope."""
+    creds = await seed_org_admin(email="pm@org.test", role="program_manager")
+    org_id = creds["organization_id"]
+    prog_id = await _seed_program(api_session_factory, org_id, "Prog X")
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="program_manager",
+        program_id=prog_id,
+    )
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={"email": "coach-new@org.test", "role": "coach"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["role"] == "coach"
+    # Coach memberships don't carry program_id directly, but the OrgInvite
+    # row stores the program_id so the auto-acceptance flow knows the scope.
+    assert body["program_id"] == prog_id
+
+
+async def test_program_manager_cannot_invite_org_admin(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    creds = await seed_org_admin(email="pm-bad@org.test", role="program_manager")
+    prog_id = await _seed_program(
+        api_session_factory, creds["organization_id"], "P",
+    )
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="program_manager",
+        program_id=prog_id,
+    )
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={"email": "would-be-admin@org.test", "role": "org_admin"},
+    )
+    assert r.status_code == 404
+
+
+async def test_program_manager_cannot_invite_another_program_manager(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    creds = await seed_org_admin(email="pm2@org.test", role="program_manager")
+    prog_id = await _seed_program(
+        api_session_factory, creds["organization_id"], "P",
+    )
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="program_manager",
+        program_id=prog_id,
+    )
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={
+            "email": "pm-clone@org.test",
+            "role": "program_manager",
+            "program_id": prog_id,
+        },
+    )
+    assert r.status_code == 404
+
+
+async def test_program_manager_rejected_cross_program(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """PM cannot invite a region_manager into a sibling program → 404."""
+    creds = await seed_org_admin(email="pm3@org.test", role="program_manager")
+    org_id = creds["organization_id"]
+    prog_a = await _seed_program(api_session_factory, org_id, "A")
+    prog_b = await _seed_program(api_session_factory, org_id, "B")
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="program_manager",
+        program_id=prog_a.__class__ if False else prog_a,
+    )
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+
+    # Try inviting a region_manager whose program_id is B (not A)
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={
+            "email": "rm-cross@org.test",
+            "role": "region_manager",
+            "program_id": prog_b,
+        },
+    )
+    assert r.status_code == 404
+
+
+async def test_region_manager_auto_fills_region_when_inviting_coach(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    creds = await seed_org_admin(email="rm-auto@org.test", role="region_manager")
+    org_id = creds["organization_id"]
+    region_id = await _seed_region(api_session_factory, org_id, name="A")
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="region_manager",
+        region_id=region_id,
+    )
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={"email": "coach-rm@org.test", "role": "coach"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["region_id"] == region_id
+
+
+async def test_region_manager_cannot_invite_program_manager(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    creds = await seed_org_admin(email="rm-bad@org.test", role="region_manager")
+    region_id = await _seed_region(api_session_factory, creds["organization_id"], "R")
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="region_manager",
+        region_id=region_id,
+    )
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={"email": "pm-no@org.test", "role": "program_manager"},
+    )
+    assert r.status_code == 404
+
+
+async def test_coach_cannot_reach_invite_endpoint(
+    api_client: AsyncClient, seed_org_admin,
+):
+    creds = await seed_org_admin(email="coach-only@org.test", role="coach")
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.post(
+        "/org/api/users/invite",
+        json={"email": "x@org.test", "role": "coach"},
+    )
+    assert r.status_code == 404
+
+
+async def test_program_manager_list_users_filters_to_program(
+    api_client: AsyncClient, seed_org_admin, api_session_factory,
+):
+    """Phase 12 — a PM sees members whose UserOrganization.program_id matches
+    their own program. Region attachment alone no longer implies program
+    membership (regions are shared geography)."""
+    from src.models.regions import Region
+
+    creds = await seed_org_admin(email="pm-list@org.test", role="program_manager")
+    org_id = creds["organization_id"]
+    prog_a = await _seed_program(api_session_factory, org_id, "PA")
+    prog_b = await _seed_program(api_session_factory, org_id, "PB")
+    await _scope_member(
+        api_session_factory,
+        user_id=creds["user_id"],
+        role="program_manager",
+        program_id=prog_a,
+    )
+
+    # Shared regions — no program_id pinned. Coaches are scoped to a region
+    # AND a program separately.
+    async with api_session_factory() as s:
+        r_a = Region(organization_id=org_id, name="R-A")
+        r_b = Region(organization_id=org_id, name="R-B")
+        s.add_all([r_a, r_b])
+        await s.commit()
+        a_id, b_id = r_a.id, r_b.id
+
+    await _seed_member(
+        api_session_factory, org_id, email="coach-a@org.test",
+        role="coach", region_id=a_id, program_id=prog_a,
+    )
+    await _seed_member(
+        api_session_factory, org_id, email="coach-b@org.test",
+        role="coach", region_id=b_id, program_id=prog_b,
+    )
+
+    await api_client.post(
+        "/org/login", json={"email": creds["email"], "password": creds["password"]}
+    )
+    r = await api_client.get("/org/api/users")
+    emails = {m["email"] for m in r.json()["members"]}
+    assert "coach-a@org.test" in emails
+    assert "coach-b@org.test" not in emails, "PM should not see other programs' coaches"

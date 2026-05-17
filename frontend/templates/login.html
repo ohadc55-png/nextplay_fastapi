@@ -114,10 +114,14 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             }),
         });
         const data = await res.json();
-        if (res.ok && data.success) {
+        // /api/auth/login returns a TokenPair (access_token + refresh_token);
+        // it sets the auth cookies as a side effect. Treat any 2xx with a
+        // token as success — the old `data.success` check was stale and
+        // always failed since the endpoint never set that field.
+        if (res.ok && data.access_token) {
             window.location.href = '{{ next_url | default("/", true) }}';
         } else {
-            errorEl.textContent = data.error || 'Login failed';
+            errorEl.textContent = data.detail || data.error || 'Login failed';
             errorEl.style.display = 'block';
         }
     } catch (err) {

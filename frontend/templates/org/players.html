@@ -19,19 +19,23 @@
   {% endif %}
 </div>
 
+{# Phase 13 — scope-aware filter visibility. An RM is locked to one region
+   and one program; a coach sees only their own players. Don't surface a
+   filter the actor can't actually move. The "סניפים" filter is gone
+   entirely (Phase 12 retired the branches concept). #}
 <div class="org-flex org-items-center org-gap-3" style="margin-block-end: var(--org-space-4); flex-wrap: wrap;">
+  {% if org_ctx.role in ['org_admin', 'program_manager'] %}
   <label class="org-text-sm org-text-muted" for="player-region-filter">מחוז:</label>
   <select class="org-select" id="player-region-filter" style="max-width: 200px;">
     <option value="">כל המחוזות</option>
   </select>
-  <label class="org-text-sm org-text-muted" for="player-branch-filter">סניף:</label>
-  <select class="org-select" id="player-branch-filter" style="max-width: 220px;">
-    <option value="">כל הסניפים</option>
-  </select>
+  {% endif %}
+  {% if org_ctx.role != 'coach' %}
   <label class="org-text-sm org-text-muted" for="player-team-filter">קבוצה:</label>
   <select class="org-select" id="player-team-filter" style="max-width: 240px;">
     <option value="">כל הקבוצות</option>
   </select>
+  {% endif %}
 </div>
 
 <div class="org-table-wrap">

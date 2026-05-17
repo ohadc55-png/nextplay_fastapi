@@ -1,0 +1,40 @@
+{# Reusable breadcrumb component for /org/* detail pages (Phase 9).
+
+Usage:
+  {% include "org/_partials/breadcrumb.html" %}
+
+The page sets `breadcrumb_items` in its template context as a list of dicts:
+  [
+    {"label": "מחוזות", "href": "/org/regions"},
+    {"label_id": "region-name", "label": "טוען…", "href": None},   # populated by JS
+  ]
+
+The last item without `href` is rendered as the current page (not clickable).
+JS pages then update `document.getElementById('region-name').textContent = ...`
+once their fetch completes.
+#}
+{% if breadcrumb_items %}
+<nav class="org-breadcrumb" aria-label="מיקום נוכחי"
+     style="margin-block-end: var(--org-space-3); font-size: 13px;">
+  <ol style="display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0;
+             color: var(--org-gray-500);">
+    <li>
+      <a href="{{ (org_ctx.url_prefix if org_ctx else '/org') }}/dashboard" style="color: inherit; text-decoration: none;">בית</a>
+    </li>
+    {% for item in breadcrumb_items %}
+    <li aria-hidden="true">/</li>
+    <li>
+      {% if item.href %}
+      <a href="{{ item.href }}"
+         {% if item.label_id %}id="{{ item.label_id }}"{% endif %}
+         style="color: inherit; text-decoration: none;">{{ item.label }}</a>
+      {% else %}
+      <span {% if item.label_id %}id="{{ item.label_id }}"{% endif %}
+            style="color: var(--org-gray-700); font-weight: 500;"
+            aria-current="page">{{ item.label }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</nav>
+{% endif %}

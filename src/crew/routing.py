@@ -196,7 +196,7 @@ async def _llm_classify(
     message: str,
     team_ctx: str,
     *,
-    db: "AsyncSession | None" = None,
+    db: AsyncSession | None = None,
     user_id: int | None = None,
     team_id: int | None = None,
 ) -> str:
@@ -267,7 +267,7 @@ async def route_query(
     message: str,
     *,
     team_ctx: str = "",
-    db: "AsyncSession | None" = None,
+    db: AsyncSession | None = None,
     user_id: int | None = None,
     team_id: int | None = None,
 ) -> str:

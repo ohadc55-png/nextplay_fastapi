@@ -16,7 +16,9 @@
     <div class="org-header-brand">
       <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
       <div>
-        <div class="org-header-org-name">{{ org_ctx.organization_name or 'NEXTPLAY Enterprise' }}</div>
+        <div class="org-header-org-name">
+          {{ org_ctx.organization_name or 'NEXTPLAY Enterprise' }}{% if org_ctx and org_ctx.program_name %} · {{ org_ctx.program_name }}{% endif %}
+        </div>
         {% if org_ctx and org_ctx.role %}
         <div class="org-header-org-tag">{{ org_ctx.role_label_he or org_ctx.role }}</div>
         {% endif %}
@@ -49,7 +51,7 @@
         <div data-switcher-others></div>
       </div>
       <div class="org-switcher-section">
-        <a class="org-switcher-link" href="/org/settings">
+        <a class="org-switcher-link" href="{{ (org_ctx.url_prefix if org_ctx else '/org') }}/settings">
           <span class="org-switcher-link-icon">{{ icon('cog') }}</span>
           <span>הגדרות</span>
         </a>

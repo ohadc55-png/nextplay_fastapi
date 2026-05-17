@@ -1,13 +1,27 @@
 {% from "org/_partials/icons.html" import icon %}
-{# /org/* sidebar partial.
-   Light blue palette flowing into the main canvas. SVG icons (Heroicons v2
-   outline). 11 nav items; 5 marked coming-soon (Calendar, Facilities,
-   Documents, Messages, Payments, AI Insights — except Dashboard / Users /
-   Teams / Players / Settings, which Phase 1 will build).
-   Pages set `active = 'dashboard'` etc. to highlight the current item.
+{# /org/* sidebar partial — adaptive per role (Phase 9 + Phase 13).
+
+Visibility matrix:
+  org_admin       — every item.
+  program_manager — dashboard, regions, users, teams, players, analytics, settings.
+  region_manager  — dashboard, users, teams, players, settings (no regions index;
+                    they only have one region to act on).
+  coach           — dashboard, teams, players, settings + link to the Coach App.
+
+URL prefix: `{{ org_ctx.url_prefix }}` resolves to either `/org` (legacy) or
+`/<org_slug>` (post-Phase 13 slug-URL flag) — single source of truth so
+the same template works under both layouts. `/org/logout` stays generic
+(session-clearing endpoint is org-agnostic).
 #}
+{% set role = org_ctx.role if org_ctx else 'viewer' %}
+{% set is_admin    = role == 'org_admin' %}
+{% set is_pm       = role == 'program_manager' %}
+{% set is_rm       = role == 'region_manager' %}
+{% set is_coach    = role == 'coach' %}
+{% set elevated    = is_admin or is_pm or is_rm %}
+{% set p = org_ctx.url_prefix if org_ctx else '/org' %}
 <aside class="org-sidebar" id="org-sidebar" aria-label="ניווט">
-  <a href="/org/dashboard" class="org-sidebar-brand">
+  <a href="{{ p }}/dashboard" class="org-sidebar-brand">
     <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="NextPlay">
     <span class="org-sidebar-brand-text">NEXTPLAY</span>
   </a>
@@ -15,7 +29,7 @@
   <nav class="org-nav" aria-label="ראשי">
 
     <div class="org-nav-section">
-      <a href="/org/dashboard"
+      <a href="{{ p }}/dashboard"
          class="org-nav-item {% if active == 'dashboard' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('home') }}</span>
         <span class="org-nav-text">דשבורד</span>
@@ -24,75 +38,120 @@
 
     <div class="org-nav-section">
       <div class="org-nav-label">ארגון</div>
-      <a href="/org/regions"
+
+      {# תוכניות — rollup view for org_admin only. PM already focuses on
+         their single program through the dashboard. #}
+      {% if is_admin %}
+      <a href="{{ p }}/programs"
+         class="org-nav-item {% if active == 'programs' %}is-active{% endif %}">
+        <span class="org-nav-icon">{{ icon('sparkles') }}</span>
+        <span class="org-nav-text">תוכניות</span>
+      </a>
+      {% endif %}
+
+      {# מחוזות — visible to org_admin + PM. RM has only one, so the index
+         is redundant (the dashboard already focuses on their region). #}
+      {% if is_admin or is_pm %}
+      <a href="{{ p }}/regions"
          class="org-nav-item {% if active == 'regions' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('building') }}</span>
         <span class="org-nav-text">מחוזות</span>
       </a>
-      <a href="/org/branches"
-         class="org-nav-item {% if active == 'branches' %}is-active{% endif %}">
-        <span class="org-nav-icon">{{ icon('map-pin') }}</span>
-        <span class="org-nav-text">סניפים</span>
-      </a>
-      <a href="/org/users"
+      {% endif %}
+
+      {# Phase 12 — branches retired entirely from the org hierarchy.
+         The DB model + tables stay for legacy data; no UI surface. #}
+
+      {# משתמשים — everyone with management authority. #}
+      {% if elevated %}
+      <a href="{{ p }}/users"
          class="org-nav-item {% if active == 'users' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('users') }}</span>
-        <span class="org-nav-text">אנשים</span>
+        <span class="org-nav-text">משתמשים</span>
       </a>
-      <a href="/org/teams"
+      {% endif %}
+
+      {# קבוצות + שחקנים — coaches see their own; everyone above sees scope-filtered. #}
+      <a href="{{ p }}/teams"
          class="org-nav-item {% if active == 'teams' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('flag') }}</span>
         <span class="org-nav-text">קבוצות</span>
       </a>
-      <a href="/org/players"
+      <a href="{{ p }}/players"
          class="org-nav-item {% if active == 'players' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('identification') }}</span>
         <span class="org-nav-text">שחקנים</span>
       </a>
-      <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
+
+      {# לוח שנה — Phase 12. Everyone with an org membership sees it;
+         coaches see read-only schedule, managers can edit. #}
+      <a href="{{ p }}/calendar"
+         class="org-nav-item {% if active == 'calendar' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('calendar') }}</span>
         <span class="org-nav-text">לוח שנה</span>
-        <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
       </a>
+      {% if is_admin or is_pm %}
       <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
         <span class="org-nav-icon">{{ icon('map-pin') }}</span>
         <span class="org-nav-text">מתקנים</span>
         <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
       </a>
+      {% endif %}
     </div>
 
+    {# Operations — admin-style users only. Coaches don't manage documents
+       or org-wide messages from this surface. #}
+    {% if is_admin or is_pm %}
     <div class="org-nav-section">
       <div class="org-nav-label">תפעול</div>
-      <a href="/org/document-templates"
+      <a href="{{ p }}/document-templates"
          class="org-nav-item {% if active == 'document_templates' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('document') }}</span>
         <span class="org-nav-text">מסמכים</span>
       </a>
-      <a href="/org/messages"
+      <a href="{{ p }}/messages"
          class="org-nav-item {% if active == 'messages' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('chat') }}</span>
         <span class="org-nav-text">הודעות</span>
       </a>
+      {% if is_admin %}
       <a href="#" class="org-nav-item is-disabled" aria-disabled="true">
         <span class="org-nav-icon">{{ icon('wallet') }}</span>
         <span class="org-nav-text">כספים</span>
         <span class="org-nav-badge org-nav-badge--coming">בקרוב</span>
       </a>
+      {% endif %}
     </div>
+    {% endif %}
 
+    {# Insights — admin + PM. RM has its dashboard; coaches use Coach App. #}
+    {% if is_admin or is_pm %}
     <div class="org-nav-section">
       <div class="org-nav-label">תובנות</div>
-      <a href="/org/analytics"
+      <a href="{{ p }}/analytics"
          class="org-nav-item {% if active == 'analytics' %}is-active{% endif %}">
         <span class="org-nav-icon">{{ icon('sparkles') }}</span>
         <span class="org-nav-text">אנליטיקה</span>
       </a>
     </div>
+    {% endif %}
+
+    {# Coach App shortcut for coaches. The Coach App home is served at "/"
+       — there is no "/home" route (see src/api/pages.py:308). #}
+    {% if is_coach %}
+    <div class="org-nav-section">
+      <div class="org-nav-label">מאמן</div>
+      <a href="/" class="org-nav-item">
+        <span class="org-nav-icon">{{ icon('sparkles') }}</span>
+        <span class="org-nav-text">אפליקציית מאמן</span>
+      </a>
+    </div>
+    {% endif %}
 
   </nav>
 
   <div class="org-sidebar-footer">
-    <a href="/org/settings"
+    <a href="{{ p }}/settings"
        class="org-nav-item {% if active == 'settings' %}is-active{% endif %}">
       <span class="org-nav-icon">{{ icon('cog') }}</span>
       <span class="org-nav-text">הגדרות</span>

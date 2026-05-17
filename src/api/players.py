@@ -82,6 +82,40 @@ class _PlayerUpdateBody(BaseModel):
     active: bool | None = None
 
 
+@router.get("/players")
+async def list_players(
+    team_id: int | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Phase 15 — list the coach's roster as JSON.
+
+    Used by the calendar's attendance modal to render the player list.
+    Defaults to the active team when team_id is omitted. Returns
+    `{"players": [...]}` shaped via `_serialize_player`.
+
+    Cross-tenant safe: filter is `Player.user_id == coach.id`, so a
+    coach can never see another coach's roster even by guessing a
+    team_id.
+    """
+    from sqlalchemy import select
+
+    tid = team_id if team_id is not None else user.active_team_id
+    if tid is None:
+        return {"players": []}
+    stmt = (
+        select(Player)
+        .where(
+            Player.user_id == user.id,
+            Player.team_id == tid,
+            Player.active.is_(True),
+        )
+        .order_by(Player.number.is_(None), Player.number, Player.name)
+    )
+    rows = list((await db.execute(stmt)).scalars().all())
+    return {"players": [_serialize_player(p) for p in rows]}
+
+
 @router.post("/player", status_code=201)
 async def add_player(
     body: _PlayerCreateBody,

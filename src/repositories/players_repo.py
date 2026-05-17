@@ -51,12 +51,20 @@ class PlayersRepository(TeamScopedRepository[Player]):
         team_id: int | None = None,
         branch_id: int | None = None,
         region_id: int | None = None,
+        program_id: int | None = None,
         coach_user_id: int | None = None,
         include_inactive: bool = False,
     ) -> list[Player]:
         """Players inside an org, optionally narrowed by team / branch /
-        region (via the player's team's branch) / coach. Defensive: returns
-        [] when organization_id is None."""
+        region / program / coach. Defensive: returns [] when
+        organization_id is None.
+
+        Phase 12 — `program_id` filters via the team's direct program_id
+        column (independent of region). `region_id` matches teams whose
+        EITHER direct region_id OR (legacy) branch's region_id matches.
+        """
+        from sqlalchemy import or_
+
         from src.models.branches import Branch
         from src.models.teams import TeamProfile
 
@@ -77,9 +85,20 @@ class PlayersRepository(TeamScopedRepository[Player]):
             stmt = stmt.where(
                 Player.team_id.in_(
                     select(TeamProfile.id).where(
-                        TeamProfile.branch_id.in_(
-                            select(Branch.id).where(Branch.region_id == region_id)
+                        or_(
+                            TeamProfile.region_id == region_id,
+                            TeamProfile.branch_id.in_(
+                                select(Branch.id).where(Branch.region_id == region_id)
+                            ),
                         )
+                    )
+                )
+            )
+        if program_id is not None:
+            stmt = stmt.where(
+                Player.team_id.in_(
+                    select(TeamProfile.id).where(
+                        TeamProfile.program_id == program_id
                     )
                 )
             )

@@ -30,6 +30,7 @@ from src.api import admin_tasks as admin_tasks_router
 from src.api import auth as auth_router
 from src.api import chat as chat_router
 from src.api import coach as coach_router
+from src.api import coach_practice as coach_practice_router
 from src.api import composite as composite_router
 from src.api import email_auth as email_auth_router
 from src.api import internal_cron as internal_cron_router
@@ -38,13 +39,14 @@ from src.api import oauth as oauth_router
 from src.api import onboarding as onboarding_router
 from src.api import org as org_router
 from src.api import org_analytics as org_analytics_router
-from src.api import org_branches as org_branches_router
 from src.api import org_dashboard as org_dashboard_router
 from src.api import org_document_campaigns as org_document_campaigns_router
 from src.api import org_document_templates as org_document_templates_router
 from src.api import org_messages as org_messages_router
 from src.api import org_pages as org_pages_router
 from src.api import org_players as org_players_router
+from src.api import org_practice as org_practice_router
+from src.api import org_programs as org_programs_router
 from src.api import org_regions as org_regions_router
 from src.api import org_teams as org_teams_router
 from src.api import org_users as org_users_router
@@ -63,6 +65,7 @@ from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import AppError
 from src.middleware.csrf import CSRFMiddleware
 from src.middleware.org_context import OrgContextMiddleware
+from src.middleware.org_slug import OrgSlugMiddleware
 from src.middleware.rate_limit import RateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
 
@@ -159,6 +162,13 @@ app = FastAPI(
 # = it runs LAST before the route handler, i.e., AFTER SessionMiddleware.
 app.add_middleware(OrgContextMiddleware)
 
+# Phase 13 — OrgSlugMiddleware extracts the per-org slug from the URL path
+# (the first segment) and stamps `request.state.path_slug`. Only registered
+# when ORG_SLUG_URLS_ENABLED is True; otherwise the slug-aware routes are
+# not in play and the middleware would be a no-op anyway.
+if settings.ORG_SLUG_URLS_ENABLED:
+    app.add_middleware(OrgSlugMiddleware)
+
 # Authlib's OAuth client needs Starlette's SessionMiddleware to round-trip
 # the OAuth `state` between `/auth/<provider>` and `/<provider>/callback`.
 # A long random secret is used so a forged session cookie can't impersonate
@@ -253,8 +263,8 @@ app.include_router(admin_orgs_router.router)
 app.include_router(admin_org_wizard_router.router)
 app.include_router(admin_pages_router.router)
 app.include_router(org_router.router)
+app.include_router(org_programs_router.router)
 app.include_router(org_regions_router.router)
-app.include_router(org_branches_router.router)
 app.include_router(org_teams_router.router)
 app.include_router(org_players_router.router)
 app.include_router(org_users_router.router)
@@ -264,7 +274,17 @@ app.include_router(org_messages_router.router)
 app.include_router(org_analytics_router.router)
 app.include_router(internal_cron_router.router)
 app.include_router(org_dashboard_router.router)
-app.include_router(org_pages_router.router)
+app.include_router(org_practice_router.router)
+app.include_router(coach_practice_router.router)
+# Phase 13 — register org_pages_router's PUBLIC subset early:
+#   - the literal /org/login, /org/logout, /org/role-select, /org/invite-accept,
+#     /org/join routes
+#   - the new root-level /join + /invite-accept aliases
+#   - the legacy /org/{path:path} 301 catch-all
+# Registering early ensures the catch-all wins for `/org/<anything>` paths
+# BEFORE the parameterized tenant router (registered at the very bottom)
+# gets to greedily match them as `/{org_slug}/<anything>`.
+app.include_router(org_pages_router.public_router)
 app.include_router(public_sign_router.router)
 app.include_router(notebook_router.router)
 app.include_router(onboarding_router.router)
@@ -340,3 +360,12 @@ else:
 # Page routes register LAST so the static + service-worker handlers win
 # at path collision time (e.g. if a template route ever shadowed /sw.js).
 app.include_router(pages_router.router)
+
+# Phase 13 — slug tenant routes (register last). Contains the parameterized
+# `/{org_slug}/*` routes which would otherwise greedily match every
+# two-segment URL like `/api/teams` (interpreting "api" as a slug).
+# Registering it after every literal-prefix router gives Starlette's
+# order-based matcher a chance to resolve `/api/...` → coach API,
+# `/admin/...` → admin, `/static/...` → StaticFiles, `/sw.js` etc. first.
+# Only `/<real_slug>/<page>` falls through to this router.
+app.include_router(org_pages_router.tenant_router)

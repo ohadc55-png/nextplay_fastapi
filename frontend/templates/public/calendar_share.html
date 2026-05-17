@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>{{ team_name }} — לוח שנה</title>
+    <style>
+        /* Self-contained — no NEXTPLAY signup CTA, no internal links.
+           Light surface so it reads cleanly when shared as a screenshot. */
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                         "Helvetica Neue", "Heebo", Arial, sans-serif;
+            background: #f5f7fb;
+            color: #1c2333;
+            padding: 32px 20px;
+        }
+        .share-wrap {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        .share-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 28px;
+            padding: 18px 24px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .share-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .share-logo-mark {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #ff6b35, #ff9a6c);
+            display: grid;
+            place-items: center;
+            color: white;
+            font-weight: 800;
+            font-size: 18px;
+        }
+        .share-logo-text {
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: #1c2333;
+        }
+        .share-team {
+            margin-inline-start: auto;
+            text-align: end;
+        }
+        .share-team-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #1c2333;
+        }
+        .share-team-sub {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        .share-month {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .share-month-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            text-align: center;
+            margin: 0 0 18px;
+            color: #1c2333;
+        }
+        .share-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+        .share-dow {
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #6b7280;
+            padding: 6px 0;
+        }
+        .share-cell {
+            min-height: 78px;
+            padding: 6px 8px;
+            background: #fafbff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .share-cell.is-other-month {
+            opacity: 0.35;
+        }
+        .share-cell-date {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #6b7280;
+            text-align: end;
+        }
+        .share-ev {
+            font-size: 0.7rem;
+            line-height: 1.3;
+            padding: 3px 6px;
+            background: rgba(255,107,53,0.12);
+            color: #b3460a;
+            border-inline-start: 3px solid #ff6b35;
+            border-radius: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .share-ev-time {
+            font-weight: 700;
+            margin-inline-end: 4px;
+        }
+        .share-foot {
+            text-align: center;
+            margin-top: 12px;
+            color: #9ba4b0;
+            font-size: 0.78rem;
+        }
+        @media (max-width: 640px) {
+            body { padding: 16px 10px; }
+            .share-cell { min-height: 56px; padding: 4px 6px; }
+            .share-ev { font-size: 0.62rem; padding: 2px 4px; }
+            .share-cell-date { font-size: 0.68rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="share-wrap">
+    <header class="share-header">
+        <div class="share-logo">
+            <div class="share-logo-mark">N</div>
+            <div class="share-logo-text">NEXTPLAY</div>
+        </div>
+        <div class="share-team">
+            <div class="share-team-name">{{ team_name }}</div>
+            <div class="share-team-sub">לוח אימונים ומשחקים</div>
+        </div>
+    </header>
+
+    {% for label, grid in [
+        (current_month_label, current_grid),
+        (next_month_label, next_grid),
+    ] %}
+    <section class="share-month">
+        <h2 class="share-month-title">{{ label }}</h2>
+        <div class="share-grid">
+            {% for dow in ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'] %}
+            <div class="share-dow">{{ dow }}</div>
+            {% endfor %}
+
+            {% for week in grid %}
+                {% for cell in week %}
+                <div class="share-cell {% if not cell.in_month %}is-other-month{% endif %}">
+                    <div class="share-cell-date">{{ cell.date.day }}</div>
+                    {% for ev in cell.events[:3] %}
+                    <div class="share-ev" title="{{ ev.title or '' }}">
+                        <span class="share-ev-time">
+                            {{ ev.scheduled_at.strftime('%H:%M') if ev.scheduled_at.__class__.__name__ != 'str' else ev.scheduled_at[11:16] }}
+                        </span>
+                        {{ ev.title or '' }}
+                    </div>
+                    {% endfor %}
+                    {% if cell.events|length > 3 %}
+                    <div class="share-ev">+{{ cell.events|length - 3 }} נוספים</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+
+    <div class="share-foot">לוח שנה משותף · NEXTPLAY</div>
+</div>
+</body>
+</html>

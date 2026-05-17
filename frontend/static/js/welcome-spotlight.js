@@ -99,6 +99,13 @@
   }
 
   function _start(userId, coachName) {
+    // Mark welcomed IMMEDIATELY (not on dismiss) so the personal greeting
+    // is once-per-coach-ever, even if the coach refreshes / closes the tab
+    // before clicking through. Reload during the spotlight = no re-trigger.
+    // Also lets tour.js (which gates on this flag) decide on the NEXT load
+    // that the introduction is already done and the bubble tour can run.
+    _markWelcomed(userId);
+
     _buildSpotlight();
     var overlay = document.getElementById('npWelcomeSpotlight');
     if (overlay) overlay.classList.add('open');
@@ -109,7 +116,6 @@
     function dismiss() {
       overlay.classList.remove('open');
       document.body.classList.remove('np-welcome-active');
-      _markWelcomed(userId);
       overlay.removeEventListener('click', dismiss);
       document.removeEventListener('keydown', escDismiss);
     }

@@ -1,0 +1,322 @@
+{% extends "org/base_org.html" %}
+{% from "org/_partials/icons.html" import icon %}
+{% set active = 'calendar' %}
+{% block title %}לוח שנה — {{ org_ctx.organization_name }}{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ g.csp_nonce }}">
+  /* Phase 12 refresh — glass grid + day-detail card so the canvas mesh
+   * shows around the calendar surface (matches the dashboard panels). */
+  .org-cal-header { display:flex; align-items:center; gap:12px; margin-block-end:16px; flex-wrap:wrap; }
+  .org-cal-title { font-size:20px; font-weight:700; min-width:200px; color:var(--org-gray-900); }
+  .org-cal-grid {
+    display:grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap:1px;
+    background:rgba(15,23,42,.06);
+    border:1px solid rgba(15,23,42,.06);
+    border-radius:var(--org-radius-lg);
+    overflow:hidden;
+    box-shadow:var(--org-shadow-sm);
+  }
+  .org-cal-dow {
+    background:rgba(249,250,251,.85);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    padding:8px 10px;
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--org-gray-600);
+    text-align:center;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+  }
+  .org-cal-cell {
+    background:rgba(255,255,255,.85);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    min-height:108px;
+    padding:6px 8px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    cursor:pointer;
+    position:relative;
+    transition:background var(--org-trans-fast);
+  }
+  .org-cal-cell.is-other-month {
+    background:rgba(243,244,246,.55);
+    color:var(--org-gray-400);
+  }
+  .org-cal-cell.is-today {
+    background:linear-gradient(135deg, rgba(59,130,246,.10), rgba(6,182,212,.10));
+    box-shadow:inset 0 0 0 2px var(--org-blue-500);
+    color:var(--org-blue-700);
+  }
+  .org-cal-cell:hover { background:rgba(59,130,246,.06); }
+  .org-cal-cell.is-today:hover {
+    background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(6,182,212,.14));
+  }
+  .org-cal-cell .day-num { font-size:13px; font-weight:600; }
+  .org-cal-event {
+    background:var(--org-blue-100);
+    color:var(--org-blue-700);
+    border-radius:5px;
+    padding:2px 6px;
+    font-size:11px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    cursor:pointer;
+    transition:filter var(--org-trans-fast), transform var(--org-trans-fast);
+  }
+  .org-cal-event:hover { filter:brightness(.96); transform:translateY(-1px); }
+  .org-cal-more {
+    background:transparent;
+    color:var(--org-gray-600);
+    font-size:11px;
+    padding:1px 4px;
+    cursor:pointer;
+    text-align:start;
+    font-weight:600;
+  }
+  .org-cal-more:hover { color:var(--org-blue-700); }
+  .org-cal-cell.is-expanded {
+    background:linear-gradient(135deg, rgba(59,130,246,.10), rgba(6,182,212,.08));
+    box-shadow:inset 0 0 0 2px var(--org-blue-400);
+  }
+
+  /* Day-detail = glass panel (matches dashboard's .org-panel). */
+  .org-day-detail {
+    margin-block-start:16px;
+    background:rgba(255,255,255,.85);
+    backdrop-filter:blur(10px) saturate(140%);
+    -webkit-backdrop-filter:blur(10px) saturate(140%);
+    border:1px solid rgba(15,23,42,.06);
+    border-radius:var(--org-radius-lg);
+    padding:18px 20px;
+    box-shadow:var(--org-shadow-sm);
+  }
+  .org-day-detail h3 { margin:0 0 12px; font-size:16px; font-weight:700; }
+  .org-day-detail .group {
+    background:rgba(249,250,251,.7);
+    border:1px solid rgba(15,23,42,.05);
+    border-radius:8px;
+    padding:11px 13px;
+    margin-block-end:8px;
+    transition:border-color var(--org-trans-fast);
+  }
+  .org-day-detail .group:hover { border-color:var(--org-blue-200); }
+  .org-day-detail .group .group-head {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin-block-end:6px;
+  }
+  .org-day-detail .group .group-time {
+    font-weight:700; font-family:Consolas,Menlo,monospace;
+    color:var(--org-blue-700);
+    background:var(--org-blue-50);
+    padding:2px 7px;
+    border-radius:5px;
+    font-size:12px;
+  }
+  .org-day-detail .group .group-title { flex:1; font-weight:600; color:var(--org-gray-900); }
+  .org-day-detail .group .group-meta {
+    color:var(--org-gray-600); font-size:12px;
+  }
+  .org-day-detail .group .group-teams {
+    margin:6px 0 0; padding-inline-start:18px; font-size:13px; color:var(--org-gray-700);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="org-page-header">
+  <div>
+    <h1 class="org-page-title">לוח שנה</h1>
+    <p class="org-page-subtitle">אימונים ואירועים מסונכרנים עם כל הקבוצות בארגון.</p>
+  </div>
+  <div class="org-page-actions" data-actions-host hidden>
+    <button type="button" class="org-btn org-btn--gradient" data-action="new-event">
+      <span class="org-nav-icon" style="width:18px;height:18px;">{{ icon('plus') }}</span>
+      <span>אירוע חדש</span>
+    </button>
+  </div>
+</div>
+
+<div class="org-cal-header">
+  <button type="button" class="org-btn org-btn--secondary" data-action="prev-month">&lt;</button>
+  <div class="org-cal-title" data-cal-title>—</div>
+  <button type="button" class="org-btn org-btn--secondary" data-action="next-month">&gt;</button>
+  <button type="button" class="org-btn org-btn--secondary" data-action="today">היום</button>
+</div>
+
+<!-- Color legend — JS populates this with one chip per program/region/team
+     depending on the viewer's role. Empty for coach + viewer. -->
+<div data-cal-legend
+     style="display:flex; flex-wrap:wrap; gap:8px; margin-block-end:12px; align-items:center;"
+     hidden>
+  <span class="org-text-sm org-text-muted" data-legend-label>צבעים:</span>
+</div>
+
+<div class="org-cal-grid" id="org-cal-grid">
+  {# 7 weekday headers + 42 day cells injected by JS #}
+</div>
+
+<!-- Day-detail panel: shown when the user clicks a day cell with >3 events
+     (or clicks "ועוד N"). Lists every event of that day, grouped by series. -->
+<div class="org-day-detail" id="org-day-detail" hidden>
+  <div class="org-flex org-items-center" style="justify-content:space-between; margin-block-end:12px;">
+    <h3 data-day-detail-title>אירועי היום</h3>
+    <button type="button" class="org-btn org-btn--secondary" data-action="close-day-detail">סגור</button>
+  </div>
+  <div data-day-detail-body></div>
+</div>
+
+<!-- Create event modal -->
+<div class="org-modal-backdrop" id="event-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="event-modal-title">אירוע חדש</div>
+      <button type="button" class="org-modal-close" data-action="close-event" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <form id="event-form">
+      <div class="org-modal-body">
+        <input type="hidden" name="id" value="">
+
+        <div class="org-form-group">
+          <label class="org-form-label" for="event-kind">סוג האירוע</label>
+          <select class="org-select" id="event-kind" name="kind" required>
+            <option value="practice">אימון</option>
+            <option value="game">משחק</option>
+            <option value="meeting">פגישה</option>
+            <option value="other">אחר</option>
+          </select>
+        </div>
+
+        <div class="org-form-group" data-title-group>
+          <label class="org-form-label" for="event-title" data-title-label>כותרת</label>
+          <input class="org-input" type="text" id="event-title" name="title" maxlength="200">
+          <div class="org-form-help" data-title-help hidden>פרט את שם האירוע (חובה כשהסוג "אחר").</div>
+        </div>
+
+        <div class="org-form-group" data-program-group>
+          <label class="org-form-label" for="event-program">תוכנית</label>
+          <select class="org-select" id="event-program" name="program_id">
+            <option value="">— כל התוכניות —</option>
+          </select>
+        </div>
+
+        <div class="org-form-group" data-region-group>
+          <label class="org-form-label" for="event-region">מחוז</label>
+          <select class="org-select" id="event-region" name="region_id">
+            <option value="">— כל המחוזות —</option>
+          </select>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label" for="event-team">קבוצה</label>
+          <select class="org-select" id="event-team" name="team_id" required>
+            <option value="">— בחר קבוצה —</option>
+          </select>
+          <div class="org-form-help" data-team-count></div>
+        </div>
+
+        <div class="org-form-group" style="display:flex; gap:8px;">
+          <div style="flex:1;">
+            <label class="org-form-label" for="event-date">תאריך</label>
+            <input class="org-input" type="date" id="event-date" name="date" required>
+          </div>
+          <div style="flex:1;">
+            <label class="org-form-label" for="event-time">שעה</label>
+            <input class="org-input" type="time" id="event-time" name="time" required>
+          </div>
+        </div>
+        <div class="org-form-group" style="display:flex; gap:8px;">
+          <div style="flex:1;">
+            <label class="org-form-label" for="event-duration">משך (דק׳)</label>
+            <input class="org-input" type="number" id="event-duration" name="duration_minutes"
+                   min="15" max="240" value="90">
+          </div>
+          <div style="flex:1;">
+            <label class="org-form-label" for="event-location">מיקום</label>
+            <input class="org-input" type="text" id="event-location" name="location" maxlength="200">
+          </div>
+        </div>
+
+        <div class="org-form-group" data-recurrence-host>
+          <label class="org-form-label">
+            <input type="checkbox" id="event-recurring" name="recurring" style="margin-inline-end:6px;">
+            אימון חוזר — כל שבוע
+          </label>
+          <div id="event-recurrence-end" style="display:none; margin-block-start:8px;">
+            <label class="org-form-label" for="event-until">חזרה עד תאריך</label>
+            <input class="org-input" type="date" id="event-until" name="recurrence_until">
+            <div class="org-form-help">המערכת תיצור אירוע אחד לכל שבוע עד התאריך הנבחר.</div>
+          </div>
+        </div>
+
+        <div class="org-form-error org-hidden" data-error></div>
+      </div>
+      <div class="org-modal-footer">
+        <button type="button" class="org-btn org-btn--secondary" data-action="close-event">ביטול</button>
+        <button type="submit" class="org-btn org-btn--primary">שמירה</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- View/edit event modal -->
+<div class="org-modal-backdrop" id="event-view-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true">
+    <div class="org-modal-header">
+      <div class="org-modal-title" data-view-title>אימון</div>
+      <button type="button" class="org-modal-close" data-action="close-view" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <dl style="display:grid; grid-template-columns: 80px 1fr; gap:8px; margin:0;">
+        <dt class="org-text-sm org-text-muted">קבוצה</dt><dd data-view-team>—</dd>
+        <dt class="org-text-sm org-text-muted">מועד</dt><dd data-view-when>—</dd>
+        <dt class="org-text-sm org-text-muted">משך</dt><dd data-view-duration>—</dd>
+        <dt class="org-text-sm org-text-muted">מיקום</dt><dd data-view-location>—</dd>
+      </dl>
+      <div class="org-form-error org-hidden org-mt-4" data-view-error></div>
+    </div>
+    <div class="org-modal-footer" data-view-actions hidden>
+      <button type="button" class="org-btn org-btn--danger" data-action="delete-event">מחק אירוע</button>
+      <button type="button" class="org-btn org-btn--danger" data-action="delete-series" hidden>מחק את כל הסדרה</button>
+      <button type="button" class="org-btn org-btn--secondary" data-action="close-view">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom confirm modal (replaces native window.confirm) -->
+<div class="org-modal-backdrop" id="cal-confirm-modal" aria-hidden="true">
+  <div class="org-modal" role="dialog" aria-modal="true" aria-labelledby="cal-confirm-title">
+    <div class="org-modal-header">
+      <div class="org-modal-title" id="cal-confirm-title" data-confirm-title>אישור</div>
+      <button type="button" class="org-modal-close" data-action="confirm-cancel" aria-label="סגירה">
+        {{ icon('x') }}
+      </button>
+    </div>
+    <div class="org-modal-body">
+      <p data-confirm-message style="margin:0; line-height:1.6;"></p>
+    </div>
+    <div class="org-modal-footer">
+      <button type="button" class="org-btn org-btn--secondary" data-action="confirm-cancel">ביטול</button>
+      <button type="button" class="org-btn org-btn--primary" data-action="confirm-ok" data-confirm-ok-btn>אישור</button>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+  window.ORG_CAL = {{ {'role': org_ctx.role} | tojson }};
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/org-calendar.js') }}?v={{ config.get('CSS_VERSION', '18') }}" defer></script>
+{% endblock %}
