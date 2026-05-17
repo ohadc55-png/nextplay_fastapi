@@ -397,4 +397,61 @@ async def admin_orgs_audit(
     }
 
 
+# ---------------------------------------------------------------------------
+# GET /admin/api/orgs/{org_id}/invites — list pending invites (with codes)
+# ---------------------------------------------------------------------------
+#
+# Lets the System Admin retrieve the join link and short_code for any
+# pending invite — the recovery path when the original invite email gets
+# lost / sent to a typo'd address. Returns only `status='pending'` rows
+# so accepted / expired invites don't clutter the UI.
+
+
+@router.get("/orgs/{org_id}/invites")
+async def admin_orgs_invites(
+    org_id: int,
+    _email: str = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    org = await OrganizationsRepository(db).get(org_id)
+    if not org:
+        raise NotFoundError("Organization not found")
+
+    from src.core.config import settings
+    from src.models.org_invites import OrgInvite
+
+    rows = (await db.execute(
+        select(OrgInvite)
+        .where(
+            OrgInvite.organization_id == org_id,
+            OrgInvite.status == "pending",
+        )
+        .order_by(OrgInvite.id.desc())
+    )).scalars().all()
+
+    base = settings.APP_BASE_URL.rstrip("/")
+    invites = []
+    for r in rows:
+        invite_url = f"{base}/join?code={r.short_code}" if r.short_code else None
+        # Pretty-print 8-char codes as XXXX-XXXX to make voice / typed
+        # transcription painless.
+        code_pretty = None
+        if r.short_code:
+            code_pretty = (
+                r.short_code[:4] + "-" + r.short_code[4:]
+                if len(r.short_code) >= 8
+                else r.short_code
+            )
+        invites.append({
+            "id": r.id,
+            "email": r.email,
+            "role": r.role,
+            "short_code": r.short_code,
+            "short_code_pretty": code_pretty,
+            "invite_url": invite_url,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+    return {"invites": invites}
+
+
 __all__ = ["router"]

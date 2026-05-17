@@ -83,11 +83,20 @@ class WizardCommit(BaseModel):
 
 
 class WizardCommitResult(BaseModel):
-    """Response after a successful commit."""
+    """Response after a successful commit.
+
+    Includes the invite credentials so the admin UI can display them
+    immediately (Copy Link / Copy Code) — vital fallback when email
+    delivery is misconfigured or the CEO address was a typo. Fields are
+    None when `send_invite_immediately=False` was selected.
+    """
 
     org_id: int
     slug: str
     ceo_invite_email_sent: bool
+    ceo_email: str | None = None
+    invite_short_code: str | None = None
+    invite_url: str | None = None
 
 
 class WizardPreflightRequest(BaseModel):

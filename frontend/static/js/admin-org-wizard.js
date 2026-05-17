@@ -165,14 +165,136 @@
         return;
       }
       var data = await r.json();
-      // Success — redirect to the new org's detail page.
-      window.location.href = "/admin/orgs/" + data.org_id;
+      // Success. If an invite was minted, show the credentials in a
+      // confirmation overlay BEFORE redirecting — this is the only chance
+      // for the admin to copy the link + code if email delivery is
+      // misconfigured (or if they typed a fake address during setup).
+      // No invite → straight redirect like before.
+      if (data.invite_url || data.invite_short_code) {
+        showInviteCredentials(data);
+      } else {
+        window.location.href = "/admin/orgs/" + data.org_id;
+      }
     } catch (e) {
       showStepError(currentPane(), "Network error: " + (e.message || e));
       $submit.disabled = false;
       $submit.textContent = "Create organization";
     }
   });
+
+  // --- Post-commit credentials overlay ---
+  // Built with explicit DOM API (no innerHTML) so untrusted-looking server
+  // strings (email / code) can never be parsed as HTML — defense against
+  // any future regression that lets non-app data into these fields.
+  function _el(tag, props, children) {
+    var n = document.createElement(tag);
+    if (props) {
+      if (props.style) n.style.cssText = props.style;
+      if (props.text != null) n.textContent = props.text;
+      if (props.id) n.id = props.id;
+      if (props.type) n.type = props.type;
+      if (props.value != null) n.value = props.value;
+      if (props.readOnly) n.readOnly = true;
+      if (props.dataset) {
+        Object.keys(props.dataset).forEach(function (k) { n.dataset[k] = props.dataset[k]; });
+      }
+    }
+    if (children) children.forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+
+  function _credentialBox(labelText, fieldId, fieldValue, accentColor) {
+    var input = _el("input", {
+      type: "text", id: fieldId, value: fieldValue, readOnly: true,
+      style: "flex:1;background:transparent;border:none;color:" + accentColor +
+        ";font-family:monospace;font-size:" + (fieldId === "inviteCodeField" ? "22px;letter-spacing:2px;font-weight:bold" : "13px") +
+        ";outline:none;",
+    });
+    var copyBtn = _el("button", {
+      type: "button", text: "Copy",
+      dataset: { copy: fieldId },
+      style: "background:#ff6b35;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;",
+    });
+    return _el("div", {
+      style: "background:#0d1117;border:1px solid #2a3142;border-radius:8px;padding:16px;margin-bottom:12px;",
+    }, [
+      _el("div", { text: labelText, style: "font-size:11px;text-transform:uppercase;opacity:0.6;margin-bottom:6px;" }),
+      _el("div", { style: "display:flex;gap:8px;align-items:center;" }, [input, copyBtn]),
+    ]);
+  }
+
+  function showInviteCredentials(data) {
+    var prettyCode = data.invite_short_code
+      ? (data.invite_short_code.length >= 8
+          ? data.invite_short_code.slice(0, 4) + "-" + data.invite_short_code.slice(4)
+          : data.invite_short_code)
+      : "";
+
+    var overlay = _el("div", {
+      style: "position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;",
+    });
+
+    // Status message: if email sent, name the recipient; otherwise be loud
+    // about manual delivery being the only path.
+    var statusEl = _el("p", {
+      style: "margin:0 0 20px 0;opacity:0.85;font-size:14px;",
+    });
+    if (data.ceo_invite_email_sent) {
+      statusEl.appendChild(document.createTextNode("An invite email was sent to "));
+      statusEl.appendChild(_el("strong", { text: data.ceo_email || "the CEO" }));
+      statusEl.appendChild(document.createTextNode("."));
+    } else {
+      statusEl.appendChild(_el("strong", { text: "Email NOT sent." }));
+      statusEl.appendChild(document.createTextNode(" Share the credentials below manually."));
+    }
+
+    var goBtn = _el("button", {
+      id: "goToOrgBtn", type: "button", text: "Go to organization page →",
+      style: "background:#ff6b35;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;",
+    });
+
+    var card = _el("div", {
+      style: "background:#1a1f2e;border:1px solid #2a3142;border-radius:12px;padding:32px;max-width:560px;width:100%;color:#e6edf3;",
+    }, [
+      _el("h2", { text: "Organization created", style: "margin:0 0 12px 0;color:#3fb950;" }),
+      statusEl,
+      _credentialBox("Join Link", "inviteLinkField", data.invite_url || "", "#4da6ff"),
+      _credentialBox("8-Digit Code", "inviteCodeField", prettyCode, "#ff6b35"),
+      _el("p", {
+        text: "Tip: you can always re-read these on the org page — they stay available until the invite is accepted.",
+        style: "margin:0 0 20px 0;font-size:13px;opacity:0.7;",
+      }),
+      goBtn,
+    ]);
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    // Wire up copy buttons (Clipboard API; legacy fallback for non-HTTPS dev).
+    card.querySelectorAll("[data-copy]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var input = document.getElementById(btn.dataset.copy);
+        if (!input) return;
+        input.select();
+        var ok = false;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(input.value);
+          ok = true;
+        } else {
+          try { ok = document.execCommand("copy"); } catch (_) {}
+        }
+        if (ok) {
+          var orig = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(function () { btn.textContent = orig; }, 1200);
+        }
+      });
+    });
+
+    goBtn.addEventListener("click", function () {
+      window.location.href = "/admin/orgs/" + data.org_id;
+    });
+  }
 
   // --- Next / Prev buttons ---
   $next.addEventListener("click", async function () {

@@ -21,6 +21,11 @@
 </div>
 
 <div class="admin-card" style="margin-top: 16px;">
+  <h3 style="margin: 0 0 12px 0;">Pending invites</h3>
+  <div data-invites style="font-size: 14px; opacity: 0.7;">Loading…</div>
+</div>
+
+<div class="admin-card" style="margin-top: 16px;">
   <h3 style="margin: 0 0 12px 0;">Recent audit events</h3>
   <table class="admin-table" style="width: 100%;">
     <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead>
@@ -117,7 +122,96 @@
     }
   }
 
+  async function loadInvites() {
+    var $wrap = document.querySelector("[data-invites]");
+    try {
+      var d = await api("/admin/api/orgs/" + orgId + "/invites");
+      var invites = d.invites || [];
+      // Reset.
+      while ($wrap.firstChild) $wrap.removeChild($wrap.firstChild);
+
+      if (!invites.length) {
+        $wrap.textContent = "No pending invites.";
+        return;
+      }
+
+      invites.forEach(function (inv) {
+        var card = el("div", {
+          style: "background: #0d1117; border: 1px solid #2a3142; border-radius: 8px; padding: 16px; margin-bottom: 12px;",
+        });
+
+        var header = el("div", {
+          style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;",
+        });
+        header.appendChild(el("div", {
+          text: inv.email + " — " + inv.role,
+          style: "font-weight: 600; font-size: 14px;",
+        }));
+        if (inv.created_at) {
+          header.appendChild(el("div", {
+            text: new Date(inv.created_at).toLocaleString(),
+            style: "font-size: 12px; opacity: 0.6; font-family: monospace;",
+          }));
+        }
+        card.appendChild(header);
+
+        function makeCopyRow(labelText, value, accentColor, fieldKind) {
+          var box = el("div", {
+            style: "margin-bottom: 8px;",
+          });
+          box.appendChild(el("div", {
+            text: labelText,
+            style: "font-size: 11px; text-transform: uppercase; opacity: 0.6; margin-bottom: 4px;",
+          }));
+          var row = el("div", {
+            style: "display: flex; gap: 8px; align-items: center;",
+          });
+          var input = document.createElement("input");
+          input.type = "text";
+          input.readOnly = true;
+          input.value = value;
+          input.style.cssText = "flex: 1; background: transparent; border: 1px solid #2a3142; border-radius: 6px; padding: 6px 10px; color: " + accentColor + "; font-family: monospace; font-size: " + (fieldKind === "code" ? "18px; letter-spacing: 2px; font-weight: bold" : "12px") + "; outline: none;";
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = "Copy";
+          btn.style.cssText = "background: #ff6b35; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;";
+          btn.addEventListener("click", function () {
+            input.select();
+            var ok = false;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(input.value);
+              ok = true;
+            } else {
+              try { ok = document.execCommand("copy"); } catch (_) {}
+            }
+            if (ok) {
+              btn.textContent = "Copied!";
+              setTimeout(function () { btn.textContent = "Copy"; }, 1200);
+            }
+          });
+          row.appendChild(input);
+          row.appendChild(btn);
+          box.appendChild(row);
+          return box;
+        }
+
+        if (inv.invite_url) {
+          card.appendChild(makeCopyRow("Join Link", inv.invite_url, "#4da6ff", "url"));
+        }
+        if (inv.short_code_pretty) {
+          card.appendChild(makeCopyRow("8-Digit Code", inv.short_code_pretty, "#ff6b35", "code"));
+        }
+
+        $wrap.appendChild(card);
+      });
+    } catch (e) {
+      while ($wrap.firstChild) $wrap.removeChild($wrap.firstChild);
+      $wrap.textContent = "Error loading invites: " + e.message;
+    }
+  }
+
   loadOverview();
+  loadInvites();
   loadAudit();
 })();
 </script>

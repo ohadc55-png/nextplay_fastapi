@@ -24,6 +24,7 @@ from fastapi import BackgroundTasks, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.exceptions import ConflictError
 from src.models.org_invites import OrgInvite
 from src.models.organizations import Organization
@@ -34,6 +35,7 @@ from src.repositories.users_repo import UsersRepository
 from src.schemas.org_wizard import WizardCommit
 from src.services.email_service import send_org_invite_email
 from src.services.org_audit_service import log_org_action
+from src.services.org_user_service import allocate_unique_short_code
 from src.services.org_validators import validate_slug, validate_subdomain
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,13 @@ class WizardCommitOutcome:
     slug: str
     ceo_user_id: int
     ceo_invite_sent: bool
+    # The credentials the CEO needs to redeem the invite, surfaced back to
+    # the admin UI so it can be displayed (and copied) right after commit —
+    # crucial fallback when email delivery fails or the admin typed a fake
+    # address during setup. Both are None if `send_invite_immediately=False`.
+    invite_short_code: str | None = None
+    invite_url: str | None = None
+    ceo_email: str | None = None
 
 
 async def check_slug_available(db: AsyncSession, slug: str) -> bool:
@@ -157,7 +166,15 @@ async def commit_wizard(
 
     # 5. Invite (optional).
     invite_sent = False
+    short_code: str | None = None
+    invite_url: str | None = None
     if s4.send_invite_immediately:
+        # Allocate the human-friendly 8-char code up front so it gets BOTH
+        # baked into the email body (XXXX-XXXX) and persisted on the row —
+        # the admin can re-read it from `/admin/orgs/{id}` later if the email
+        # was lost or the address was wrong. Without this, the only path to
+        # the invite is the raw auth_token in the email body.
+        short_code = await allocate_unique_short_code(db)
         _raw_token, auth_token_id = await send_org_invite_email(
             db,
             inviter_display_name="System Admin",
@@ -166,6 +183,7 @@ async def commit_wizard(
             organization_name=org.name,
             role=s4.role,
             background=background,
+            short_code=short_code,
         )
         invite_row = OrgInvite(
             organization_id=org.id,
@@ -174,10 +192,12 @@ async def commit_wizard(
             auth_token_id=auth_token_id,
             invited_by=None,  # System Admin has no user row
             status="pending",
+            short_code=short_code,
         )
         db.add(invite_row)
         await db.flush()
         invite_sent = True
+        invite_url = f"{settings.APP_BASE_URL.rstrip('/')}/join?code={short_code}"
 
     # 6. Audit log — actor_user_id=None for System Admin.
     await log_org_action(
@@ -204,6 +224,9 @@ async def commit_wizard(
         slug=org.slug,
         ceo_user_id=ceo.id,
         ceo_invite_sent=invite_sent,
+        invite_short_code=short_code,
+        invite_url=invite_url,
+        ceo_email=invitee_email,
     )
 
 

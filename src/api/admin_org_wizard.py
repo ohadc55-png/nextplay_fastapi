@@ -147,6 +147,9 @@ async def wizard_commit(
         org_id=outcome.org_id,
         slug=outcome.slug,
         ceo_invite_email_sent=outcome.ceo_invite_sent,
+        ceo_email=outcome.ceo_email,
+        invite_short_code=outcome.invite_short_code,
+        invite_url=outcome.invite_url,
     )
 
 
