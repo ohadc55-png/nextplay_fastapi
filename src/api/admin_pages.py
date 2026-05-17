@@ -166,15 +166,18 @@ async def admin_dashboard(
         )).scalar_one()
     open_total = sum(task_counts.values())
 
-    # Use ISO date string for cross-dialect compare; AdminTask.due_date
-    # is TEXT in v1 schema.
-    today_iso = now.date().isoformat()
+    # `AdminTask.due_date` is a real DATE column in Postgres (Mapped[date],
+    # Date in the model). SQLite stores it as TEXT and silently lex-compares
+    # against strings, but Postgres rejects `date < varchar` with
+    # `UndefinedFunctionError: operator does not exist: date < character
+    # varying`. Pass a Python `date` object so both engines compare as DATE.
+    today = now.date()
     overdue = (await db.execute(
         select(func.count()).select_from(AdminTask)
         .where(
             AdminTask.status != "done",
             AdminTask.due_date.is_not(None),
-            AdminTask.due_date < today_iso,
+            AdminTask.due_date < today,
         )
     )).scalar_one()
 
