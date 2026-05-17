@@ -12,7 +12,6 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
 import pytest_asyncio
 from fastapi import Depends, FastAPI, Request
 from httpx import ASGITransport, AsyncClient
@@ -282,16 +281,6 @@ class TestSubscriptionGuards:
 # ---------------------------------------------------------------------------
 
 class TestAutoFlipExpired:
-    @pytest.mark.xfail(
-        reason=(
-            "aiosqlite + autoflush=False + UPDATE-then-yield-out-of-greenlet "
-            "raises MissingGreenlet during request unwind. Logic is verified "
-            "in tests/auth/test_purge_service.py against the same DB. "
-            "Re-enable in Phase 4 when an integration test runs against "
-            "asyncpg, where the greenlet bridge works differently."
-        ),
-        strict=True,
-    )
     async def test_trial_past_user_is_flipped_on_first_request(
         self, client: AsyncClient, seed_user
     ):
@@ -300,9 +289,10 @@ class TestAutoFlipExpired:
         through `require_active_subscription` immediately, so the cost-leak
         stop kicks in within the same request that detected the expiry.
 
-        DB persistence of the flip is verified separately by
-        test_purge_service (the unit-test path doesn't have to fight the
-        request/transaction lifecycle)."""
+        Persistence is achieved via a separate `AsyncSessionLocal()` in
+        `flip_to_expired_and_schedule_purge` (matches v1's separate
+        SQLite connection + conn.commit()), so the flip survives the
+        request-scoped rollback that follows the 403."""
         past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         u = await seed_user(
             email="just-expired@x.com",

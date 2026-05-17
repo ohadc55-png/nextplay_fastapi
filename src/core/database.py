@@ -47,6 +47,14 @@ if _is_sqlite:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA foreign_keys=ON")
+        # Local-dev only: SQLite returns SQLITE_BUSY the instant another
+        # connection holds the write lock. Two FastAPI requests overlapping
+        # (e.g., the tracking middleware writing page_views while a chat-save
+        # is committing) was crashing requests with "database is locked".
+        # busy_timeout=5000ms makes SQLite wait up to 5s for the lock instead
+        # of failing immediately — eliminates virtually all dev-time lock
+        # races. Postgres in prod has proper MVCC; this is dev-only relief.
+        cursor.execute("PRAGMA busy_timeout=5000")
         cursor.close()
 
 

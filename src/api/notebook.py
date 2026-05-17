@@ -6,9 +6,10 @@ total. Multi-tenancy gate: every query scopes by both `user_id` AND
 empty and writes return 400.
 
 Notes:
-  - The `format-for-save` LLM endpoint is stubbed (it just returns the
-    raw content wrapped in `{content: ...}`) — Phase 5 wires the real
-    GPT call.
+  - `format-for-save` calls gpt-4.1-mini to extract structured fields
+    per entry_type (practice_plan, tactical_plan, game_summary, etc.).
+    Verbatim port of v1's prompt + schemas; on LLM failure returns a
+    raw passthrough so the save flow never crashes.
   - Player game-stats attached to a notebook entry use `INSERT OR
     IGNORE` on (player_id, game_date, opponent); we don't double-write
     when the same Game Summary is reprocessed.
@@ -218,20 +219,181 @@ async def create_entry(
 # Format-for-save (LLM stub — Phase 5)
 # ---------------------------------------------------------------------------
 
+# Schemas mirror the fields used by the manual entry forms in notebook.html so
+# AI-formatted entries land with the same shape a coach would produce by hand.
+# Verbatim port of v1's backend/notebook/routes.py:73 — when adding a new
+# entry_type to the manual forms, add its schema here too or the LLM will
+# silently fall back to a raw passthrough for that type.
+_FORMAT_SCHEMAS: dict[str, str] = {
+    "practice_plan": (
+        '{"topic":"","duration":"","warmup":"","main_part":"","cooldown":"",'
+        '"notes":"","post_summary":"","what_worked":"","what_didnt":"",'
+        '"next_focus":""}'
+    ),
+    "game_summary": (
+        '{"opponent":"","score_us":0,"score_them":0,"quarter_scores":[],'
+        '"what_worked":"","what_didnt":"","standout_players":"",'
+        '"next_practice_focus":"","notes":""}'
+    ),
+    "period_plan": (
+        '{"period_type":"annual|semi_annual|monthly|weekly",'
+        '"period_start":"","period_end":"","focus":"",'
+        '"season_goals":"","dev_priorities":"","milestones":"","periodization":"",'
+        '"monthly_goals":"","weekly_breakdown":"","key_games":"","focus_areas":"",'
+        '"daily_breakdown":{"sunday":"","monday":"","tuesday":"","wednesday":"","thursday":"","friday":""},'
+        '"game_prep":"","notes":""}'
+    ),
+    "tactical_plan": (
+        '{"scenario":"","offense":"","defense":"","transition":"",'
+        '"set_plays":"","vs_press":"","vs_zone":"","key_principles":"",'
+        '"matchup_notes":"","notes":""}'
+    ),
+    "player_note": '{"content":""}',
+    "free_document": '{"content":""}',
+}
+
+# Per-type guidance to help the model fill the right sub-fields. Empty string
+# = no special guidance (the schema alone is enough).
+_FORMAT_GUIDANCE: dict[str, str] = {
+    "period_plan": (
+        "Detect period_type from the text — 'annual'/'שנתי' for full-year plans, "
+        "'semi_annual'/'חצי שנתי' for half-year, 'monthly'/'חודשי' for one-month, "
+        "'weekly'/'שבועי' for one-week. Then ONLY fill the sub-fields that match: "
+        "annual/semi_annual → season_goals, dev_priorities, milestones, periodization. "
+        "monthly → monthly_goals, weekly_breakdown, key_games, focus_areas. "
+        "weekly → daily_breakdown (object with sunday..friday text). "
+        "Always fill: focus, game_prep, notes when mentioned. Leave irrelevant "
+        "sub-fields as empty string (or empty object for daily_breakdown)."
+    ),
+    "tactical_plan": (
+        "Extract tactical principles from the text. scenario = the situation "
+        "(e.g. 'half-court vs man defense', 'late-game'). offense/defense = "
+        "core principles. transition = fast break / transition defense. "
+        "set_plays = named plays or specific actions. vs_press/vs_zone = "
+        "answers to those defensive looks. key_principles = the core ideas. "
+        "matchup_notes = specific player matchups or assignments."
+    ),
+    "game_summary": (
+        "score_us / score_them must be integers if mentioned. quarter_scores "
+        "is an array of {us, them} objects per quarter — leave [] if not given."
+    ),
+}
+
+
 @router.post("/format-for-save")
 async def format_for_save(
     body: dict = Body(...),
     user: User = Depends(get_current_user),
+    # NOTE: deliberately NO `db = Depends(get_db)` here. The gpt-4.1-mini
+    # call below blocks for 3-10s and would pin a SQLite connection for the
+    # whole window — long enough for the subsequent /api/notebook POST
+    # (saving the formatted entry) to time out on a busy_timeout=5s lock
+    # contention. We open a short-lived session for cost-logging only,
+    # AFTER the LLM returns and we're done with the network call.
 ) -> dict:
-    """Stub: returns the raw content wrapped. Phase 5 wires the GPT-4.1-mini
-    structured-extraction prompt that v1 has at notebook/routes.py:131."""
-    raw = (body.get("content") or "").strip()
-    if not raw:
+    """Use gpt-4.1-mini to reformat free-form chat content into the structured
+    JSON the notebook UI expects per entry_type. Verbatim port of v1's
+    notebook/routes.py:129 logic — same schemas, same system prompt, same
+    fallback contract (always returns {formatted: {...}, warning?: ...},
+    never raises to the client, so the SPA's save flow can't crash here).
+    """
+    import json as _json
+
+    from src.core.database import AsyncSessionLocal
+    from src.crew.llm import get_client, log_response
+
+    raw_content = (body.get("content") or "").strip()
+    entry_type = body.get("entry_type") or "free_document"
+
+    if not raw_content:
         raise HTTPException(status_code=400, detail="No content provided")
-    return {
-        "formatted": {"content": raw, "_raw": raw},
-        "warning": "Format-for-save uses a stub renderer (Phase 5 will wire the LLM).",
-    }
+
+    # Free-form types — no structuring to do, return as-is.
+    if entry_type in ("free_document", "player_note"):
+        return {"formatted": {"content": raw_content, "_raw": raw_content}}
+
+    schema = _FORMAT_SCHEMAS.get(entry_type)
+    if not schema:
+        # Unknown type → safe passthrough rather than blowing up the save flow.
+        return {"formatted": {"content": raw_content, "_raw": raw_content}}
+
+    guidance = _FORMAT_GUIDANCE.get(entry_type, "")
+    system_prompt = (
+        "You convert free-form coaching text into a structured JSON record.\n"
+        "Return ONLY valid JSON matching this exact schema:\n"
+        f"{schema}\n\n"
+        "EXTRACTION RULES:\n"
+        "1. The schema field names are buckets — values you write inside MUST be "
+        "in the SAME LANGUAGE as the source text (Hebrew text → Hebrew values, "
+        "English text → English values). Do not translate.\n"
+        "2. Be GENEROUS in mapping content to fields. If a paragraph is about "
+        "defensive principles, put it in 'defense' even if the text doesn't say "
+        "the word 'defense' literally. If the text describes pick-and-roll "
+        "coverage, the scenario is 'pick-and-roll' and the steps go into "
+        "'defense' or 'key_principles'. Use your judgment to route content into "
+        "the most appropriate bucket.\n"
+        "3. It is BETTER to put borderline content in 'notes' or 'key_principles' "
+        "than to leave everything empty. An empty record is a failure.\n"
+        "4. Only leave a field as empty string when there is genuinely no content "
+        "for it (e.g. no opponent name was mentioned).\n"
+        "5. Numbers should be integers if mentioned (0 if not). Arrays default "
+        "to []. Objects default to {}.\n"
+        "6. Do not invent specific facts (player names, dates, scores) that are "
+        "not in the text. But DO route the text's actual content into fields.\n"
+        "7. FORMATTING — when a field naturally contains MULTIPLE distinct items "
+        "(several drills, multiple principles, sequential sections), separate "
+        "each item with a SINGLE NEWLINE (\\n) so the coach sees each item on "
+        "its own line. Example for practice_plan.main_part:\n"
+        "  \"עבודה על יסודות: ... מטרה: ... עצימות: בינונית.\\n"
+        "טכניקה אישית: ... מטרה: ... עצימות: בינונית.\\n"
+        "עקרונות קבוצתיים: ... מטרה: ... עצימות: בינונית.\"\n"
+        "Do NOT use newlines inside a single item — keep each drill/principle "
+        "on one line. This applies to all compound fields (warmup, main_part, "
+        "cooldown, offense, defense, key_principles, etc.)."
+    )
+    if guidance:
+        system_prompt += f"\n\nFIELD GUIDANCE:\n{guidance}"
+
+    try:
+        client = get_client()
+        resp = await client.chat.completions.create(
+            model="gpt-4.1-mini",
+            temperature=0,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": raw_content},
+            ],
+        )
+        # Cost log: open a fresh short-lived session AFTER the LLM call so we
+        # never hold a SQLite write lock during the slow OpenAI round-trip.
+        # Best-effort — a logging failure must not break the save flow.
+        try:
+            async with AsyncSessionLocal() as db_log:
+                await log_response(
+                    db_log, resp,
+                    user_id=user.id, team_id=user.active_team_id,
+                    agent_key="notebook_format", endpoint="notebook",
+                )
+                await db_log.commit()
+        except Exception as log_exc:
+            logger.warning("[notebook/format] log_response failed: %s", log_exc)
+
+        result = (resp.choices[0].message.content or "").strip()
+        # Strip fenced code blocks if the model wrapped its JSON in ```...```.
+        if result.startswith("```"):
+            result = result.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        formatted = _json.loads(result)
+        if isinstance(formatted, dict):
+            # Safety net: always include _raw so the renderer can fall back to
+            # the original text if the structured extraction missed everything.
+            formatted["_raw"] = raw_content
+        return {"formatted": formatted}
+    except Exception as e:
+        logger.warning("Notebook format-for-save error: %s", e)
+        return {
+            "formatted": {"content": raw_content, "_raw": raw_content},
+            "warning": "Could not auto-format content. Raw content preserved.",
+        }
 
 
 # NOTE: route order matters in FastAPI — literal paths (`/stats`,

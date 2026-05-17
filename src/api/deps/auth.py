@@ -26,7 +26,6 @@ from src.auth.purge_service import (
     maybe_flip_expired,
     purge_user_data,
     should_purge,
-    trial_days_left,
 )
 from src.core.database import get_db
 from src.core.exceptions import ForbiddenError, SubscriptionError, UnauthorizedError
@@ -141,20 +140,18 @@ def require_active_subscription(
     """Cost-leak stop. Mirrors v1.0-flask `check_subscription` for API routes:
     `expired` plan → 403. Club members bypass everything.
 
-    Defense-in-depth: also blocks when `trial_days_left == 0` even if the
-    persisted plan is still 'trial' — `maybe_flip_expired` in
-    `get_current_user` should have flipped them already, but if anything
-    swallowed that write (e.g. a read-only replica), this catches the user
-    here so cost-gated endpoints don't keep firing OpenAI calls for free.
+    Strict v1 parity: only the persisted `subscription_plan == "expired"`
+    blocks. The lazy flip in `maybe_flip_expired` (called from
+    `get_current_user`) is responsible for transitioning a trial-past user
+    to `expired` BEFORE this dependency runs — once the wall clock passes
+    `trial_ends_at`, the user is flipped, persisted via a separate session,
+    and the guard fires here on the same request. Users in the final 24h
+    *before* strict expiry remain on `trial` and can still use cost-gated
+    endpoints (matches v1; the trial banner shows the urgency UX).
     """
     if user.club_id is not None:
         return user  # club covers the seat
     if user.subscription_plan == "expired":
-        raise SubscriptionError("Trial expired", code="trial_expired")
-    if (
-        user.subscription_plan == "trial"
-        and trial_days_left(user.trial_ends_at) <= 0
-    ):
         raise SubscriptionError("Trial expired", code="trial_expired")
     return user
 

@@ -1405,7 +1405,12 @@ function miniField(label, value) {
 function fieldBlock(label, value) {
     if (!value) return '';
     const dir = _isHeb(String(value)) ? 'rtl' : 'ltr';
-    return `<div class="nb-field">${label ? '<div class="nb-field-label">' + esc(label) + '</div>' : ''}<div class="nb-field-value" dir="${dir}">${esc(String(value))}</div></div>`;
+    // Preserve line breaks: the LLM formatter separates compound items
+    // (drills in main_part, principles in defense, etc.) with \n so the
+    // coach can scan each item on its own line. esc() drops whitespace
+    // as textContent, so we substitute <br> AFTER escaping for XSS safety.
+    const safeHtml = esc(String(value)).replace(/\n/g, '<br>');
+    return `<div class="nb-field">${label ? '<div class="nb-field-label">' + esc(label) + '</div>' : ''}<div class="nb-field-value" dir="${dir}">${safeHtml}</div></div>`;
 }
 
 function statusIcon(s) {

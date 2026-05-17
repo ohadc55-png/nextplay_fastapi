@@ -29,7 +29,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, text, update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models.users import User
 
@@ -107,7 +107,27 @@ async def flip_to_expired_and_schedule_purge(
     """Mark a trial-expired user as `expired` AND schedule
     `data_purge_at = NOW + 30 days`. Idempotent — `COALESCE` keeps the
     original purge date if one is already set, so re-checking doesn't
-    push the purge further out."""
+    push the purge further out.
+
+    The write happens on a SEPARATE session bound to the caller's engine,
+    and commits immediately. This matches v1.0-flask's
+    `_flip_to_expired_and_schedule_purge` which opened its own SQLite
+    connection and called `conn.commit()` independent of the surrounding
+    request. Without this independence, when `require_active_subscription`
+    raises `SubscriptionError(403)` right after the flip, FastAPI's
+    `get_db` rolls the request session back — losing the flip and pinning
+    the user in a "trial / 0 days left but plan!='expired'" zombie state.
+
+    Why `session.bind` rather than the module-level `AsyncSessionLocal`?
+    Tests use a per-test in-memory engine; module-level `AsyncSessionLocal`
+    points at the production engine and would write to the wrong DB. By
+    inheriting the caller's engine, the flip stays in whichever DB the
+    request is operating on. In production (Postgres) the new session
+    draws its own connection from the pool, giving a fully independent
+    transaction. On SQLite (tests) with `StaticPool` the connection is
+    shared and the inner "commit" is a SAVEPOINT release — independence
+    is verified at the unit level via test_purge_service.
+    """
     purge_at = datetime.now(UTC) + timedelta(days=30)
     stmt = (
         update(User)
@@ -119,19 +139,15 @@ async def flip_to_expired_and_schedule_purge(
             data_purge_at=func.coalesce(User.data_purge_at, purge_at),
         )
     )
-    await session.execute(stmt)
-    await session.flush()
-    # NOTE on persistence: this flip is an out-of-band state-machine
-    # transition. In v1.0-flask the same code path called `conn.commit()`
-    # explicitly so the change persists regardless of how the surrounding
-    # request ends. In our async stack, calling commit() mid-dependency
-    # corrupts the greenlet context (cursor adapter raises MissingGreenlet
-    # on the next operation). The pragmatic fix is to flush() here and let
-    # FastAPI's `get_db` commit on successful request return. For the
-    # 403-on-expiry path, the in-memory mutation in `maybe_flip_expired`
-    # already triggers the SubscriptionError; the DB write follows as soon
-    # as the request unwinds. If the request errors, the next request
-    # re-detects the expiry and retries the flip — idempotent (COALESCE).
+    # `session.bind` on an AsyncSession is the AsyncEngine. `get_bind()`
+    # returns the underlying sync Engine which `async_sessionmaker` rejects.
+    bind = session.bind
+    sm = async_sessionmaker(
+        bind, class_=AsyncSession, expire_on_commit=False, autoflush=False,
+    )
+    async with sm() as flip_session:
+        await flip_session.execute(stmt)
+        await flip_session.commit()
 
 
 async def purge_user_data(session: AsyncSession, user_id: int) -> dict:
@@ -243,16 +259,16 @@ def trial_hours_left(trial_ends_at: str | None) -> int:
 
 async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
     """Detect trial-just-expired and convert to 'expired' state. Mirrors
-    `backend/auth/decorators.py:225`. Returns True if the user was flipped
-    (caller may want to refresh their in-memory `user` view).
+    `backend/auth/decorators.py:225` byte-for-byte. Returns True if the user
+    was flipped (caller may want to refresh their in-memory `user` view).
 
     Club members never flip (they're exempt from the trial mechanic).
 
-    "Expired" is reached when either (a) the wall clock is past
-    `trial_ends_at` (v1 semantics, kept for parity) or (b) the displayed
-    `trial_days_left` is 0 — i.e. less than 24h remain. (b) prevents the
-    UX bug where users see "0 days left" but the gate hasn't fired yet,
-    and aligns the persisted plan with what the user sees on screen.
+    "Expired" is reached only when the wall clock is strictly past
+    `trial_ends_at` (v1 semantics — kept verbatim for parity). The displayed
+    "0 days left" trial banner does NOT trigger the flip; users in the final
+    24h before strict expiry still have access, but the banner urgency CTA
+    is the UX cue. Same trade-off v1 made.
     """
     if user.club_id is not None:
         return False
@@ -268,9 +284,7 @@ async def maybe_flip_expired(session: AsyncSession, user: User) -> bool:
     if ends.tzinfo is None:
         ends = ends.replace(tzinfo=UTC)
     now = datetime.now(UTC)
-    past_wall_clock = now > ends
-    last_24h = (ends - now).days <= 0  # `.days` floors; 0 = within 24h
-    if not past_wall_clock and not last_24h:
+    if now <= ends:
         return False
 
     await flip_to_expired_and_schedule_purge(session, user.id)

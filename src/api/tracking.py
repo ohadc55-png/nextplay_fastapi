@@ -61,6 +61,14 @@ async def log_page_view_compat(
         await PageViewsRepository(db).create(row)
     except Exception as exc:
         logger.warning("[track/pageview] swallowed: %s", exc)
+        # Rollback the failed flush so the session isn't left in a
+        # rolled-back state. Otherwise get_db's finally-commit raises
+        # PendingRollbackError and the whole request crashes — even
+        # though we already swallowed the original error for the client.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
     return StatusResponse(status="ok")
 
 
