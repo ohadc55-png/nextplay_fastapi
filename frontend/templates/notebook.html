@@ -1024,11 +1024,25 @@ async function editEntry(id, ev) {
     if (ev) ev.stopPropagation();
     try {
         const res = await fetch('/api/notebook/' + id);
+        if (!res.ok) {
+            // HTTP error — surface it so the coach knows why nothing opened.
+            // The silent failure (just console.error) was making clicks on
+            // Edit feel unresponsive when the GET 404'd / 500'd.
+            NpDialog.alert('Could not load entry (HTTP ' + res.status + ')',
+                { title: 'Edit unavailable', icon: 'error' });
+            return;
+        }
         const json = await res.json();
-        if (!json.data) return;
+        if (!json.data) {
+            NpDialog.alert('Entry not found or empty response',
+                { title: 'Edit unavailable', icon: 'error' });
+            return;
+        }
         openEditEntry(json.data);
     } catch (e) {
         console.error('Load entry failed:', e);
+        NpDialog.alert('Network error while loading entry: ' + (e && e.message ? e.message : 'unknown'),
+            { title: 'Edit unavailable', icon: 'error' });
     }
 }
 

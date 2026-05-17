@@ -32,7 +32,15 @@ _engine_kwargs: dict[str, Any] = {
     "echo": False,
     "future": True,
 }
-if not _is_sqlite:
+if _is_sqlite:
+    # aiosqlite's own connection-level busy timeout — applied on the
+    # underlying sqlite3.connect() call. Belt-and-suspenders with the
+    # `PRAGMA busy_timeout` below: the pragma needs an active connection
+    # to run, but `timeout` is honored from the very first statement.
+    # 30s is conservative for local dev where uvicorn + test scripts
+    # sometimes contend on the same coach.db file.
+    _engine_kwargs["connect_args"] = {"timeout": 30}
+else:
     _engine_kwargs["pool_size"] = settings.DB_POOL_MAX
     _engine_kwargs["max_overflow"] = max(0, settings.DB_POOL_MAX // 2)
     _engine_kwargs["pool_pre_ping"] = True
@@ -51,10 +59,10 @@ if _is_sqlite:
         # connection holds the write lock. Two FastAPI requests overlapping
         # (e.g., the tracking middleware writing page_views while a chat-save
         # is committing) was crashing requests with "database is locked".
-        # busy_timeout=5000ms makes SQLite wait up to 5s for the lock instead
-        # of failing immediately — eliminates virtually all dev-time lock
-        # races. Postgres in prod has proper MVCC; this is dev-only relief.
-        cursor.execute("PRAGMA busy_timeout=5000")
+        # busy_timeout=15000ms makes SQLite wait up to 15s for the lock
+        # instead of failing immediately. Postgres in prod has proper MVCC;
+        # this is dev-only relief.
+        cursor.execute("PRAGMA busy_timeout=15000")
         cursor.close()
 
 
