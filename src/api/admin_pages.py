@@ -216,21 +216,30 @@ async def admin_users_page(
     from src.models.users import User
 
     now = datetime.now(UTC)
+    # User.created_at / last_login_at are TEXT in both SQLite (legacy) and
+    # Postgres (matches v1's schema baseline). Comparing TEXT >= datetime
+    # crashes Postgres with `operator does not exist: text >= timestamptz`,
+    # so we serialise to the same ISO format that `func.now()::text` emits
+    # ("YYYY-MM-DD HH:MM:SS"). Lex-compares correctly because the format
+    # is fixed-width left-padded.
+    day_ago_iso = (now - timedelta(days=1)).isoformat(sep=" ")
+    week_ago_iso = (now - timedelta(days=7)).isoformat(sep=" ")
+    month_ago_iso = (now - timedelta(days=30)).isoformat(sep=" ")
 
     base = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
     total = (await db.execute(base)).scalar_one()
     new_today = (await db.execute(
-        base.where(User.created_at >= now - timedelta(days=1))
+        base.where(User.created_at >= day_ago_iso)
     )).scalar_one()
     new_week = (await db.execute(
-        base.where(User.created_at >= now - timedelta(days=7))
+        base.where(User.created_at >= week_ago_iso)
     )).scalar_one()
     new_month = (await db.execute(
-        base.where(User.created_at >= now - timedelta(days=30))
+        base.where(User.created_at >= month_ago_iso)
     )).scalar_one()
     active_7d = (await db.execute(
         base.where(User.last_login_at.is_not(None),
-                   User.last_login_at >= now - timedelta(days=7))
+                   User.last_login_at >= week_ago_iso)
     )).scalar_one()
 
     # Plan distribution
