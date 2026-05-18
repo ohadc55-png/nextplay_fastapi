@@ -39,7 +39,14 @@
                required autocomplete="email" dir="ltr">
       </div>
       <div class="org-form-group">
-        <label class="org-form-label" for="password">סיסמה</label>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <label class="org-form-label" for="password">סיסמה</label>
+          {# Forgot-password is the same Coach-App flow — works for any
+             user in the `users` table, including org members. The reset
+             email lands in their inbox; the link opens /reset-password
+             which we can also send them back from to /org/login. #}
+          <a href="/forgot-password" style="font-size:0.8rem; color:var(--accent,#3B82F6); text-decoration:none;">שכחת סיסמה?</a>
+        </div>
         <input class="org-input" type="password" id="password" name="password"
                required autocomplete="current-password" dir="ltr">
       </div>

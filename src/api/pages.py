@@ -233,6 +233,51 @@ async def register_page(
     )
 
 
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request) -> Any:
+    """Render the forgot-password form. Posts to /api/auth/forgot-password
+    which always returns 200 (cloaks whether the email is registered).
+
+    Accepts query params used by the recovery flow from /join:
+      - `?next=/some/path` → preserved across the email round-trip via
+        sessionStorage so /reset-password can bounce the user back.
+      - `?email=foo@bar` → prefills the email field.
+
+    Was missing entirely until now — the login.html link to
+    `/forgot-password` 404'd, breaking the whole reset flow."""
+    return templates.TemplateResponse(
+        "auth/forgot_password.html",
+        page_context(request, user=None),
+    )
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request) -> Any:
+    """Render the reset-password form. The `?token=...` query param is
+    threaded into the form so it can be sent with the new password to
+    /api/auth/reset-password. The template handles missing/empty
+    token by showing a helpful 'request a new link' fallback.
+
+    On success the page reads `np_reset_next` from sessionStorage (set
+    earlier by /forgot-password) and redirects the user back there
+    instead of dumping them on /login — keeps invite-redeem flows
+    single round-trip."""
+    token = (request.query_params.get("token") or "").strip()
+    # The template gates the form behind `token_valid`. We don't hit the
+    # DB here — `POST /api/auth/reset-password` is the source of truth
+    # and will reject malformed/expired tokens with a clear error. Showing
+    # the form for any non-empty token (rather than 404-ing) lets a coach
+    # who clicked a stale email link see the proper "invalid/expired"
+    # message after they submit, instead of a generic 404.
+    return templates.TemplateResponse(
+        "auth/reset_password.html",
+        page_context(request, user=None, extra={
+            "token": token,
+            "token_valid": bool(token),
+        }),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Authed pages — each builds the same context v1 built
 # ---------------------------------------------------------------------------

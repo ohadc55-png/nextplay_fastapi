@@ -60,6 +60,18 @@
     <p class="org-text-sm org-text-muted" style="margin-top: 16px; text-align: center;">
       כבר רשום? <a href="/org/login">כניסה</a>
     </p>
+
+    {# Recovery hint — visible always. The 'Invite not found' error from
+       redeem can mask three different states (bad code, used invite, OR
+       email already exists in `users` with a different password). The
+       cloak is intentional security-wise; this hint surfaces the most
+       common cause without confirming which it is. The ?next param
+       round-trips through /forgot-password → /reset-password and brings
+       the user back to /join with the (now-fresh) password ready to enter. #}
+    <p class="org-text-sm org-text-muted" id="join-hint" style="margin-top: 8px; text-align: center;">
+      יש לך כבר חשבון ב-NextPlay והסיסמה לא נזכרת?
+      <a id="join-forgot-link" href="/forgot-password">איפוס סיסמה</a>
+    </p>
   </div>
 </div>
 
@@ -73,7 +85,35 @@
   function showError(msg) {
     $error.textContent = msg;
     $error.hidden = false;
+    // Highlight the forgot-password hint when the redeem fails — the
+    // most common cause is an existing account with a different
+    // password (the "Invite not found" 404 is intentionally cloaked).
+    var $hint = document.getElementById("join-hint");
+    if ($hint) {
+      $hint.style.fontWeight = "600";
+      $hint.style.color = "var(--accent, #3B82F6)";
+    }
   }
+
+  // Make the "forgot password" link bring the user back to /join with the
+  // same code prefilled after they reset — so the recovery flow is one
+  // round-trip, not a re-discovery.
+  (function rewriteForgotLink() {
+    var $link = document.getElementById("join-forgot-link");
+    if (!$link) return;
+    var code = document.getElementById("code").value.trim();
+    var nextUrl = "/join" + (code ? "?code=" + encodeURIComponent(code) : "");
+    $link.href = "/forgot-password?next=" + encodeURIComponent(nextUrl);
+    // Also: pre-fill the email field on /forgot-password when known.
+    document.getElementById("email").addEventListener("blur", function () {
+      var e = document.getElementById("email").value.trim();
+      var n = "/join" + (document.getElementById("code").value.trim()
+        ? "?code=" + encodeURIComponent(document.getElementById("code").value.trim())
+        : "");
+      $link.href = "/forgot-password?next=" + encodeURIComponent(n) +
+        (e ? "&email=" + encodeURIComponent(e) : "");
+    });
+  })();
 
   $form.addEventListener("submit", async function (e) {
     e.preventDefault();
