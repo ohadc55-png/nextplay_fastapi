@@ -21,32 +21,119 @@
 
 {% if org_ctx.role == 'org_admin' %}
 <div id="newProgramModal" class="org-modal" hidden>
-  <div class="org-modal-card" style="max-width: 460px;">
+  <div class="org-modal-card" style="max-width: 620px;">
     <h2 style="margin: 0 0 6px;">תוכנית חדשה</h2>
     <p class="org-text-sm org-text-muted" style="margin: 0 0 18px;">
       צור תוכנית חדשה תחת הארגון. אפשר להוסיף מחוזות וקבוצות אחר כך.
     </p>
     <form id="newProgramForm" novalidate>
+
+      {# --- Program details --- #}
       <div class="org-form-group">
-        <label class="org-form-label" for="np-name">שם התוכנית</label>
+        <label class="org-form-label" for="np-name">שם התוכנית *</label>
         <input class="org-input" type="text" id="np-name" name="name"
-               required minlength="1" maxlength="100" placeholder="למשל: סלי-טק">
+               required minlength="1" maxlength="100" placeholder="למשל: סל-טק / נערים א">
       </div>
-      <div class="org-form-group">
-        <label class="org-form-label" for="np-slug">Slug (אופציונלי)</label>
-        <input class="org-input" type="text" id="np-slug" name="slug"
-               dir="ltr" maxlength="64" placeholder="auto from name"
-               pattern="[a-z0-9][a-z0-9\-]*[a-z0-9]">
-        <small class="org-text-sm org-text-muted">
-          אותיות אנגליות קטנות, ספרות ומקפים. אם ריק — נגזר מהשם אוטומטית.
-        </small>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="org-form-group">
+          <label class="org-form-label" for="np-category">קטגוריה / גיל</label>
+          <select class="org-input" id="np-category" name="category">
+            <option value="">— ללא —</option>
+            <option value="נערים א">נערים א</option>
+            <option value="נערים ב">נערים ב</option>
+            <option value="נערים ג">נערים ג</option>
+            <option value="נערים ד">נערים ד</option>
+            <option value="נערות">נערות</option>
+            <option value="נשים בוגרות">נשים בוגרות</option>
+            <option value="גברים בוגרים">גברים בוגרים</option>
+            <option value="מיני סל">מיני סל</option>
+            <option value="עתודה">עתודה</option>
+            <option value="אחר">אחר</option>
+          </select>
+        </div>
+        <div class="org-form-group">
+          <label class="org-form-label" for="np-description">תיאור קצר</label>
+          <input class="org-input" type="text" id="np-description" name="description"
+                 maxlength="500" placeholder="במשפט אחד">
+        </div>
       </div>
+
+      {# --- Manager (optional) --- #}
+      <div style="border-top: 1px solid var(--border, #e5e7eb); margin: 20px 0 16px; padding-top: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+          <strong style="font-size: 0.95rem;">אחראי התוכנית (אופציונלי)</strong>
+          <span class="org-text-sm org-text-muted">אפשר להשלים בהמשך</span>
+        </div>
+        <p class="org-text-sm org-text-muted" style="margin: 0 0 12px;">
+          אם תזין אימייל — תישלח אליו הזמנה אוטומטית עם קוד כניסה. ללא אימייל — נשמור רק שם וטלפון לרישום.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="org-form-group">
+            <label class="org-form-label" for="np-mgr-name">שם האחראי</label>
+            <input class="org-input" type="text" id="np-mgr-name" name="manager_name"
+                   maxlength="200" placeholder="שם מלא">
+          </div>
+          <div class="org-form-group">
+            <label class="org-form-label" for="np-mgr-phone">טלפון</label>
+            <input class="org-input" type="tel" id="np-mgr-phone" name="manager_phone"
+                   maxlength="30" dir="ltr" placeholder="050-1234567">
+          </div>
+        </div>
+
+        <div class="org-form-group">
+          <label class="org-form-label" for="np-mgr-email">אימייל לקבלת ההזמנה</label>
+          <input class="org-input" type="email" id="np-mgr-email" name="manager_email"
+                 maxlength="200" dir="ltr" placeholder="manager@example.com">
+        </div>
+      </div>
+
       <div id="newProgramError" class="org-public-error" role="alert" hidden></div>
       <div style="display: flex; gap: 8px; margin-top: 12px;">
         <button type="button" id="newProgramCancel" class="org-btn org-btn--secondary" style="flex: 1;">ביטול</button>
         <button type="submit" id="newProgramSubmit" class="org-btn org-btn--primary" style="flex: 2;">צור תוכנית</button>
       </div>
     </form>
+  </div>
+</div>
+
+{# Post-create credentials overlay — only shown when manager_email was
+   provided. Mirrors the CEO-wizard's overlay so the admin can copy/
+   share the join link + code if email delivery fails. #}
+<div id="programInviteOverlay" hidden
+     style="position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px;">
+  <div style="background: #1a1f2e; border: 1px solid #2a3142; border-radius: 12px; padding: 32px; max-width: 520px; width: 100%; color: #e6edf3;">
+    <h2 style="margin: 0 0 12px 0; color: #3fb950;">התוכנית נוצרה</h2>
+    <p id="programInviteStatus" style="margin: 0 0 20px 0; opacity: 0.85; font-size: 14px;"></p>
+
+    <div style="background: #0d1117; border: 1px solid #2a3142; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+      <div style="font-size: 11px; text-transform: uppercase; opacity: 0.6; margin-bottom: 6px;">קישור הצטרפות</div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input id="programInviteLink" type="text" readonly
+               style="flex: 1; background: transparent; border: none; color: #4da6ff; font-family: monospace; font-size: 13px; outline: none;" value="">
+        <button type="button" data-copy="programInviteLink"
+                style="background: #ff6b35; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">העתק</button>
+      </div>
+    </div>
+
+    <div style="background: #0d1117; border: 1px solid #2a3142; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+      <div style="font-size: 11px; text-transform: uppercase; opacity: 0.6; margin-bottom: 6px;">קוד 8 ספרות</div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input id="programInviteCode" type="text" readonly
+               style="flex: 1; background: transparent; border: none; color: #ff6b35; font-family: monospace; font-size: 22px; letter-spacing: 2px; outline: none; font-weight: bold;" value="">
+        <button type="button" data-copy="programInviteCode"
+                style="background: #ff6b35; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">העתק</button>
+      </div>
+    </div>
+
+    <p style="margin: 0 0 20px 0; font-size: 13px; opacity: 0.7;">
+      טיפ: תוכל לראות שוב את הקוד ב- /admin/orgs/&lt;id&gt; → Pending invites כל עוד האחראי לא קיבל את ההזמנה.
+    </p>
+    <button type="button" id="programInviteClose"
+            style="background: #ff6b35; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%;">
+      סגירה
+    </button>
   </div>
 </div>
 {% endif %}
@@ -187,9 +274,20 @@
       $err.hidden = true;
       $submit.disabled = true;
       $submit.textContent = "יוצר…";
+      // Trim everything and convert empty strings to null so the
+      // backend's optional fields don't see "" (which would fail
+      // email-format checks). Slug is no longer sent — server derives.
+      function val(id) {
+        var v = (document.getElementById(id).value || "").trim();
+        return v === "" ? null : v;
+      }
       var payload = {
-        name: document.getElementById("np-name").value.trim(),
-        slug: document.getElementById("np-slug").value.trim() || null,
+        name: val("np-name"),
+        category: val("np-category"),
+        description: val("np-description"),
+        manager_name: val("np-mgr-name"),
+        manager_phone: val("np-mgr-phone"),
+        manager_email: val("np-mgr-email"),
       };
       try {
         var r = await fetch("/org/api/programs", {
@@ -205,7 +303,6 @@
         var d = null; try { d = await r.json(); } catch (_) {}
         if (!r.ok) {
           var msg = (d && d.detail) || ("שגיאה " + r.status);
-          // Pydantic 422 → array of issues
           if (r.status === 422 && d && Array.isArray(d.detail)) {
             msg = d.detail.map(function (x) { return x.msg; }).join(" · ");
           }
@@ -216,6 +313,12 @@
           return;
         }
         closeModal();
+        // If a manager was invited, surface the credentials right away —
+        // mirrors the CEO wizard's flow so admins always have a fallback
+        // if email delivery fails.
+        if (d && (d.invite_url || d.invite_short_code)) {
+          showProgramInviteOverlay(d);
+        }
         await loadPrograms();
       } catch (e) {
         $err.textContent = "שגיאת רשת. נסה שוב.";
@@ -224,6 +327,56 @@
         $submit.textContent = "צור תוכנית";
       }
     });
+  }
+
+  // --- Post-create credentials overlay (only when manager_email was set) ---
+  function showProgramInviteOverlay(data) {
+    var $overlay = document.getElementById("programInviteOverlay");
+    if (!$overlay) return;
+    var pretty = data.invite_short_code && data.invite_short_code.length >= 8
+      ? data.invite_short_code.slice(0, 4) + "-" + data.invite_short_code.slice(4)
+      : (data.invite_short_code || "");
+    document.getElementById("programInviteLink").value = data.invite_url || "";
+    document.getElementById("programInviteCode").value = pretty;
+
+    var $status = document.getElementById("programInviteStatus");
+    while ($status.firstChild) $status.removeChild($status.firstChild);
+    if (data.manager_invited) {
+      $status.appendChild(document.createTextNode("נשלחה הזמנה במייל ל-"));
+      var strong = document.createElement("strong");
+      strong.textContent = data.manager_email || "האחראי";
+      $status.appendChild(strong);
+      $status.appendChild(document.createTextNode("."));
+    } else {
+      var strong2 = document.createElement("strong");
+      strong2.textContent = "המייל לא נשלח. ";
+      $status.appendChild(strong2);
+      $status.appendChild(document.createTextNode("שתף את הקוד למטה ידנית."));
+    }
+
+    $overlay.hidden = false;
+    $overlay.querySelectorAll("[data-copy]").forEach(function (btn) {
+      btn.onclick = function () {
+        var input = document.getElementById(btn.dataset.copy);
+        if (!input) return;
+        input.select();
+        var ok = false;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(input.value);
+          ok = true;
+        } else {
+          try { ok = document.execCommand("copy"); } catch (_) {}
+        }
+        if (ok) {
+          var orig = btn.textContent;
+          btn.textContent = "הועתק!";
+          setTimeout(function () { btn.textContent = orig; }, 1200);
+        }
+      };
+    });
+    document.getElementById("programInviteClose").onclick = function () {
+      $overlay.hidden = true;
+    };
   }
 
   loadPrograms();
