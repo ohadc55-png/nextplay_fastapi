@@ -41,5 +41,21 @@ class ProgramsRepository(OrgScopedRepository[Program]):
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def create(
+        self, *, organization_id: int, name: str, slug: str | None = None,
+    ) -> Program:
+        """Insert a new program. The caller is responsible for org-membership
+        checks; we only enforce the (org_id, name) uniqueness contract
+        already defined on the model. Returns the persisted row with id
+        populated (post-flush)."""
+        program = Program(
+            organization_id=organization_id,
+            name=name.strip(),
+            slug=(slug or None),
+        )
+        self.session.add(program)
+        await self.session.flush()
+        return program
+
 
 __all__ = ["ProgramsRepository"]

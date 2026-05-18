@@ -9,7 +9,47 @@
     <h1 class="org-page-title">תוכניות</h1>
     <p class="org-page-subtitle">תצוגת תוכניות הארגון עם ספירות מצרפיות. לחיצה על תוכנית מציגה את המחוזות שלה.</p>
   </div>
+  {# 'New program' button — visible only to org_admin. Server gates the
+     POST (403 if role isn't allowed), but we hide the button for non-admins
+     so the UI doesn't dangle an action they can't take. #}
+  {% if org_ctx.role == 'org_admin' %}
+  <button type="button" id="newProgramBtn" class="org-btn org-btn--primary">
+    + תוכנית חדשה
+  </button>
+  {% endif %}
 </div>
+
+{% if org_ctx.role == 'org_admin' %}
+<div id="newProgramModal" class="org-modal" hidden>
+  <div class="org-modal-card" style="max-width: 460px;">
+    <h2 style="margin: 0 0 6px;">תוכנית חדשה</h2>
+    <p class="org-text-sm org-text-muted" style="margin: 0 0 18px;">
+      צור תוכנית חדשה תחת הארגון. אפשר להוסיף מחוזות וקבוצות אחר כך.
+    </p>
+    <form id="newProgramForm" novalidate>
+      <div class="org-form-group">
+        <label class="org-form-label" for="np-name">שם התוכנית</label>
+        <input class="org-input" type="text" id="np-name" name="name"
+               required minlength="1" maxlength="100" placeholder="למשל: סלי-טק">
+      </div>
+      <div class="org-form-group">
+        <label class="org-form-label" for="np-slug">Slug (אופציונלי)</label>
+        <input class="org-input" type="text" id="np-slug" name="slug"
+               dir="ltr" maxlength="64" placeholder="auto from name"
+               pattern="[a-z0-9][a-z0-9\-]*[a-z0-9]">
+        <small class="org-text-sm org-text-muted">
+          אותיות אנגליות קטנות, ספרות ומקפים. אם ריק — נגזר מהשם אוטומטית.
+        </small>
+      </div>
+      <div id="newProgramError" class="org-public-error" role="alert" hidden></div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button type="button" id="newProgramCancel" class="org-btn org-btn--secondary" style="flex: 1;">ביטול</button>
+        <button type="submit" id="newProgramSubmit" class="org-btn org-btn--primary" style="flex: 2;">צור תוכנית</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 <div class="org-table-wrap">
   <table class="org-table" id="programs-table">
@@ -105,14 +145,88 @@
     }));
   }
 
-  (async function () {
+  async function loadPrograms() {
     try {
       var data = await api("/org/api/programs?with_counts=true");
       render(data.programs || []);
     } catch (e) {
       setEmpty(e.message);
     }
-  })();
+  }
+
+  // --- New program modal (org_admin only — button only renders for them) ---
+  var $newBtn = document.getElementById("newProgramBtn");
+  if ($newBtn) {
+    var $modal = document.getElementById("newProgramModal");
+    var $form = document.getElementById("newProgramForm");
+    var $cancel = document.getElementById("newProgramCancel");
+    var $submit = document.getElementById("newProgramSubmit");
+    var $err = document.getElementById("newProgramError");
+
+    function openModal() {
+      $err.hidden = true;
+      $form.reset();
+      $modal.hidden = false;
+      setTimeout(function () { document.getElementById("np-name").focus(); }, 50);
+    }
+    function closeModal() {
+      $modal.hidden = true;
+      $submit.disabled = false;
+      $submit.textContent = "צור תוכנית";
+    }
+
+    $newBtn.addEventListener("click", openModal);
+    $cancel.addEventListener("click", closeModal);
+    // Click outside the card to close (overlay area).
+    $modal.addEventListener("click", function (e) {
+      if (e.target === $modal) closeModal();
+    });
+
+    $form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      $err.hidden = true;
+      $submit.disabled = true;
+      $submit.textContent = "יוצר…";
+      var payload = {
+        name: document.getElementById("np-name").value.trim(),
+        slug: document.getElementById("np-slug").value.trim() || null,
+      };
+      try {
+        var r = await fetch("/org/api/programs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: JSON.stringify(payload),
+          credentials: "same-origin",
+        });
+        var d = null; try { d = await r.json(); } catch (_) {}
+        if (!r.ok) {
+          var msg = (d && d.detail) || ("שגיאה " + r.status);
+          // Pydantic 422 → array of issues
+          if (r.status === 422 && d && Array.isArray(d.detail)) {
+            msg = d.detail.map(function (x) { return x.msg; }).join(" · ");
+          }
+          $err.textContent = msg;
+          $err.hidden = false;
+          $submit.disabled = false;
+          $submit.textContent = "צור תוכנית";
+          return;
+        }
+        closeModal();
+        await loadPrograms();
+      } catch (e) {
+        $err.textContent = "שגיאת רשת. נסה שוב.";
+        $err.hidden = false;
+        $submit.disabled = false;
+        $submit.textContent = "צור תוכנית";
+      }
+    });
+  }
+
+  loadPrograms();
 })();
 </script>
 {% endblock %}
